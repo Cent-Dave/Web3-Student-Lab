@@ -214,6 +214,7 @@ Create the frontend environment file at `frontend/.env.local`:
 NEXT_PUBLIC_API_URL=http://localhost:8080/api
 NEXT_PUBLIC_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
 NEXT_PUBLIC_CERTIFICATE_CONTRACT_ID=
+OPENAI_API_KEY=sk-...
 ```
 
 ### 7. Start the Database

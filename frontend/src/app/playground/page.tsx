@@ -1,21 +1,27 @@
 "use client";
 
 import { CodeEditor } from "@/components/playground/CodeEditor";
-import { useState } from "react";
-
+import { AssistantPanel } from "@/components/playground/AssistantPanel";
+import { useRef, useState } from "react";
 
 export default function PlaygroundPage() {
-
   const [output, setOutput] = useState("");
   const [isCompiling, setIsCompiling] = useState(false);
+  // errorLog is populated from compilation output so the assistant has context
+  const [errorLog, setErrorLog] = useState("");
+  const getCodeRef = useRef<() => string>(() => "");
 
   const handleCompile = () => {
     setIsCompiling(true);
-    // Simulate compilation delay
     setTimeout(() => {
-      setOutput(
-        "✅ Compilation successful!\n📦 WASM size: 4.2KB\n🚀 Contract ready for simulation.",
-      );
+      const compilationOutput =
+        "✅ Compilation successful!\n📦 WASM size: 4.2KB\n🚀 Contract ready for simulation.";
+      setOutput(compilationOutput);
+      // Only surface errors to the assistant
+      const errors = compilationOutput.includes("error")
+        ? compilationOutput
+        : "";
+      setErrorLog(errors);
       setIsCompiling(false);
     }, 1500);
   };
@@ -40,7 +46,7 @@ export default function PlaygroundPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 flex-grow">
-          {/* Editor Placeholder */}
+          {/* Editor */}
           <div className="bg-zinc-950 border border-white/10 rounded-3xl p-8 shadow-2xl relative flex flex-col min-h-[600px]">
             <div className="flex items-center gap-2 mb-6 border-b border-white/5 pb-4 justify-between">
               <div className="flex items-center gap-2">
@@ -52,12 +58,19 @@ export default function PlaygroundPage() {
                 </span>
               </div>
               <div className="flex items-center gap-2 bg-red-600/10 px-3 py-1 rounded-full border border-red-600/20">
-                <span className="text-[9px] font-black uppercase text-red-500 tracking-widest">Collaborative Mode</span>
+                <span className="text-[9px] font-black uppercase text-red-500 tracking-widest">
+                  Collaborative Mode
+                </span>
               </div>
             </div>
 
             <div className="flex-grow flex flex-col overflow-hidden rounded-xl border border-white/5">
-              <CodeEditor roomName="main-lab-session" />
+              <CodeEditor
+                roomName="main-lab-session"
+                onEditorReady={(getValue) => {
+                  getCodeRef.current = getValue;
+                }}
+              />
             </div>
 
             <button
@@ -73,7 +86,7 @@ export default function PlaygroundPage() {
             </button>
           </div>
 
-          {/* Terminal Output */}
+          {/* Right column: terminal + assistant */}
           <div className="flex flex-col gap-6">
             <div className="bg-black border border-white/10 rounded-3xl p-8 flex-grow shadow-inner relative overflow-hidden group">
               <div className="absolute top-0 left-0 w-full h-1 bg-red-600/30"></div>
@@ -98,18 +111,11 @@ export default function PlaygroundPage() {
               )}
             </div>
 
-            <div className="bg-zinc-950 border border-white/5 p-8 rounded-3xl">
-              <h4 className="text-[10px] font-black text-white uppercase tracking-widest mb-4">
-                Laboratory Notes
-              </h4>
-              <p className="text-[11px] text-gray-500 leading-relaxed font-light">
-                This playground provides a{" "}
-                <span className="text-white">real-time transpilation</span>{" "}
-                environment for Soroban logic. Validated code can be deployed to
-                the Stellar testnet via the integrated CLI tools in the{" "}
-                <span className="text-red-500">Builder Tier</span> modules.
-              </p>
-            </div>
+            {/* AI Assistant panel */}
+            <AssistantPanel
+              getCode={() => getCodeRef.current()}
+              errorLog={errorLog}
+            />
           </div>
         </div>
       </div>

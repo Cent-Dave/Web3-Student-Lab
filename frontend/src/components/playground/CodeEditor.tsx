@@ -6,9 +6,11 @@ import { CollaborationProvider } from '../../lib/collaboration/YjsProvider';
 
 interface CodeEditorProps {
   roomName: string;
+  /** Called once the editor mounts; receives a function that returns current code. */
+  onEditorReady?: (getValue: () => string) => void;
 }
 
-export const CodeEditor: React.FC<CodeEditorProps> = ({ roomName }) => {
+export const CodeEditor: React.FC<CodeEditorProps> = ({ roomName, onEditorReady }) => {
   const providerRef = useRef<CollaborationProvider | null>(null);
   const editorRef = useRef<any>(null);
   const bindingRef = useRef<MonacoBinding | null>(null);
@@ -25,6 +27,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ roomName }) => {
 
   const handleEditorDidMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
+    onEditorReady?.(() => editor.getValue());
 
     if (providerRef.current) {
       const type = providerRef.current.doc.getText('monaco');
