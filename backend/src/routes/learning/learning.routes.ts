@@ -12,6 +12,10 @@ import {
   coursesQuerySchema,
   progressUpdateSchema,
 } from './validation.schemas.js';
+import prisma from '../../db/index.js';
+import cacheService from '../../cache/CacheService.js';
+import { MarkdownParserService } from '../../services/markdownParser.service.js';
+import { buildGatewayUrl } from '../../services/storage/utils.js';
 
 const router = Router();
 
@@ -59,6 +63,55 @@ router.get(
       res.json({ course });
     } catch {
       res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+);
+
+/**
+ * @route   GET /api/learning/courses/:courseId/lessons/:lessonId/content
+ * @desc    Get decentralized lesson content (Markdown/MDX parsed)
+ * @access  Public
+ */
+router.get(
+  '/courses/:courseId/lessons/:lessonId/content',
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { lessonId } = req.params;
+
+      const cacheKey = `lesson:content:${lessonId}`;
+      const cached = await cacheService.get<any>(cacheKey);
+      if (cached) {
+        res.json(cached);
+        return;
+      }
+
+      const asset = await prisma.decentralizedAsset.findFirst({
+        where: {
+          resourceType: 'lesson',
+          resourceId: lessonId,
+        },
+      });
+
+      if (!asset) {
+        res.status(404).json({ error: 'Decentralized content not found for this lesson' });
+        return;
+      }
+
+      const gatewayUrl = buildGatewayUrl(asset.cid);
+      const response = await fetch(gatewayUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch content from gateway: ${response.statusText}`);
+      }
+
+      const rawText = await response.text();
+      const parsedContent = MarkdownParserService.parse(rawText);
+
+      await cacheService.set(cacheKey, parsedContent, 3600 * 24); // Cache for 24 hours
+
+      res.json(parsedContent);
+    } catch (error) {
+      console.error('Failed to retrieve decentralized lesson content:', error);
+      res.status(500).json({ error: 'Failed to retrieve lesson content' });
     }
   }
 );

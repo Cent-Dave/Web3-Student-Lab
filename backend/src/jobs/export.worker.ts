@@ -24,11 +24,32 @@ interface ExportJobData {
   userId: string;
 }
 
+const publishExportProgress = async (
+  job: Job<ExportJobData>,
+  progress: number,
+  stage: string
+): Promise<void> => {
+  await job.updateProgress(progress);
+
+  await broadcastEvent('user_metrics_updated', {
+    userId: job.data.userId,
+    type: 'EXPORT_PROGRESS',
+    jobId: job.id,
+    progress,
+    stage,
+    timestamp: new Date().toISOString(),
+  });
+};
+
 const worker = new Worker(
   EXPORT_QUEUE_NAME,
   async (job: Job<ExportJobData>) => {
     const { type, format, userId } = job.data;
-    logger.info(`Starting export job ${job.id} for user ${userId}, type: ${type}, format: ${format}`);
+    logger.info(
+      `Starting export job ${job.id} for user ${userId}, type: ${type}, format: ${format}`
+    );
+
+    await publishExportProgress(job, 5, 'started');
 
     let data: unknown[] = [];
 
@@ -42,6 +63,8 @@ const worker = new Worker(
     } else if (type === 'courses') {
       data = await prisma.course.findMany();
     }
+
+    await publishExportProgress(job, 40, 'data_loaded');
 
     // Simulate processing time
     await new Promise((resolve) => setTimeout(resolve, 5000));
@@ -57,7 +80,10 @@ const worker = new Worker(
       content = JSON.stringify(data, null, 2);
     }
 
+    await publishExportProgress(job, 75, 'file_prepared');
+
     await fs.writeFile(filePath, content);
+    await publishExportProgress(job, 95, 'file_written');
 
     logger.info(`Export job ${job.id} completed. File saved to ${filePath}`);
 
@@ -72,13 +98,20 @@ const worker = new Worker(
       userId,
       type: 'EXPORT_COMPLETED',
       jobId: job.id,
+      progress: 100,
       result,
+      timestamp: new Date().toISOString(),
     });
 
     return result;
   },
   {
-    connection: redisConnection,
+    connection: {
+      host: new URL(process.env.REDIS_URL || 'redis://localhost:6379').hostname,
+      port: Number(new URL(process.env.REDIS_URL || 'redis://localhost:6379').port) || 6379,
+      password: new URL(process.env.REDIS_URL || 'redis://localhost:6379').password || undefined,
+      maxRetriesPerRequest: null,
+    },
   }
 );
 
@@ -101,14 +134,32 @@ const _cleanupWorker = new Worker(
       }
     }
   },
-  { connection: redisConnection }
+  {
+    connection: {
+      host: new URL(process.env.REDIS_URL || 'redis://localhost:6379').hostname,
+      port: Number(new URL(process.env.REDIS_URL || 'redis://localhost:6379').port) || 6379,
+      password: new URL(process.env.REDIS_URL || 'redis://localhost:6379').password || undefined,
+      maxRetriesPerRequest: null,
+    },
+  }
 );
 
 import { Queue } from 'bullmq';
-const cleanupQueue = new Queue(CLEANUP_QUEUE_NAME, { connection: redisConnection });
-await cleanupQueue.add('cleanup', {}, {
-  repeat: { pattern: '0 * * * *' } // Every hour
+const cleanupQueue = new Queue(CLEANUP_QUEUE_NAME, {
+  connection: {
+    host: new URL(process.env.REDIS_URL || 'redis://localhost:6379').hostname,
+    port: Number(new URL(process.env.REDIS_URL || 'redis://localhost:6379').port) || 6379,
+    password: new URL(process.env.REDIS_URL || 'redis://localhost:6379').password || undefined,
+    maxRetriesPerRequest: null,
+  }
 });
+await cleanupQueue.add(
+  'cleanup',
+  {},
+  {
+    repeat: { pattern: '0 * * * *' }, // Every hour
+  }
+);
 
 worker.on('completed', (job) => {
   logger.info(`Job ${job.id} completed successfully`);
@@ -116,6 +167,16 @@ worker.on('completed', (job) => {
 
 worker.on('failed', (job, err) => {
   logger.error(`Job ${job?.id} failed: ${err.message}`);
+
+  if (job?.data?.userId) {
+    void broadcastEvent('user_metrics_updated', {
+      userId: job.data.userId,
+      type: 'EXPORT_FAILED',
+      jobId: job.id,
+      error: err.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
 
 export default worker;

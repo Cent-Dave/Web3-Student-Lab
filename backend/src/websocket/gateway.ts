@@ -1,5 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { verifyToken } from '../auth/auth.service.js';
+import { sseSessionManager } from '../sse/SseSessionManager.js';
 import logger from '../utils/logger.js';
 import { pubClient, subClient } from '../utils/redis.js';
 
@@ -50,7 +51,7 @@ export const initWebSocketGateway = (io: Server) => {
   });
 
   // Redis Pub/Sub Layer
-  subClient.subscribe('dashboard_updated', 'user_metrics_updated', (err, count) => {
+  subClient.subscribe('dashboard_updated', 'user_metrics_updated', 'course_notifications', (err, count) => {
     if (err) {
       logger.error('Failed to subscribe to Redis channels', err);
     } else {
@@ -68,6 +69,15 @@ export const initWebSocketGateway = (io: Server) => {
     } else if (channel === 'user_metrics_updated') {
       if (data.userId) {
         io.to(`user:${data.userId}`).emit('user_metrics_updated', data);
+        sseSessionManager.emitToUser(String(data.userId), 'user_metrics_updated', data);
+      }
+    } else if (channel === 'course_notifications') {
+      // Course notifications can be targeted or broadcast
+      if (data.userId) {
+        io.to(`user:${data.userId}`).emit('course_notification', data);
+      } else {
+        // Broadcast to all connected clients
+        io.emit('course_notification', data);
       }
     }
   });

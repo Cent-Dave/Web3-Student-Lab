@@ -4,9 +4,7 @@
 //! Supports querying by address, token ID, and recent activities with pagination.
 //! Activity logs are append-only and cannot be modified once stored.
 
-use soroban_sdk::{
-    Address, BytesN, Env, Vec,
-};
+use soroban_sdk::{contracttype, Address, BytesN, Env, Vec};
 
 // Activity log entry stored on-chain.
 #[contracttype]
@@ -120,7 +118,10 @@ impl<'a> ActivityLogManager<'a> {
         self.env.storage().instance().set(&ts_idx_key, &true);
 
         // Update sequence
-        self.env.storage().instance().set(&ActivityLogKey::Sequence, &seq);
+        self.env
+            .storage()
+            .instance()
+            .set(&ActivityLogKey::Sequence, &seq);
 
         seq
     }
@@ -264,81 +265,85 @@ impl<'a> ActivityLogManager<'a> {
 
 #[cfg(test)]
 mod tests {
+    extern crate std;
     use super::*;
     use soroban_sdk::{testutils::Address as _, Address, BytesN, Env, Symbol};
 
-    fn setup() -> (Env, Address, Address, Address, ActivityLogManager<'static>) {
-        let env = Env::default();
-        env.mock_all_auths();
-        let admin_a = Address::generate(&env);
-        let admin_b = Address::generate(&env);
-        let admin_c = Address::generate(&env);
-        let contract_address = Address::generate(&env);
-        let activity_mgr = ActivityLogManager::new(&env);
-        (env, admin_a, admin_b, admin_c, activity_mgr)
-    }
-
     #[test]
     fn test_activity_log_record_and_retrieve() {
-        let (env, admin_a, _, _, mut activity_mgr) = setup();
+        std::env::remove_var("SOROBAN_TEST_SNAPSHOT_FILE");
+        let env = Env::default();
+        let admin_a = Address::generate(&env);
+        let contract_id = env.register(crate::CertificateContract, ());
+        env.as_contract(&contract_id, || {
+            let activity_mgr = ActivityLogManager::new(&env);
 
-        let token_id: u128 = 12345;
-        let data_hash = BytesN::<32>::from_array(&env, &[0u8; 32]);
+            let token_id: u128 = 12345;
+            let data_hash = BytesN::<32>::from_array(&env, &[0u8; 32]);
 
-        activity_mgr.record(
-            EventType::Minted,
-            Some(token_id),
-            &admin_a,
-            data_hash,
-        );
+            activity_mgr.record(EventType::Minted, Some(token_id), &admin_a, data_hash);
 
-        let entries = activity_mgr.get_activities_by_address(&admin_a, 10, 0);
-        assert_eq!(entries.len(), 1);
-        assert_eq!(entries.get(0).unwrap().token_id, Some(token_id));
+            let entries = activity_mgr.get_activities_by_address(&admin_a, 10, 0);
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries.get(0).unwrap().token_id, Some(token_id));
+        });
     }
 
     #[test]
     fn test_activity_log_empty_query() {
-        let (env, admin_a, _, _, activity_mgr) = setup();
+        std::env::remove_var("SOROBAN_TEST_SNAPSHOT_FILE");
+        let env = Env::default();
+        let admin_a = Address::generate(&env);
+        let contract_id = env.register(crate::CertificateContract, ());
+        env.as_contract(&contract_id, || {
+            let activity_mgr = ActivityLogManager::new(&env);
 
-        let activities = activity_mgr.get_activities_by_address(&admin_a, 10, 0);
-        assert_eq!(activities.len(), 0);
+            let activities = activity_mgr.get_activities_by_address(&admin_a, 10, 0);
+            assert_eq!(activities.len(), 0);
+        });
     }
 
     #[test]
     fn test_recent_activities() {
-        let (env, admin_a, _, _, mut activity_mgr) = setup();
+        std::env::remove_var("SOROBAN_TEST_SNAPSHOT_FILE");
+        let env = Env::default();
+        let admin_a = Address::generate(&env);
+        let contract_id = env.register(crate::CertificateContract, ());
+        env.as_contract(&contract_id, || {
+            let activity_mgr = ActivityLogManager::new(&env);
 
-        let data_hash = BytesN::<32>::from_array(&env, &[0u8; 32]);
+            let data_hash = BytesN::<32>::from_array(&env, &[0u8; 32]);
 
-        for i in 0..5u128 {
-            activity_mgr.record(
-                EventType::Minted,
-                Some(i),
-                &admin_a,
-                data_hash.clone(),
-            );
-        }
+            for i in 0..5u128 {
+                activity_mgr.record(EventType::Minted, Some(i), &admin_a, data_hash.clone());
+            }
 
-        let recent = activity_mgr.get_recent_activities(3);
-        assert_eq!(recent.len(), 3);
+            let recent = activity_mgr.get_recent_activities(3);
+            assert_eq!(recent.len(), 3);
+        });
     }
 
     #[test]
     fn test_get_activities_by_token() {
-        let (env, admin_a, _, _, mut activity_mgr) = setup();
+        std::env::remove_var("SOROBAN_TEST_SNAPSHOT_FILE");
+        let env = Env::default();
+        let admin_a = Address::generate(&env);
+        let contract_id = env.register(crate::CertificateContract, ());
+        env.as_contract(&contract_id, || {
+            let activity_mgr = ActivityLogManager::new(&env);
 
-        let data_hash = BytesN::<32>::from_array(&env, &[0u8; 32]);
+            let data_hash = BytesN::<32>::from_array(&env, &[0u8; 32]);
 
-        activity_mgr.record(EventType::Minted, Some(100), &admin_a, data_hash.clone());
-        activity_mgr.record(EventType::Revoked, Some(100), &admin_a, data_hash.clone());
-        activity_mgr.record(EventType::Minted, Some(200), &admin_a, data_hash);
+            activity_mgr.record(EventType::Minted, Some(100), &admin_a, data_hash.clone());
+            activity_mgr.record(EventType::Revoked, Some(100), &admin_a, data_hash.clone());
+            activity_mgr.record(EventType::Minted, Some(200), &admin_a, data_hash);
 
-        let token100 = activity_mgr.get_activities_by_token(100);
-        assert_eq!(token100.len(), 2);
+            let token100 = activity_mgr.get_activities_by_token(100);
+            assert_eq!(token100.len(), 2);
 
-        let token200 = activity_mgr.get_activities_by_token(200);
-        assert_eq!(token200.len(), 1);
+            let token200 = activity_mgr.get_activities_by_token(200);
+            assert_eq!(token200.len(), 1);
+        });
     }
 
     #[test]

@@ -3,9 +3,7 @@
 //! This module defines structured events for all certificate operations,
 //! optimized for gas efficiency and easy parsing by indexers.
 
-use soroban_sdk::{
-    Address, BytesN, Env, Symbol, Vec,
-};
+use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, String, Symbol, Vec};
 
 /// Certificate event types for on-chain activity logging.
 /// Each variant represents a distinct certificate operation.
@@ -103,14 +101,19 @@ pub struct CertificateRenewedEvent {
 
 /// Event publisher helper functions.
 pub struct EventPublisher<'a> {
+    #[allow(dead_code)]
     env: &'a Env,
+    #[allow(dead_code)]
     contract_address: Address,
 }
 
 impl<'a> EventPublisher<'a> {
     /// Create a new EventPublisher.
     pub fn new(env: &'a Env, contract_address: Address) -> Self {
-        Self { env, contract_address }
+        Self {
+            env,
+            contract_address,
+        }
     }
 
     /// Publish a certificate minted event.
@@ -122,6 +125,8 @@ impl<'a> EventPublisher<'a> {
         metadata_hash: BytesN<32>,
         minted_by: &Address,
     ) {
+        let course_id_copy = course_id.clone();
+        let metadata_hash_copy = metadata_hash.clone();
         let event = CertificateMintedEvent {
             token_id,
             recipient: recipient.clone(),
@@ -136,17 +141,19 @@ impl<'a> EventPublisher<'a> {
                 Symbol::new(self.env, "cert_minted"),
                 Symbol::new(self.env, "v2"),
             ),
-            (token_id, recipient.clone(), course_id, metadata_hash, event.minted_at, minted_by.clone()),
+            (
+                token_id,
+                recipient.clone(),
+                course_id_copy,
+                metadata_hash_copy,
+                event.minted_at,
+                minted_by.clone(),
+            ),
         );
     }
 
     /// Publish a certificate revoked event.
-    pub fn publish_revoked(
-        &self,
-        token_id: u128,
-        revoked_by: &Address,
-        reason: u32,
-    ) {
+    pub fn publish_revoked(&self, token_id: u128, revoked_by: &Address, reason: u32) {
         let event = CertificateRevokedEvent {
             token_id,
             revoked_by: revoked_by.clone(),
@@ -171,6 +178,7 @@ impl<'a> EventPublisher<'a> {
         count: u32,
         minted_by: &Address,
     ) {
+        let course_id_copy = course_id.clone();
         let event = CertificateBatchMintedEvent {
             minted_at: self.env.ledger().timestamp(),
             minted_by: minted_by.clone(),
@@ -184,17 +192,18 @@ impl<'a> EventPublisher<'a> {
                 Symbol::new(self.env, "batch_minted"),
                 Symbol::new(self.env, "v2"),
             ),
-            (token_ids, course_id, count, event.minted_at, minted_by.clone()),
+            (
+                token_ids,
+                course_id_copy,
+                count,
+                event.minted_at,
+                minted_by.clone(),
+            ),
         );
     }
 
     /// Publish a certificate renewed event.
-    pub fn publish_renewed(
-        &self,
-        token_id: u128,
-        renewed_by: &Address,
-        new_expiry: u64,
-    ) {
+    pub fn publish_renewed(&self, token_id: u128, renewed_by: &Address, new_expiry: u64) {
         let event = CertificateRenewedEvent {
             token_id,
             renewed_by: renewed_by.clone(),
@@ -311,7 +320,12 @@ impl<'a> EventPublisher<'a> {
     }
 
     /// Publish an upgrade proposed event.
-    pub fn publish_upgrade_proposed(&self, caller: &Address, wasm_hash: BytesN<32>, changelog: &String) {
+    pub fn publish_upgrade_proposed(
+        &self,
+        caller: &Address,
+        wasm_hash: BytesN<32>,
+        changelog: &String,
+    ) {
         self.env.events().publish(
             (
                 Symbol::new(self.env, "upgrade_proposed"),
@@ -347,21 +361,76 @@ impl<'a> EventPublisher<'a> {
     pub fn publish_upgrade_cancelled(&self, caller: &Address) {
         self.env.events().publish(
             (
-                Symbol::new(&self.env, "upgrade_cancelled"),
+                Symbol::new(self.env, "upgrade_cancelled"),
                 Symbol::new(self.env, "v2"),
             ),
             (caller.clone(),),
         );
     }
 
+    /// Publish a proposal created event.
+    pub fn publish_proposal_created(&self, creator: &Address, proposal_id: u64, title: &String) {
+        self.env.events().publish(
+            (
+                Symbol::new(self.env, "proposal_created"),
+                Symbol::new(self.env, "v2"),
+            ),
+            (creator.clone(), proposal_id, title.clone()),
+        );
+    }
+
+    /// Publish a vote cast event.
+    pub fn publish_vote_cast(&self, user: &Address, proposal_id: u64, votes: i128, cost: u128) {
+        self.env.events().publish(
+            (
+                Symbol::new(self.env, "vote_cast"),
+                Symbol::new(self.env, "v2"),
+            ),
+            (user.clone(), proposal_id, votes, cost),
+        );
+    }
+
+    /// Publish a proposal executed event.
+    pub fn publish_proposal_executed(&self, proposal_id: u64, status: u32) {
+        self.env.events().publish(
+            (
+                Symbol::new(self.env, "proposal_executed"),
+                Symbol::new(self.env, "v2"),
+            ),
+            (proposal_id, status),
+        );
+    }
+
+    /// Publish an identity verified event.
+    pub fn publish_identity_verified(&self, student: &Address, did: &String) {
+        self.env.events().publish(
+            (
+                Symbol::new(self.env, "identity_verified"),
+                Symbol::new(self.env, "v2"),
+            ),
+            (student.clone(), did.clone()),
+        );
+    }
+
     /// Publish an emergency rollback event.
-    pub fn publish_emergency_rollback(&self, signer_a: &Address, signer_b: &Address, target_version: u32, wasm_hash: BytesN<32>) {
+    pub fn publish_emergency_rollback(
+        &self,
+        signer_a: &Address,
+        signer_b: &Address,
+        target_version: u32,
+        wasm_hash: BytesN<32>,
+    ) {
         self.env.events().publish(
             (
                 Symbol::new(self.env, "emergency_rollback"),
                 Symbol::new(self.env, "v2"),
             ),
-            (signer_a.clone(), signer_b.clone(), target_version, wasm_hash),
+            (
+                signer_a.clone(),
+                signer_b.clone(),
+                target_version,
+                wasm_hash,
+            ),
         );
     }
 
@@ -397,62 +466,37 @@ impl<'a> EventPublisher<'a> {
             (caller.clone(), new_owner.clone()),
         );
     }
-
-    /// Publish a batch minted event.
-    pub fn publish_batch_minted(&self, token_ids: Vec<u128>, course_id: BytesN<32>, count: u32, minted_by: &Address) {
-        let event = CertificateBatchMintedEvent {
-            token_ids: token_ids.clone(),
-            course_id,
-            count,
-            minted_at: self.env.ledger().timestamp(),
-            minted_by: minted_by.clone(),
-        };
-        self.env.events().publish(
-            (
-                Symbol::new(self.env, "batch_minted"),
-                Symbol::new(self.env, "v2"),
-            ),
-            (token_ids, course_id, count, event.minted_at, minted_by.clone()),
-        );
-    }
-
-    /// Publish a certificate renewed event.
-    pub fn publish_renewed(&self, token_id: u128, renewed_by: &Address, new_expiry: u64) {
-        let event = CertificateRenewedEvent {
-            token_id,
-            renewed_by: renewed_by.clone(),
-            renewed_at: self.env.ledger().timestamp(),
-            new_expiry,
-        };
-        self.env.events().publish(
-            (
-                Symbol::new(self.env, "cert_renewed"),
-                Symbol::new(self.env, "v2"),
-            ),
-            (token_id, renewed_by.clone(), event.renewed_at, new_expiry),
-        );
-    }
 }
 
 /// Event recorder that emits v2 events for the contract.
 pub struct EventRecorder<'a> {
+    #[allow(dead_code)]
     env: &'a Env,
+    #[allow(dead_code)]
     contract_address: Address,
-    publisher: EventPublisher<'a>,
+    pub publisher: EventPublisher<'a>,
 }
 
 impl<'a> EventRecorder<'a> {
     pub fn new(env: &'a Env, contract_address: Address) -> Self {
         Self {
             env,
-            contract_address,
+            contract_address: contract_address.clone(),
             publisher: EventPublisher::new(env, contract_address),
         }
     }
 
     /// Record a certificate minted event.
-    pub fn record_minted(&self, token_id: u128, recipient: &Address, course_id: BytesN<32>, metadata_hash: BytesN<32>, minted_by: &Address) {
-        self.publisher.publish_minted(token_id, recipient, course_id, metadata_hash, minted_by);
+    pub fn record_minted(
+        &self,
+        token_id: u128,
+        recipient: &Address,
+        course_id: BytesN<32>,
+        metadata_hash: BytesN<32>,
+        minted_by: &Address,
+    ) {
+        self.publisher
+            .publish_minted(token_id, recipient, course_id, metadata_hash, minted_by);
     }
 
     /// Record a certificate revoked event.
@@ -461,32 +505,39 @@ impl<'a> EventRecorder<'a> {
     }
 
     /// Record a batch minted event.
-    pub fn record_batch_minted(&self, token_ids: Vec<u128>, course_id: BytesN<32>, count: u32, minted_by: &Address) {
-        self.publisher.publish_batch_minted(token_ids, course_id, count, minted_by);
+    pub fn record_batch_minted(
+        &self,
+        token_ids: Vec<u128>,
+        course_id: BytesN<32>,
+        count: u32,
+        minted_by: &Address,
+    ) {
+        self.publisher
+            .publish_batch_minted(token_ids, course_id, count, minted_by);
     }
 
     /// Record a certificate renewed event.
     pub fn record_renewed(&self, token_id: u128, renewed_by: &Address, new_expiry: u64) {
-        self.publisher.publish_renewed(token_id, renewed_by, new_expiry);
+        self.publisher
+            .publish_renewed(token_id, renewed_by, new_expiry);
     }
 }
 
 /// Helper function to generate a unique token ID from course symbol and student address.
-/// This is a simple hash combining the course symbol string and student address.
+/// This is a hash combining the course symbol and student address.
 pub fn generate_token_id(env: &Env, course_symbol: &Symbol, student: &Address) -> u128 {
-    let course_str = course_symbol.to_string();
-    let course_bytes = course_str.as_bytes();
-    let student_bytes = student.to_xdr(env);
+    use soroban_sdk::xdr::ToXdr;
+    let mut buffer = Bytes::new(env);
+    buffer.append(&course_symbol.clone().to_xdr(env));
+    buffer.append(&student.clone().to_xdr(env));
+    let hash_bytes = env.crypto().sha256(&buffer);
 
-    let mut hash: u128 = 0;
-    for &b in course_bytes.iter() {
-        hash = hash.wrapping_mul(31).wrapping_add(b as u128);
+    // Extract first 16 bytes for u128
+    let mut hash_arr = [0u8; 16];
+    for (i, val) in hash_arr.iter_mut().enumerate() {
+        *val = BytesN::from(hash_bytes.clone()).get(i as u32).unwrap_or(0);
     }
-    for &b in student_bytes.iter() {
-        hash = hash.wrapping_mul(31).wrapping_add(b as u128);
-    }
-
-    hash
+    u128::from_be_bytes(hash_arr)
 }
 
 /// Helper function to compute metadata hash for certificate.
@@ -496,17 +547,14 @@ pub fn compute_metadata_hash(
     grade: &Option<String>,
     did: &Option<String>,
 ) -> BytesN<32> {
-    use soroban_sdk::crypto::HasHasher;
-
-    let mut hasher = env.crypto().hasher();
-
-    hasher.update(course_name.as_bytes());
-    if let Some(grade) = grade {
-        hasher.update(grade.as_bytes());
+    use soroban_sdk::xdr::ToXdr;
+    let mut buffer = Bytes::new(env);
+    buffer.append(&course_name.clone().to_xdr(env));
+    if let Some(g) = grade {
+        buffer.append(&g.clone().to_xdr(env));
     }
-    if let Some(did) = did {
-        hasher.update(did.as_bytes());
+    if let Some(d) = did {
+        buffer.append(&d.clone().to_xdr(env));
     }
-
-    hasher.finalize()
+    env.crypto().sha256(&buffer).into()
 }

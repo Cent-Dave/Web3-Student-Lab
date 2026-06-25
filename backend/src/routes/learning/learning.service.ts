@@ -10,6 +10,7 @@ import {
   ProgressStatus,
   ProgressUpdateInput,
 } from './types.js';
+import { enqueueWebhookDeliveries } from '../../services/webhooks/index.js';
 
 // In-memory mock store for demo resilience
 const mockProgressStore: Record<string, Progress> = {};
@@ -117,16 +118,8 @@ export const listCourses = async (difficulty?: string): Promise<CurriculumCourse
 
     await cacheService.set(cacheKey, result, cacheTTL.courses.list);
     return result;
-      id: course.id,
-      title: course.title,
-      description: course.description,
-      instructor: course.instructor,
-      credits: course.credits,
-      createdAt: course.createdAt,
-      updatedAt: course.updatedAt,
-      modules: filterModulesByDifficulty(getCurriculumForCourse(course.id), difficulty),
-    }));
   } catch (_error) {
+    console.error("LIST COURSES ERROR:", _error);
     console.warn('Database error in listCourses, falling back to mock data');
     const now = new Date();
     return COURSES.map((course) => ({
@@ -178,7 +171,7 @@ export const getCourseCurriculum = async (
       return null;
     }
 
-    return {
+    const result = {
       id: course.id,
       title: course.title,
       description: course.description,
@@ -188,6 +181,9 @@ export const getCourseCurriculum = async (
       updatedAt: course.updatedAt,
       modules: filterModulesByDifficulty(getCurriculumForCourse(course.id), difficulty),
     };
+
+    await cacheService.set(cacheKey, result, cacheTTL.courses.curriculum);
+    return result;
   } catch (_error) {
     console.warn('Database error in getCourseCurriculum, falling back to mock data');
     const mockCourse = COURSES.find((c) => c.id === courseId);
@@ -219,7 +215,7 @@ export const getStudentProgress = async (
 ): Promise<Progress> => {
   const key = `${studentId}:${courseId}`;
   const cacheKey = `${CACHE_KEYS.user.progress(studentId)}:${courseId}`;
-  
+
   const cached = await cacheService.get<Progress>(cacheKey);
   if (cached) return cached;
 
@@ -240,7 +236,7 @@ export const getStudentProgress = async (
       return p;
     }
   } catch (_error) {
-    console.warn('Database error in getStudentProgress, using mock store');
+    console.warn('Database error in getStudentProgress, using mock store:', _error);
   }
 
   // Fallback to mock store
@@ -296,6 +292,68 @@ export const updateStudentProgress = async (
   const completedLessonSet = new Set(existingProgress.completedLessons);
 
   if (input.status === 'completed') {
+    if (!completedLessonSet.has(input.lessonId)) {
+      // Log individual lesson completion activity
+      await (prisma as any).studentActivity
+        .create({
+          data: {
+            studentId,
+            courseId,
+            lessonId: input.lessonId,
+            action: 'COMPLETED_LESSON',
+          },
+        })
+        .catch((err: any) => console.warn('Failed to log student activity:', err));
+
+      // Trigger lesson.completed webhook
+      try {
+        const student = await prisma.student.findUnique({
+          where: { id: studentId },
+        });
+
+        const subscriptions = await prisma.webhookSubscription.findMany({
+          where: { active: true },
+        });
+
+        const lessonCompletedSubscriptions = subscriptions.filter((sub) => {
+          try {
+            const events = typeof sub.events === 'string' ? JSON.parse(sub.events) : (sub.events as string[]);
+            return Array.isArray(events) && events.includes('lesson.completed');
+          } catch {
+            return false;
+          }
+        });
+
+        if (lessonCompletedSubscriptions.length > 0) {
+          const payload = {
+            id: `evt_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+            type: 'lesson.completed',
+            occurredAt: new Date().toISOString(),
+            source: 'student-portal',
+            data: {
+              studentId,
+              studentEmail: student?.email || '',
+              studentName: student ? `${student.firstName} ${student.lastName}` : '',
+              courseId,
+              lessonId: input.lessonId,
+              completedAt: new Date().toISOString(),
+            },
+          };
+
+          const destinations = lessonCompletedSubscriptions.map((sub) => ({
+            id: sub.id,
+            url: sub.url,
+            secret: sub.secret || undefined,
+          }));
+
+          await enqueueWebhookDeliveries(payload as any, destinations).catch((err) =>
+            console.error('Failed to enqueue lesson.completed webhooks:', err)
+          );
+        }
+      } catch (err) {
+        console.error('Error during lesson completion webhook trigger:', err);
+      }
+    }
     completedLessonSet.add(input.lessonId);
   } else {
     completedLessonSet.delete(input.lessonId);

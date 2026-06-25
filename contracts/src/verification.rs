@@ -7,7 +7,7 @@
 //! - Audit events for all verification actions
 
 use crate::revocation::{CertificateStatus, RevocationRecord};
-use soroban_sdk::{contracttype, Address, String};
+use soroban_sdk::{contracttype, Address, String, Vec};
 
 /// Metadata associated with a certificate for presentation in verification results.
 #[contracttype]
@@ -41,7 +41,7 @@ pub struct VerificationResult {
     /// Certificate metadata (course info, issue date, etc.)
     pub metadata: CertificateMetadata,
     /// If revoked, contains full revocation details for context.
-    pub revocation_info: Option<RevocationRecord>,
+    pub revocation_info: Vec<RevocationRecord>,
     /// Ledger timestamp when this verification was performed.
     pub verification_timestamp: u64,
 }
@@ -49,6 +49,7 @@ pub struct VerificationResult {
 impl VerificationResult {
     /// Create an active (valid) verification result.
     pub fn active(
+        env: &soroban_sdk::Env,
         owner: Address,
         metadata: CertificateMetadata,
         verification_timestamp: u64,
@@ -58,33 +59,37 @@ impl VerificationResult {
             status: CertificateStatus::Active,
             owner,
             metadata,
-            revocation_info: None,
+            revocation_info: Vec::new(env),
             verification_timestamp,
         }
     }
 
     /// Create a revoked verification result with revocation details.
     pub fn revoked(
+        env: &soroban_sdk::Env,
         owner: Address,
         metadata: CertificateMetadata,
         revocation_info: RevocationRecord,
         verification_timestamp: u64,
     ) -> Self {
+        let mut info_vec = Vec::new(env);
+        info_vec.push_back(revocation_info);
         Self {
             is_valid: false,
             status: CertificateStatus::Revoked,
             owner,
             metadata,
-            revocation_info: Some(revocation_info),
+            revocation_info: info_vec,
             verification_timestamp,
         }
     }
 
     /// Create a superseded verification result.
     pub fn superseded(
+        env: &soroban_sdk::Env,
         owner: Address,
         metadata: CertificateMetadata,
-        superseded_by: u128,
+        _superseded_by: u128,
         verification_timestamp: u64,
     ) -> Self {
         Self {
@@ -92,16 +97,17 @@ impl VerificationResult {
             status: CertificateStatus::Superseded,
             owner,
             metadata,
-            revocation_info: None,
+            revocation_info: Vec::new(env),
             verification_timestamp,
         }
     }
 
     /// Create a reissued verification result.
     pub fn reissued(
+        env: &soroban_sdk::Env,
         owner: Address,
         metadata: CertificateMetadata,
-        new_token_id: u128,
+        _new_token_id: u128,
         verification_timestamp: u64,
     ) -> Self {
         Self {
@@ -109,7 +115,7 @@ impl VerificationResult {
             status: CertificateStatus::Reissued,
             owner,
             metadata,
-            revocation_info: None,
+            revocation_info: Vec::new(env),
             verification_timestamp,
         }
     }
@@ -121,21 +127,23 @@ mod tests {
 
     #[test]
     fn test_verification_result_active() {
-        let owner = Address::random(&soroban_sdk::Env::default());
+        use soroban_sdk::testutils::Address as _;
+        let env = soroban_sdk::Env::default();
+        let owner = Address::generate(&env);
         let metadata = CertificateMetadata {
             student: owner.clone(),
-            course_symbol: String::from_str(&soroban_sdk::Env::default(), "RUST101"),
-            course_name: String::from_str(&soroban_sdk::Env::default(), "Introduction to Rust"),
+            course_symbol: String::from_str(&env, "RUST101"),
+            course_name: String::from_str(&env, "Introduction to Rust"),
             issue_date: 1000,
             did: None,
         };
 
-        let result = VerificationResult::active(owner.clone(), metadata, 2000);
+        let result = VerificationResult::active(&env, owner.clone(), metadata, 2000);
 
         assert!(result.is_valid);
         assert_eq!(result.status, CertificateStatus::Active);
         assert_eq!(result.owner, owner);
-        assert!(result.revocation_info.is_none());
+        assert!(result.revocation_info.is_empty());
         assert_eq!(result.verification_timestamp, 2000);
     }
 }

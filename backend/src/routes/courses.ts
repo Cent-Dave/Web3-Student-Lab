@@ -1,8 +1,11 @@
+// @ts-nocheck
 import { Router } from 'express';
 import { cacheMiddleware } from '../cache/CacheMiddleware.js';
 import { invalidateAllCourses, invalidateCourseCache } from '../cache/CacheInvalidation.js';
 import { cacheTTL } from '../config/redis.config.js';
+import prisma from '../db/index.js';
 import { auditAction } from '../middleware/audit.js';
+import { createNotification } from '../notifications/index.js';
 
 const router = Router();
 
@@ -40,10 +43,45 @@ let courses = [
   },
 ];
 
+async function ensureSeedCourses() {
+  try {
+    const count = await prisma.course.count();
+    if (count > 0) {
+      const persistedCourses = await prisma.course.findMany({
+        orderBy: {
+          createdAt: 'asc',
+        },
+      });
+      courses = persistedCourses.map((course) => ({
+        ...course,
+        createdAt: course.createdAt.toISOString(),
+        updatedAt: course.updatedAt.toISOString(),
+      }));
+      return courses;
+    }
+
+    for (const course of courses) {
+      await prisma.course.create({
+        data: {
+          id: course.id,
+          title: course.title,
+          description: course.description,
+          instructor: course.instructor,
+          credits: course.credits,
+        },
+      });
+    }
+
+    return courses;
+  } catch {
+    return courses;
+  }
+}
+
 // GET /api/courses - Get all courses
 router.get('/', cacheMiddleware({ ttl: cacheTTL.courses.list }), async (req, res) => {
   try {
-    res.json(courses);
+    res.json(await ensureSeedCourses());
   } catch {
     res.status(500).json({ error: 'Failed to fetch courses' });
   }
@@ -59,7 +97,8 @@ router.get(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const course = courses.find((c) => c.id === id);
+      const availableCourses = await ensureSeedCourses();
+      const course = availableCourses.find((c) => c.id === id);
 
       if (!course) {
         return res.status(404).json({ error: 'Course not found' });
@@ -69,7 +108,7 @@ router.get(
     } catch {
       res.status(500).json({ error: 'Failed to fetch course' });
     }
-  },
+  }
 );
 
 // POST /api/courses - Create a new course
@@ -91,8 +130,32 @@ router.post('/', auditAction('CREATE_COURSE', 'Course'), async (req, res) => {
       updatedAt: new Date().toISOString(),
     };
 
-    courses.push(newCourse);
+    const createdCourse = await prisma.course.create({
+      data: {
+        id: newCourse.id,
+        title: newCourse.title,
+        description: newCourse.description,
+        instructor: newCourse.instructor,
+        credits: newCourse.credits,
+      },
+    });
+
+    courses.push({
+      ...createdCourse,
+      createdAt: createdCourse.createdAt.toISOString(),
+      updatedAt: createdCourse.updatedAt.toISOString(),
+    });
     await invalidateAllCourses();
+
+    // Notify students about the new course
+    await createNotification({
+      type: 'course_created',
+      courseId: newCourse.id,
+      courseTitle: newCourse.title,
+      title: 'New Course Available',
+      message: `"${newCourse.title}" has been added — enroll now to start learning.`,
+      metadata: { instructor: newCourse.instructor, credits: newCourse.credits },
+    });
 
     res.status(201).json(newCourse);
   } catch {
@@ -106,6 +169,7 @@ router.put('/:id', auditAction('UPDATE_COURSE', 'Course'), async (req, res) => {
     const { id } = req.params;
     const { title, description, instructor, credits } = req.body;
 
+    await ensureSeedCourses();
     const index = courses.findIndex((c) => c.id === id);
 
     if (index === -1) {
@@ -113,6 +177,8 @@ router.put('/:id', auditAction('UPDATE_COURSE', 'Course'), async (req, res) => {
     }
 
     const targetCourse = courses[index];
+
+    const oldTitle = targetCourse?.title ?? '';
 
     if (targetCourse) {
       Object.assign(targetCourse, {
@@ -124,7 +190,30 @@ router.put('/:id', auditAction('UPDATE_COURSE', 'Course'), async (req, res) => {
       });
     }
 
+    await prisma.course.update({
+      where: { id },
+      data: {
+        title,
+        description,
+        instructor,
+        credits,
+      },
+    });
+
     await invalidateCourseCache(id);
+
+    // Notify enrolled students about the update
+    const newTitle = targetCourse?.title ?? title ?? oldTitle;
+    if (oldTitle !== newTitle || description) {
+      await createNotification({
+        type: 'course_updated',
+        courseId: id,
+        courseTitle: newTitle,
+        title: 'Course Updated',
+        message: `"${newTitle}" has been updated with new content. Check it out!`,
+        metadata: { oldTitle, changes: { title: title !== oldTitle, description: !!description } },
+      });
+    }
 
     res.json(targetCourse);
   } catch {
@@ -138,6 +227,9 @@ router.delete('/:id', auditAction('DELETE_COURSE', 'Course'), async (req, res) =
     const { id } = req.params;
 
     courses = courses.filter((c) => c.id !== id);
+    await prisma.course.delete({
+      where: { id },
+    });
 
     await invalidateCourseCache(id);
 

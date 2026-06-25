@@ -445,7 +445,7 @@ impl NftStakingContract {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::{testutils::Address as _, vec, Address, Env};
+    use soroban_sdk::{testutils::Address as _, testutils::Ledger, vec, Address, Env};
 
     fn course_id(env: &Env) -> BytesN<32> {
         BytesN::from_array(env, &[1u8; 32])
@@ -458,6 +458,9 @@ mod tests {
         let client = NftStakingContractClient::new(&env, &id);
         let admin = Address::generate(&env);
         client.init(&admin);
+        env.as_contract(&id, || {
+            env.storage().instance().extend_ttl(1_000_000, 1_000_000);
+        });
         (env, admin, client)
     }
 
