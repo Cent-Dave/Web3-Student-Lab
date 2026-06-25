@@ -1,19 +1,42 @@
-//! Comprehensive tests for the certificate verification system.
-//!
-//! Tests cover:
-//! - Public verification endpoint
-//! - Verification result accuracy
-//! - Status checking
-//! - Event emission
-//! - Gas efficiency
-//! - Error handling
+// Comprehensive tests for the certificate verification system.
+//
+// Tests cover:
+// - Public verification endpoint
+// - Verification result accuracy
+// - Status checking
+// - Event emission
+// - Gas efficiency
+// - Error handling
 
 #[cfg(test)]
 mod tests {
     use crate::revocation::CertificateStatus;
     use crate::verification::VerificationResult;
-    use crate::{CertError, CertificateContract};
+    use crate::CertError;
     use soroban_sdk::{Address, Env, String};
+    use soroban_sdk::testutils::Address as _;
+    extern crate std;
+    use std::vec;
+
+    pub trait AddressExt {
+        fn random(env: &Env) -> Self;
+    }
+    impl AddressExt for Address {
+        fn random(env: &Env) -> Self {
+            Self::generate(env)
+        }
+    }
+
+    struct CertificateContract;
+    impl CertificateContract {
+        pub fn init(env: Env, admin_a: Address, admin_b: Address, admin_c: Address) {
+            let contract_id = env.register(crate::CertificateContract, ());
+            let env_clone = env.clone();
+            env.as_contract(&contract_id, || {
+                crate::CertificateContract::init(env_clone, admin_a, admin_b, admin_c);
+            });
+        }
+    }
 
     #[test]
     fn test_verify_certificate_returns_active_status() {
@@ -237,12 +260,12 @@ mod tests {
             did: None,
         };
 
-        let result = VerificationResult::active(owner.clone(), metadata.clone(), 2000);
+        let result = VerificationResult::active(&env, owner.clone(), metadata.clone(), 2000);
 
         assert!(result.is_valid);
         assert_eq!(result.status, CertificateStatus::Active);
         assert_eq!(result.owner, owner);
-        assert!(result.revocation_info.is_none());
+        assert!(result.revocation_info.is_empty());
         assert_eq!(result.verification_timestamp, 2000);
     }
 
@@ -270,13 +293,13 @@ mod tests {
         };
 
         let result =
-            VerificationResult::revoked(owner.clone(), metadata, revocation_info.clone(), 2500);
+            VerificationResult::revoked(&env, owner.clone(), metadata, revocation_info.clone(), 2500);
 
         assert!(!result.is_valid);
         assert_eq!(result.status, CertificateStatus::Revoked);
         assert_eq!(result.owner, owner);
-        assert!(result.revocation_info.is_some());
-        assert_eq!(result.revocation_info.unwrap(), revocation_info);
+        assert_eq!(result.revocation_info.len(), 1);
+        assert_eq!(result.revocation_info.get(0).unwrap(), revocation_info);
     }
 
     #[test]
@@ -292,7 +315,7 @@ mod tests {
             did: None,
         };
 
-        let result = VerificationResult::superseded(owner.clone(), metadata, 101, 2000);
+        let result = VerificationResult::superseded(&env, owner.clone(), metadata, 101, 2000);
 
         assert!(!result.is_valid);
         assert_eq!(result.status, CertificateStatus::Superseded);
@@ -312,7 +335,7 @@ mod tests {
             did: None,
         };
 
-        let result = VerificationResult::reissued(owner.clone(), metadata, 102, 2000);
+        let result = VerificationResult::reissued(&env, owner.clone(), metadata, 102, 2000);
 
         assert!(!result.is_valid);
         assert_eq!(result.status, CertificateStatus::Reissued);

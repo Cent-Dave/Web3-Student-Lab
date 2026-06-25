@@ -10,11 +10,14 @@ smart contracts, open-source collaboration, and hackathon project development in
 The platform provides **interactive tools, coding environments, and guided learning paths** designed
 for beginners and university students.
 
-## � Frequently Asked Questions
+## 🟢 Live Deployment
 
-- New contributors with environment issues can start here: [docs/FAQ.md](docs/FAQ.md)
+The application is fully deployed and accessible online:
+- **Frontend Application**: [https://web3-student-lab.vercel.app/](https://web3-student-lab.vercel.app/)
+- **Backend Infrastructure**: Hosted securely on Render using PostgreSQL, Redis, and integrated with the Stellar/Soroban Testnet.
+- **Smart Contracts**: My contract is deployed!
 
-## �🚀 Core Modules
+## 🚀 Core Modules
 
 1. **Blockchain Learning Simulator**: Visually learn how blockchains work (create transactions, mine
    blocks, view hashes, and see how blocks connect).
@@ -35,7 +38,9 @@ for beginners and university students.
 - Tailwind CSS
 - Monaco Editor
 
+
 **Backend**
+
 
 - Node.js / Express
 - PostgreSQL
@@ -45,63 +50,26 @@ for beginners and university students.
 - Stellar SDK
 - Soroban Smart Contracts
 
-## 🗺️ Visual Roadmap & Milestones
-
-```mermaid
-timeline
-    title Web3 Student Lab - Development Timeline
-    Phase 1: Discovery : Architecture Planning : Concept Validation : UI/UX Wireframing
-    Phase 2: Development : Core Modules Build : Smart Contract Playground : Backend Integration
-    Phase 3: Deployment : MVP Launch : Beta Testing : University Outreach
-```
-
-### Phase 1: Discovery 🔍
-
-**Objective:** Define the core platform architecture, validate learning mechanisms, and design the
-initial curriculum.
-
-- **Milestones:**
-  - [x] Initial repository setup and architecture planning
-  - [ ] Define Soroban/Stellar learning roadmap
-  - [ ] UI/UX wireframes for the Blockchain Simulator
-
-### Phase 2: Development 🛠️
-
-**Objective:** Build out the core modules, integrate blockchain functionalities, and develop the
-interactive playground.
-
-- **Milestones:**
-  - [ ] Implement Next.js + Tailwind frontend
-  - [ ] Integrate Monaco Editor for Smart Contract Playground
-  - [ ] Set up PostgreSQL and Node.js backend infrastructure
-
-### Phase 3: Deployment 🚀
-
-**Objective:** Launch the MVP, onboard the first cohort of students, and gather metrics for future
-iterations.
-
-- **Milestones:**
-  - [ ] Deploy backend and database to cloud infrastructure
-  - [ ] Host the frontend application
-  - [ ] Open the platform for beta testing
-
 ## 📁 Repository Structure
 
 ```text
 web3-student-lab/
 ├── contracts/            # Platform smart contracts (e.g., on-chain certificates)
 ├── frontend/             # Next.js/React frontend application
-│   ├── simulator/        # Visual blockchain tools
-│   ├── playground/       # In-browser smart contract editor
-│   ├── roadmap/          # Learning progress tracking and paths
-│   └── ideas/            # Hackathon project generator UI
+│   └── src/app/
+│       ├── simulator/    # Visual blockchain tools
+│       ├── playground/   # In-browser smart contract editor
+│       ├── roadmap/      # Learning progress tracking and paths
+│       └── ideas/        # Hackathon project generator UI
 ├── backend/              # Node.js backend application
-│   ├── blockchain/       # Interaction with Stellar/Soroban
-│   ├── contracts/        # Compilation and execution engine for student code
-│   ├── learning/         # Curriculum and progress APIs
-│   └── generator/        # Prompt/AI layer for hackathon ideas
+│   └── src/
+│       ├── blockchain/   # Interaction with Stellar/Soroban
+│       ├── contracts/    # Compilation and execution engine for student code
+│       ├── learning/     # Curriculum and progress APIs
+│       └── generator/    # Prompt/AI layer for hackathon ideas
 └── docs/                 # Documentation and learning materials
 ```
+
 
 ## 🚀 Setup Guide
 
@@ -330,20 +298,16 @@ Compose.
 
 ## 🤝 Rules for Contributors
 
+
 We love our contributors! This project is being built for students, by students and open-source
 enthusiasts.
-
-> **Important:** Please add an ETA (no more than 2 days) when expressing interest in an issue to
-> help us keep development moving quickly.
 
 To start contributing:
 
 1. Read our [Contribution Guidelines](CONTRIBUTING.md).
-2. Review our [Security Best Practices](docs/SECURITY.md).
-3. Read the [CI/CD Pipeline Guide](docs/CICD_GUIDE.md).
-4. Check out our existing [Issues](https://github.com/your-repo/issues) or look for the
+2. Check out our existing [Issues](https://github.com/your-repo/issues) or look for the
    `good first issue` label.
-5. Fork the repository and submit a Pull Request!
+3. Fork the repository and submit a Pull Request!
 
 ## 📜 License
 

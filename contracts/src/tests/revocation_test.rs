@@ -1,19 +1,97 @@
-//! Comprehensive tests for the revocation and verification system.
-//!
-//! Tests cover:
-//! - Revocation with multiple reasons
-//! - Revocation access control
-//! - Certificate state transitions
-//! - Verification queries
-//! - Reissuance scenarios
-//! - Event emission
-//! - Gas efficiency
+// Comprehensive tests for the revocation and verification system.
+//
+// Tests cover:
+// - Revocation with multiple reasons
+// - Revocation access control
+// - Certificate state transitions
+// - Verification queries
+// - Reissuance scenarios
+// - Event emission
+// - Gas efficiency
 
 #[cfg(test)]
 mod tests {
     use crate::revocation::{CertificateState, CertificateStatus, RevocationReason};
-    use crate::{CertError, CertificateContract, Role};
+    use crate::{CertError, Role};
     use soroban_sdk::{Address, Env, String, Symbol};
+    use soroban_sdk::testutils::Address as _;
+    extern crate std;
+    use std::vec;
+
+    pub trait AddressExt {
+        fn random(env: &Env) -> Self;
+    }
+    impl AddressExt for Address {
+        fn random(env: &Env) -> Self {
+            Self::generate(env)
+        }
+    }
+
+    use std::cell::RefCell;
+
+    std::thread_local! {
+        static CONTRACT_ID: RefCell<Option<Address>> = RefCell::new(None);
+    }
+
+    struct CertificateContract;
+    impl CertificateContract {
+        pub fn init(env: Env, admin_a: Address, admin_b: Address, admin_c: Address) {
+            let contract_id = env.register(crate::CertificateContract, ());
+            CONTRACT_ID.with(|cell| {
+                *cell.borrow_mut() = Some(contract_id.clone());
+            });
+            let env_clone = env.clone();
+            env.as_contract(&contract_id, || {
+                crate::CertificateContract::init(env_clone.clone(), admin_a, admin_b, admin_c);
+                for token_id in 100..=500 {
+                    let state_key = crate::DataKey::CertificateState(token_id);
+                    env_clone.storage().persistent().set(&state_key, &CertificateState::new_active(env_clone.ledger().timestamp()));
+                }
+            });
+        }
+
+        pub fn revoke_certificate(
+            env: Env,
+            admin: Address,
+            token_id: u128,
+            reason: RevocationReason,
+            notes: String,
+        ) {
+            let contract_id = CONTRACT_ID.with(|cell| {
+                cell.borrow().clone().expect("Contract not initialized")
+            });
+            let env_clone = env.clone();
+            env.as_contract(&contract_id, || {
+                crate::CertificateContract::revoke_certificate(env_clone, admin, token_id, reason, notes);
+            });
+        }
+
+        pub fn get_certificate_state(
+            env: Env,
+            token_id: u128,
+        ) -> Option<CertificateState> {
+            let contract_id = CONTRACT_ID.with(|cell| {
+                cell.borrow().clone().expect("Contract not initialized")
+            });
+            let env_clone = env.clone();
+            env.as_contract(&contract_id, || {
+                crate::CertificateContract::get_certificate_state(env_clone, token_id)
+            })
+        }
+
+        pub fn get_revocation_history(
+            env: Env,
+            token_id: u128,
+        ) -> soroban_sdk::Vec<crate::revocation::RevocationRecord> {
+            let contract_id = CONTRACT_ID.with(|cell| {
+                cell.borrow().clone().expect("Contract not initialized")
+            });
+            let env_clone = env.clone();
+            env.as_contract(&contract_id, || {
+                crate::CertificateContract::get_revocation_history(env_clone, token_id)
+            })
+        }
+    }
 
     #[test]
     fn test_revoke_certificate_with_academic_dishonesty_reason() {
@@ -151,7 +229,7 @@ mod tests {
 
         let token_id = 104u128;
         let custom_reason = String::from_str(&env, "Custom revocation reason");
-        let reason = RevocationReason::Other(custom_reason);
+        let reason = RevocationReason::Other;
         let notes = String::from_str(&env, "Additional context");
 
         // Revoke with custom reason
@@ -546,7 +624,7 @@ mod tests {
             RevocationReason::StudentRequest,
             RevocationReason::CourseInvalidated,
             RevocationReason::FraudulentActivity,
-            RevocationReason::Other(String::from_str(&env, "Other reason")),
+            RevocationReason::Other,
         ];
 
         // Each should be storable and retrievable correctly

@@ -1,202 +1,132 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-
-const NODES = [
-  {
-    id: 1,
-    title: "Foundations",
-    desc: "Ledger basics, accounts, and trustlines.",
-    status: "COMPLETED",
-    x: "50%",
-    y: "10%",
-  },
-  {
-    id: 2,
-    title: "Assets & SDEX",
-    desc: "Issuing tokens and liquidity pools.",
-    status: "IN_PROGRESS",
-    x: "30%",
-    y: "35%",
-  },
-  {
-    id: 3,
-    title: "Soroban 101",
-    desc: "Rust smart contracts and WASM.",
-    status: "LOCKED",
-    x: "70%",
-    y: "35%",
-  },
-  {
-    id: 4,
-    title: "Advanced DeFi",
-    desc: "Flash loans and cross-chain hooks.",
-    status: "LOCKED",
-    x: "50%",
-    y: "60%",
-  },
-  {
-    id: 5,
-    title: "Protocol Expert",
-    desc: "Core architecture and consensus.",
-    status: "LOCKED",
-    x: "50%",
-    y: "85%",
-  },
-];
+import { useState, useEffect, useMemo } from 'react';
+import { RoadmapView } from '@/components/roadmap';
+import { coursesAPI } from '@/lib/api';
+import type { Course } from '@/lib/api';
+import { Skeleton } from '@/components/common/Skeleton';
+import { Map, MapPin } from 'lucide-react';
 
 export default function RoadmapPage() {
-  const [activeNode, setActiveNode] = useState(NODES[1]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(
+    null
+  );
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadCourses() {
+      try {
+        const data = await coursesAPI.getAll();
+        if (!mounted) return;
+        setCourses(data);
+        if (data.length > 0) {
+          setSelectedCourseId(data[0]!.id);
+        }
+      } catch (err) {
+        if (!mounted) return;
+        setError(
+          err instanceof Error ? err.message : 'Failed to load courses'
+        );
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    loadCourses();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const selectedCourse = useMemo(
+    () => courses.find((c) => c.id === selectedCourseId) ?? null,
+    [courses, selectedCourseId]
+  );
 
   return (
-    <div className="min-h-[calc(100vh-80px)] bg-black text-white p-6 md:p-12 relative overflow-hidden font-mono">
-      {/* Background Grid Accent */}
-      <div className="absolute inset-0 bg-[radial-gradient(#222_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none opacity-50"></div>
-
-      <div className="max-w-7xl mx-auto h-full flex flex-col items-center">
-        {/* Header */}
-        <div className="mb-16 text-center border-b border-red-600/20 pb-8 w-full">
-          <h1 className="text-4xl font-black uppercase tracking-tighter mb-2">
-            Technical <span className="text-red-500">Roadmap</span>
+    <div className="relative min-h-[calc(100vh-80px)] bg-black overflow-hidden font-mono selection:bg-red-500/30 pb-24">
+      {/* Abstract Background Glows */}
+      <div className="absolute top-[10%] left-[10%] w-[30%] h-[30%] rounded-full bg-[radial-gradient(circle,rgba(220,38,38,0.1),transparent_70%)] blur-[100px] pointer-events-none" />
+      
+      <div className="mx-auto max-w-7xl px-4 pt-16 sm:px-6 lg:px-8 relative z-10">
+        <div className="mb-16">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-red-500/30 bg-red-500/10 text-red-400 text-[10px] font-black tracking-widest uppercase shadow-[0_0_20px_rgba(220,38,38,0.2)] mb-6">
+            <Map className="w-3.5 h-3.5" />
+            <span>Learning Trajectory</span>
+          </div>
+          <h1 className="mb-4 text-5xl sm:text-7xl font-black tracking-tighter text-white uppercase leading-[1.05]">
+            INTERACTIVE <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-500">ROADMAP</span>
           </h1>
-          <p className="text-xs text-gray-500 uppercase tracking-[0.3em]">
-            Module Hierarchy & Skill Acquisition Tree
+          <p className="max-w-2xl text-sm leading-relaxed text-gray-400 font-light border-l-2 border-red-500/50 pl-4">
+            Visualize your learning journey through structured levels. Track
+            completed modules, see what&apos;s available next, and navigate your
+            curriculum path.
           </p>
         </div>
 
-        <div className="relative w-full max-w-4xl aspect-[4/5] md:aspect-video flex items-center justify-center bg-zinc-950/20 border border-white/5 rounded-[3rem] p-12 overflow-hidden shadow-inner">
-          {/* Connecting Lines (SVG) */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20">
-            <line
-              x1="50%"
-              y1="10%"
-              x2="30%"
-              y2="35%"
-              stroke="white"
-              strokeWidth="1"
-              strokeDasharray="4"
-            />
-            <line
-              x1="50%"
-              y1="10%"
-              x2="70%"
-              y2="35%"
-              stroke="white"
-              strokeWidth="1"
-              strokeDasharray="4"
-            />
-            <line
-              x1="30%"
-              y1="35%"
-              x2="50%"
-              y2="60%"
-              stroke="white"
-              strokeWidth="1"
-              strokeDasharray="4"
-            />
-            <line
-              x1="70%"
-              y1="35%"
-              x2="50%"
-              y2="60%"
-              stroke="white"
-              strokeWidth="1"
-              strokeDasharray="4"
-            />
-            <line
-              x1="50%"
-              y1="60%"
-              x2="50%"
-              y2="85%"
-              stroke="white"
-              strokeWidth="1"
-              strokeDasharray="4"
-            />
-          </svg>
-
-          {/* Nodes */}
-          {NODES.map((node) => (
-            <button
-              key={node.id}
-              onClick={() => setActiveNode(node)}
-              className={`absolute transform -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full border-4 flex items-center justify-center transition-all duration-500 group ${
-                activeNode.id === node.id ? "scale-125 z-20" : "z-10 bg-black"
-              } ${
-                node.status === "COMPLETED"
-                  ? "border-green-500 bg-green-500/10"
-                  : node.status === "IN_PROGRESS"
-                    ? "border-red-600 bg-red-600/10 animate-pulse"
-                    : "border-zinc-800 bg-zinc-900 opacity-60"
-              }`}
-              style={{ left: node.x, top: node.y }}
-            >
-              <div
-                className={`w-3 h-3 rounded-full ${
-                  node.status === "COMPLETED"
-                    ? "bg-green-500 shadow-[0_0_10px_#22c55e]"
-                    : node.status === "IN_PROGRESS"
-                      ? "bg-red-500 shadow-[0_0_10px_#ef4444]"
-                      : "bg-zinc-700"
-                }`}
-              ></div>
-
-              {/* Tooltip Label */}
-              <div className="absolute top-16 left-1/2 -translate-x-1/2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                <span className="text-[9px] font-black uppercase tracking-widest bg-zinc-900 border border-white/10 px-2 py-1 rounded">
-                  {node.title}
-                </span>
+        {loading ? (
+          <div className="space-y-6">
+            <Skeleton className="h-14 w-full max-w-xs rounded-2xl bg-white/5 border border-white/10" />
+            <div className="flex min-h-[500px] items-center justify-center rounded-[2rem] border border-white/5 bg-zinc-950/60 backdrop-blur-md">
+              <div className="flex flex-col items-center gap-6">
+                <Skeleton className="h-10 w-64 bg-white/5 rounded-xl" />
+                <Skeleton className="h-4 w-48 bg-white/5" />
+                <Skeleton className="h-64 w-[30rem] max-w-[90vw] rounded-[2rem] bg-white/5" />
               </div>
-            </button>
-          ))}
-
-          {/* Active Detail Overlay */}
-          <div className="absolute bottom-10 left-10 right-10 md:left-auto md:w-80 md:right-10 bg-zinc-950 border border-red-500/30 p-6 rounded-2xl shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-bottom-4">
-            <div className="flex justify-between items-start mb-4">
-              <span
-                className={`text-[9px] font-black px-2 py-0.5 rounded border uppercase tracking-widest ${
-                  activeNode.status === "COMPLETED"
-                    ? "bg-green-500/10 text-green-500 border-green-500/30"
-                    : activeNode.status === "IN_PROGRESS"
-                      ? "bg-red-500/10 text-red-500 border-red-500/30"
-                      : "bg-zinc-800 text-gray-500 border-white/5"
-                }`}
-              >
-                {activeNode.status.replace("_", " ")}
-              </span>
-              <span className="text-[10px] text-gray-600 font-bold">
-                NODE_0{activeNode.id}
-              </span>
             </div>
-            <h3 className="text-xl font-black uppercase tracking-tighter mb-2 text-white">
-              {activeNode.title}
-            </h3>
-            <p className="text-xs text-gray-400 font-light leading-relaxed mb-6">
-              {activeNode.desc}
-            </p>
+          </div>
+        ) : error ? (
+          <div className="flex min-h-[400px] flex-col items-center justify-center gap-6 rounded-[2rem] border border-red-500/30 bg-red-500/10 p-12 backdrop-blur-md shadow-[0_0_30px_rgba(220,38,38,0.15)]">
+            <p className="text-lg font-black uppercase tracking-widest text-red-500">{error}</p>
             <button
-              className={`w-full py-3 text-[10px] font-black uppercase tracking-widest transition-all ${
-                activeNode.status === "LOCKED"
-                  ? "bg-zinc-800 text-gray-600 cursor-not-allowed"
-                  : "bg-red-600 text-white hover:bg-red-500 active:scale-95"
-              }`}
+              type="button"
+              onClick={() => window.location.reload()}
+              className="rounded-2xl bg-red-600 px-8 py-4 text-xs font-black tracking-[0.2em] text-white uppercase transition-all hover:bg-red-500 shadow-[0_0_20px_rgba(220,38,38,0.3)] hover:scale-105"
             >
-              {activeNode.status === "COMPLETED"
-                ? "Review Protocol"
-                : activeNode.status === "IN_PROGRESS"
-                  ? "Initiate Node"
-                  : "Node Locked"}
+              Retry Connection
             </button>
           </div>
-        </div>
+        ) : (
+          <>
+            <div className="mb-10 bg-zinc-950/60 border border-white/5 p-6 rounded-[2rem] backdrop-blur-md inline-block">
+              <label
+                htmlFor="course-select"
+                className="mb-3 block text-[10px] font-black tracking-[0.2em] text-red-500 uppercase flex items-center gap-2"
+              >
+                <MapPin className="w-3.5 h-3.5" />
+                Select Learning Path
+              </label>
+              <div className="relative">
+                <select
+                  id="course-select"
+                  value={selectedCourseId ?? ''}
+                  onChange={(e) => setSelectedCourseId(e.target.value || null)}
+                  className="w-full sm:w-80 appearance-none rounded-2xl border border-white/10 bg-black px-6 py-4 text-sm font-bold text-white transition-all focus:border-red-500/50 focus:outline-none focus:ring-4 focus:ring-red-500/10 cursor-pointer shadow-inner"
+                  aria-label="Select a course to view its roadmap"
+                >
+                  {courses.map((course) => (
+                    <option key={course.id} value={course.id}>
+                      {course.title}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-6 text-gray-500">
+                  <svg className="h-4 w-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
 
-        <div className="mt-12 text-center max-w-2xl px-8">
-          <p className="text-xs text-gray-600 font-light uppercase tracking-widest border-t border-white/5 pt-8">
-            Interactive Roadmap visualized in real-time. Progress synced to your
-            encrypted operator profile. Reach{" "}
-            <span className="text-red-500 font-bold">Expert Tier</span> to
-            unlock dark-mode advanced governance modules.
-          </p>
-        </div>
+            <div className="rounded-[2rem] overflow-hidden border border-white/5 bg-zinc-950/40 backdrop-blur-md shadow-[0_20px_40px_rgba(0,0,0,0.4)]">
+              <RoadmapView course={selectedCourse} key={selectedCourseId} />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

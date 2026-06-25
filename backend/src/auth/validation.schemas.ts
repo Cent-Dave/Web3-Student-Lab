@@ -26,6 +26,11 @@ export const registerSchema = z.object({
       /^[a-zA-Z\s'-]+$/,
       'Last name can only contain letters, spaces, hyphens, and apostrophes'
     ),
+  walletAddress: z
+    .string()
+    .regex(/^G[A-Z2-7]{55}$/, 'Invalid Stellar wallet address format')
+    .optional()
+    .or(z.literal('')),
 });
 
 /**
@@ -38,7 +43,35 @@ export const loginSchema = z.object({
 });
 
 /**
+ * Web3 Nonce Request Schema
+ * Validates the request body for nonce generation
+ */
+export const web3NonceSchema = z.object({
+  walletAddress: z
+    .string()
+    .min(1, 'Wallet address is required')
+    .regex(/^G[A-Z2-7]{55}$/, 'Invalid Stellar wallet address format'),
+});
+
+/**
+ * Web3 Verify Request Schema
+ * Validates the request body for signature verification
+ */
+export const web3VerifySchema = z.object({
+  walletAddress: z
+    .string()
+    .min(1, 'Wallet address is required')
+    .regex(/^G[A-Z2-7]{55}$/, 'Invalid Stellar wallet address format'),
+  signature: z
+    .string()
+    .min(1, 'Signature is required'),
+  nonce: z.string().min(1, 'Nonce is required'),
+});
+
+/**
  * Type inference for validated data
  */
 export type RegisterRequest = z.infer<typeof registerSchema>;
 export type LoginRequest = z.infer<typeof loginSchema>;
+export type Web3NonceRequest = z.infer<typeof web3NonceSchema>;
+export type Web3VerifyRequest = z.infer<typeof web3VerifySchema>;

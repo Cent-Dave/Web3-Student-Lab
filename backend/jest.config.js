@@ -1,5 +1,12 @@
 /** @type {import('ts-jest').JestConfigWithTsJest} */
+process.env.NODE_ENV = 'test';
+
 export default {
+  setupFiles: [
+    'dotenv/config',
+    '<rootDir>/jest.setup.js',
+    '<rootDir>/tests/jest.setup.ts',
+  ],
   preset: 'ts-jest',
   testEnvironment: 'node',
   extensionsToTreatAsEsm: ['.ts'],

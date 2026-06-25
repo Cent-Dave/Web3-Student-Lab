@@ -13,6 +13,7 @@ datasource db {
 
 model Student {
   id           String   @id @default(cuid())
+  workspaceId  String   @default("default")
   email        String   @unique
   did          String?  @unique
   password     String
@@ -26,8 +27,10 @@ model Student {
   certificates  Certificate[]
   feedback      Feedback[]
   learningProgress LearningProgress[]
+  canvases      Canvas[]
 
   @@map("students")
+  @@index([workspaceId, email])
   @@index([firstName, lastName])
   @@index([email])
   @@index([createdAt])
@@ -35,6 +38,7 @@ model Student {
 
 model Course {
   id          String   @id @default(cuid())
+  workspaceId String   @default("default")
   title       String
   description String?
   instructor  String
@@ -48,6 +52,7 @@ model Course {
   learningProgress LearningProgress[]
 
   @@map("courses")
+  @@index([workspaceId, title])
   @@index([title])
   @@index([instructor])
   @@index([credits])
@@ -56,6 +61,7 @@ model Course {
 
 model Certificate {
   id               String   @id @default(cuid())
+  workspaceId      String   @default("default")
   studentId        String
   courseId         String
   tokenId          String   @unique
@@ -83,10 +89,13 @@ model Certificate {
   @@index([issuedAt])
   @@index([studentId])
   @@index([courseId])
+  @@index([studentId, status])
+  @@index([courseId, issuedAt])
 }
 
 model Enrollment {
   id         String   @id @default(cuid())
+  workspaceId String   @default("default")
   studentId  String
   courseId   String
   enrolledAt DateTime @default(now())
@@ -97,10 +106,14 @@ model Enrollment {
 
   @@unique([studentId, courseId])
   @@map("enrollments")
+  @@index([studentId])
+  @@index([courseId])
+  @@index([status])
 }
 
 model Feedback {
   id          String   @id @default(cuid())
+  workspaceId String   @default("default")
   studentId   String
   courseId    String
   rating      Int      // Rating from 1 to 5
@@ -117,9 +130,10 @@ model Feedback {
 
 model LearningProgress {
   id               String   @id @default(cuid())
+  workspaceId      String   @default("default")
   studentId        String
   courseId         String
-  completedLessons String[] // Array of lesson ids for PostgreSQL
+  completedLessons Json // Array of lesson ids for PostgreSQL
   currentModuleId  String?
   percentage       Int      @default(0)
   status           String   @default("not_started")
@@ -133,10 +147,15 @@ model LearningProgress {
 
   @@unique([studentId, courseId])
   @@map("learning_progress")
+  @@index([studentId])
+  @@index([courseId])
+  @@index([status])
+  @@index([lastAccessedAt])
 }
 
 model AuditLog {
   id        String   @id @default(cuid())
+  workspaceId String   @default("default")
   userId    String?
   userEmail String?
   action    String
@@ -148,6 +167,19 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@map("audit_logs")
+}
+
+model AuthNonce {
+  id            String   @id @default(cuid())
+  walletAddress String
+  nonce         String   @unique
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("auth_nonces")
+  @@index([walletAddress])
+  @@index([expiresAt])
 }
 
 model AnalyticsData {
@@ -162,3 +194,80 @@ model AnalyticsData {
 
   @@map("analytics_data")
 }
+
+model Canvas {
+  id          String   @id @default(cuid())
+  workspaceId String   @default("default")
+  roomId      String   @unique
+  studentId   String
+  title       String
+  description String?
+  data        Json?    // Stores canvas state/shapes
+  isPublic    Boolean  @default(false)
+  collaborators Json // Array of student IDs
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lastModifiedBy String?
+  lastModifiedAt DateTime?
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@map("canvases")
+  @@index([roomId])
+  @@index([studentId])
+  @@index([createdAt])
+}
+
+model DecentralizedAsset {
+  id            String   @id @default(cuid())
+  workspaceId   String   @default("default")
+  resourceType  String
+  resourceId    String
+  name          String
+  kind          String
+  provider      String   @default("pinata")
+  cid           String   @unique
+  ipfsUri       String
+  gatewayUrl    String
+  mimeType      String?
+  sizeBytes     Int?
+  status        String   @default("queued")
+  referenceCount Int     @default(1)
+  metadata      Json?
+  error         String?
+  pinnedAt      DateTime?
+  unpinnedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([workspaceId, resourceType, resourceId, name])
+  @@index([workspaceId, status])
+  @@index([workspaceId, resourceType, resourceId])
+  @@map("decentralized_assets")
+}
+
+model WebhookSubscription {
+  id          String   @id @default(cuid())
+  workspaceId String   @default("default")
+  url         String
+  secret      String?
+  events      Json     // Array of event names e.g., ["lesson.completed"]
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, url])
+  @@map("webhook_subscriptions")
+}
+
+model StudentActivity {
+  id        String   @id @default(cuid())
+  studentId String
+  courseId  String
+  lessonId  String
+  action    String
+  timestamp DateTime @default(now())
+
+  @@map("student_activities")
+}
+

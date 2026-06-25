@@ -191,12 +191,10 @@ export class CertificateController {
       logger.error(
         `Mint certificate error: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
-      res
-        .status(500)
-        .json({
-          error: error instanceof Error ? error.message : 'Failed to mint certificate',
-          success: false,
-        });
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to mint certificate',
+        success: false,
+      });
     }
   }
 
@@ -258,14 +256,12 @@ export class CertificateController {
         newGrade,
         issuedBy,
       });
-      res
-        .status(200)
-        .json({
-          success: true,
-          original: result.original,
-          newCertificate: result.new,
-          message: 'Certificate reissued successfully',
-        });
+      res.status(200).json({
+        success: true,
+        original: result.original,
+        newCertificate: result.new,
+        message: 'Certificate reissued successfully',
+      });
     } catch (error) {
       logger.error(`Reissue error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       res

@@ -444,11 +444,13 @@ impl EnrollmentContract {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::{Address, Env, Symbol};
+    extern crate std;
+    use soroban_sdk::{testutils::Address as _, Address, Env, Symbol};
 
     #[test]
     fn test_enroll_student_success() {
         let env = Env::default();
+        env.mock_all_auths();
         let student = Address::generate(&env);
         let instructor = Address::generate(&env);
         let course_id = Symbol::new(&env, "RUST101");
@@ -471,6 +473,7 @@ mod tests {
     #[test]
     fn test_cannot_enroll_twice() {
         let env = Env::default();
+        env.mock_all_auths();
         let student = Address::generate(&env);
         let instructor = Address::generate(&env);
         let course_id = Symbol::new(&env, "RUST101");
@@ -492,6 +495,7 @@ mod tests {
     #[test]
     fn test_complete_enrollment() {
         let env = Env::default();
+        env.mock_all_auths();
         let student = Address::generate(&env);
         let instructor = Address::generate(&env);
         let course_id = Symbol::new(&env, "RUST101");
@@ -519,6 +523,7 @@ mod tests {
     #[test]
     fn test_drop_enrollment() {
         let env = Env::default();
+        env.mock_all_auths();
         let student = Address::generate(&env);
         let instructor = Address::generate(&env);
         let course_id = Symbol::new(&env, "RUST101");
@@ -544,6 +549,7 @@ mod tests {
     #[test]
     fn test_total_enrollment_count() {
         let env = Env::default();
+        env.mock_all_auths();
         let instructor = Address::generate(&env);
         let course_id = Symbol::new(&env, "RUST101");
 
@@ -579,6 +585,7 @@ mod tests {
     #[test]
     fn test_student_courses_tracking() {
         let env = Env::default();
+        env.mock_all_auths();
         let student = Address::generate(&env);
         let instructor = Address::generate(&env);
         let course1 = Symbol::new(&env, "RUST101");
@@ -601,6 +608,7 @@ mod tests {
     #[test]
     fn test_course_students_tracking() {
         let env = Env::default();
+        env.mock_all_auths();
         let instructor = Address::generate(&env);
         let course_id = Symbol::new(&env, "RUST101");
 
@@ -627,6 +635,7 @@ mod tests {
     #[test]
     fn test_enrollment_timestamp() {
         let env = Env::default();
+        env.mock_all_auths();
         let student = Address::generate(&env);
         let instructor = Address::generate(&env);
         let course_id = Symbol::new(&env, "RUST101");
@@ -649,6 +658,7 @@ mod tests {
     #[test]
     fn test_version_counter_increments() {
         let env = Env::default();
+        env.mock_all_auths();
         let student = Address::generate(&env);
         let instructor = Address::generate(&env);
         let course_id = Symbol::new(&env, "RUST101");
@@ -674,6 +684,7 @@ mod tests {
     #[test]
     fn test_cannot_complete_non_active_enrollment() {
         let env = Env::default();
+        env.mock_all_auths();
         let student = Address::generate(&env);
         let instructor = Address::generate(&env);
         let course_id = Symbol::new(&env, "RUST101");
@@ -696,6 +707,7 @@ mod tests {
     #[test]
     fn test_cannot_drop_completed_enrollment() {
         let env = Env::default();
+        env.mock_all_auths();
         let student = Address::generate(&env);
         let instructor = Address::generate(&env);
         let course_id = Symbol::new(&env, "RUST101");
@@ -718,6 +730,7 @@ mod tests {
     #[test]
     fn test_reenroll_after_drop() {
         let env = Env::default();
+        env.mock_all_auths();
         let student = Address::generate(&env);
         let instructor = Address::generate(&env);
         let course_id = Symbol::new(&env, "RUST101");
@@ -747,6 +760,7 @@ mod tests {
     #[test]
     fn test_multiple_courses_independence() {
         let env = Env::default();
+        env.mock_all_auths();
         let student = Address::generate(&env);
         let instructor = Address::generate(&env);
         let course1 = Symbol::new(&env, "RUST101");

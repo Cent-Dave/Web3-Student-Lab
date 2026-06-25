@@ -37,7 +37,7 @@ pub enum RevocationReason {
     /// Evidence of fraudulent activity detected.
     FraudulentActivity,
     /// Other reason (with additional context).
-    Other(String),
+    Other,
 }
 
 /// Complete revocation audit record stored on-chain.

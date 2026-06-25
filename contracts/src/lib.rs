@@ -1,10 +1,3 @@
-//! Certificate contract with 2-of-3 governance multisig, RBAC, pause, and WASM upgrade
-//! through governance proposals (`PendingAdminAction::Upgrade`).
-//!
-//! **Upgrade risks:** Malicious WASM can replace authorization logic or corrupt storage
-//! expectations; compromised governance keys imply full contract takeover. Audit bytecode,
-//! test migrations, and prefer timelocks where applicable.
-
 #![no_std]
 
 pub mod admin;
@@ -2193,3 +2186,4 @@ fn compute_metadata_hash(
 
     hasher.finalize()
 }
+
