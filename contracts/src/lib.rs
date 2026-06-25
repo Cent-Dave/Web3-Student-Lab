@@ -23,6 +23,7 @@ pub mod verification;
 // #[cfg(test)]
 // pub mod fuzz;
 pub mod token;
+pub mod swap_router;
 
 use crate::revocation::{CertificateState, CertificateStatus, RevocationReason, RevocationRecord};
 use crate::token::RsTokenContractClient;
