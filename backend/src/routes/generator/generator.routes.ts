@@ -1,10 +1,10 @@
 // @ts-nocheck
+import { randomUUID } from 'crypto';
 import { Request, Response, Router } from 'express';
 import { GeneratorService } from '../../generator/generator.service.js';
-import logger from '../../utils/logger.js';
 import { getRandomProjectIdea, mockProjectIdeas } from '../../generator/mockData.js';
-import { randomUUID } from 'crypto';
 import { storageService } from '../../services/storage/index.js';
+import logger from '../../utils/logger.js';
 
 const router = Router();
 const generatorService = new GeneratorService();
@@ -21,7 +21,21 @@ const slugify = (value: string): string =>
  */
 router.post('/generate', async (req: Request, res: Response) => {
   try {
-    const { theme, techStack, difficulty, persistToStorage, queuedPersist } = req.body;
+    const { theme, techStack, difficulty, persistToStorage, queuedPersist, customRpcUrl } = req.body;
+
+    // Validate optional custom RPC URL
+    if (customRpcUrl) {
+      try {
+        const url = new URL(customRpcUrl);
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+          res.status(400).json({ error: 'customRpcUrl must use http or https' });
+          return;
+        }
+      } catch (err) {
+        res.status(400).json({ error: 'customRpcUrl is not a valid URL' });
+        return;
+      }
+    }
 
     if (!theme || !techStack || !difficulty) {
       res.status(400).json({ error: 'Theme, techStack, and difficulty are required' });
@@ -29,8 +43,13 @@ router.post('/generate', async (req: Request, res: Response) => {
     }
 
     // Try AI generation first, fallback to mock data if it fails
-    try {
-      const projectIdea = await generatorService.generateProjectIdea(theme, techStack, difficulty);
+      try {
+      const projectIdea = await generatorService.generateProjectIdea(
+        theme,
+        techStack,
+        difficulty,
+        customRpcUrl
+      );
 
       if (persistToStorage) {
         const projectId = `${slugify(theme)}-${Date.now()}-${randomUUID().slice(0, 8)}`;

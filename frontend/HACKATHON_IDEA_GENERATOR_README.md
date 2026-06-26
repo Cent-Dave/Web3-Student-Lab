@@ -30,6 +30,10 @@ existing [`generatorAPI`](src/lib/api.ts) in `src/lib/api.ts` — no new client 
 introduced. `buildGeneratorParams()` maps the UI filters to the request shape the
 endpoint already accepts (`{ theme, techStack, difficulty }`).
 
+The backend endpoint also accepts an optional `customRpcUrl` string in the
+request body; when provided the AI prompt will be instructed to prefer that RPC
+endpoint for any blockchain interactions mentioned in the generated idea.
+
 ## Filtering
 
 - **Difficulty** — `Beginner | Intermediate | Advanced` (matches `ProjectIdea`).

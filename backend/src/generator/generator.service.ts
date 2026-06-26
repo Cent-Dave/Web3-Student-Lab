@@ -1,7 +1,6 @@
 import OpenAI from 'openai';
-import logger from '../utils/logger.js';
-import dotenv from 'dotenv';
 import { cbManager } from '../lib/circuit-breaker/CircuitBreakerManager.js';
+import logger from '../utils/logger.js';
 
 // dotenv.config(); // Skip in Docker Compose - use environment variables instead
 
@@ -34,24 +33,26 @@ export class GeneratorService {
   async generateProjectIdea(
     theme: string,
     techStack: string[],
-    difficulty: string
+    difficulty: string,
+    customRpcUrl?: string
   ): Promise<ProjectIdea> {
     return this.breaker.execute(
       async () => {
         const prompt = `
           As an expert Web3 and Software Architect, generate a unique and innovative hackathon project idea.
-          
+
           Theme: ${theme}
           Technology Stack: ${techStack.join(', ')}
           Target Difficulty: ${difficulty}
-          
+          ${customRpcUrl ? `\nIf this project will interact with a blockchain, prefer using the following RPC endpoint: ${customRpcUrl}` : ''}
+
           Return the response in a structured JSON format with the following keys:
           - title: A catchy name for the project.
           - description: A detailed description of the project and its value proposition.
           - keyFeatures: An array of 3-5 core functionalities.
           - recommendedTech: An array of tools and libraries that would be useful.
           - difficulty: The suggested level (Beginner, Intermediate, or Advanced).
-          
+
           Ensure the idea is practical for a 48-hour hackathon but still innovative.
         `;
 
