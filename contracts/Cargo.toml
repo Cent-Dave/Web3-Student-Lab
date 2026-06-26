@@ -18,7 +18,8 @@ members = [
     "course_proxy",
     "auth_checker",
     "cross_chain_client",
-    "freelance-platform"
+    "freelance-platform",
+    "pr_simulation"
 ]
 
 [lib]

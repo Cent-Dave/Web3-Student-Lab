@@ -5,6 +5,9 @@ import dynamic from 'next/dynamic';
 const CodeEditor = dynamic(() => import('@/components/playground/CodeEditor').then((mod) => mod.CodeEditor), {
   ssr: false,
 });
+const PrSimulationPanel = dynamic(() => import('@/components/playground/PrSimulationPanel').then((mod) => mod.PrSimulationPanel), {
+  ssr: false,
+});
 import { OfflineIndicator } from '@/components/storage/OfflineIndicator';
 import {
   CompileOutputTerminal,
@@ -111,7 +114,7 @@ export default function PlaygroundPage() {
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'offline' | 'error'>('idle');
   const [isOnline, setIsOnline] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
-  const [activeTab, setActiveTab] = useState<'editor' | 'output'>('editor');
+  const [activeTab, setActiveTab] = useState<'editor' | 'output' | 'prsim'>('editor');
 
   useEffect(() => {
     const timer = setTimeout(() => setIsInitializing(false), 1500);
@@ -274,6 +277,30 @@ export default function PlaygroundPage() {
           </div>
         </div>
 
+        {/* Desktop PR Sim Tab */}
+        <div className="hidden lg:flex mb-6 gap-1 rounded-xl border border-white/10 bg-zinc-950 p-1">
+          <button
+            onClick={() => setActiveTab('editor')}
+            className={`flex-1 py-3 text-xs font-bold tracking-widest uppercase rounded-lg transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'editor'
+                ? 'bg-red-600 text-white'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            Editor & Terminal
+          </button>
+          <button
+            onClick={() => setActiveTab('prsim')}
+            className={`flex-1 py-3 text-xs font-bold tracking-widest uppercase rounded-lg transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'prsim'
+                ? 'bg-red-600 text-white'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            PR Simulation
+          </button>
+        </div>
+
         {/* Mobile Tab Switcher */}
         <div className="flex lg:hidden mb-6 border border-white/10 rounded-xl p-1 bg-zinc-950">
           <button
@@ -296,9 +323,26 @@ export default function PlaygroundPage() {
           >
             Output & Terminal
           </button>
+          <button
+            onClick={() => setActiveTab('prsim')}
+            className={`flex-1 py-3 text-xs font-bold tracking-widest uppercase rounded-lg transition-all min-h-[44px] flex items-center justify-center ${
+              activeTab === 'prsim'
+                ? 'bg-red-600 text-white'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            PR Sim
+          </button>
         </div>
 
-        <div className="grid flex-grow grid-cols-1 gap-12 lg:grid-cols-2">
+        {/* PR Simulation Panel — standalone view */}
+        {activeTab === 'prsim' && (
+          <div className="lg:hidden flex-grow">
+            <PrSimulationPanel className="h-full" />
+          </div>
+        )}
+
+        <div className={`grid flex-grow grid-cols-1 gap-12 lg:grid-cols-2 ${activeTab === 'prsim' ? 'hidden lg:grid' : ''}`}>
           {/* Editor Placeholder */}
           <div className="relative flex min-h-[600px] flex-col rounded-3xl border border-white/10 bg-zinc-950 p-8 shadow-2xl" data-tour-step="playground-editor">
             <div className="mb-6 flex items-center justify-between gap-2 border-b border-white/5 pb-4">
@@ -373,23 +417,29 @@ export default function PlaygroundPage() {
             </button>
           </div>
 
-          {/* Terminal Output */}
+          {/* Terminal Output or PR Simulation */}
           <div className="flex flex-col gap-6" data-tour-step="playground-output">
-            <CompileOutputTerminal logs={compileLogs} isCompiling={isCompiling} />
+            {activeTab === 'prsim' ? (
+              <PrSimulationPanel />
+            ) : (
+              <>
+                <CompileOutputTerminal logs={compileLogs} isCompiling={isCompiling} />
 
-            <TerminalPanel />
+                <TerminalPanel />
 
-            <div className="rounded-3xl border border-white/5 bg-zinc-950 p-4 sm:p-8">
-              <h4 className="mb-4 text-[10px] font-black tracking-widest text-white uppercase">
-                Laboratory Notes
-              </h4>
-              <p className="text-[11px] leading-relaxed font-light text-gray-500">
-                This playground now includes the educational notarization and payment gateway modules.
-                Learners can inspect hash timestamping, escrowed payment processing, refunds, and
-                dispute resolution before deploying validated Soroban logic with the integrated CLI
-                tools in the <span className="text-red-500">Builder Tier</span> modules.
-              </p>
-            </div>
+                <div className="rounded-3xl border border-white/5 bg-zinc-950 p-4 sm:p-8">
+                  <h4 className="mb-4 text-[10px] font-black tracking-widest text-white uppercase">
+                    Laboratory Notes
+                  </h4>
+                  <p className="text-[11px] leading-relaxed font-light text-gray-500">
+                    This playground now includes the educational notarization and payment gateway modules.
+                    Learners can inspect hash timestamping, escrowed payment processing, refunds, and
+                    dispute resolution before deploying validated Soroban logic with the integrated CLI
+                    tools in the <span className="text-red-500">Builder Tier</span> modules.
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
