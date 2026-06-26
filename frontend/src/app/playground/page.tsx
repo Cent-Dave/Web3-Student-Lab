@@ -1,25 +1,26 @@
 'use client';
 
 import { VirtualizedFileTree, type FileTreeNode } from '@/components/explorer/VirtualizedFileTree';
-import dynamic from 'next/dynamic';
-const CodeEditor = dynamic(() => import('@/components/playground/CodeEditor').then((mod) => mod.CodeEditor), {
-  ssr: false,
-});
 import { OfflineIndicator } from '@/components/storage/OfflineIndicator';
 import {
-  CompileOutputTerminal,
-  type CompileLogEntry,
+    CompileOutputTerminal,
+    type CompileLogEntry,
 } from '@/components/terminal/CompileOutputTerminal';
 import { TerminalPanel } from '@/components/terminal/TerminalPanel';
 import { WithSkeleton } from '@/components/ui/WithSkeleton';
 import { EditorSkeleton } from '@/components/ui/skeletons/EditorSkeleton';
 import { useTutorial } from '@/contexts/TutorialContext';
-import { useState, useEffect, useMemo, useCallback } from 'react';
 import { CollaborationProvider } from '@/lib/collaboration/YjsProvider';
+import type { CompileWorkerResponse } from '@/lib/compiler/compileTypes';
+import { FilePresenceManager } from '@/lib/explorer/FilePresence';
 import { DatabaseManager } from '@/lib/storage/DatabaseManager';
 import { SyncManager } from '@/lib/storage/SyncManager';
-import { FilePresenceManager } from '@/lib/explorer/FilePresence';
 import { Settings, X } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+const CodeEditor = dynamic(() => import('@/components/playground/CodeEditor').then((mod) => mod.CodeEditor), {
+  ssr: false,
+});
 
 const INITIAL_TREE: FileTreeNode[] = [
   {
@@ -95,6 +96,19 @@ function moveFileNode(
 export default function PlaygroundPage() {
   const [compileLogs, setCompileLogs] = useState<CompileLogEntry[]>([]);
   const [isCompiling, setIsCompiling] = useState(false);
+  const [sourceCode, setSourceCode] = useState<string>(`#![no_std]
+
+use soroban_sdk::{contract, contractimpl, Env, Symbol};
+
+#[contract]
+pub struct HelloContract;
+
+#[contractimpl]
+impl HelloContract {
+    pub fn hello(_env: Env) -> Symbol {
+        Symbol::new(&_env, "hello")
+    }
+}`);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editorSettings, setEditorSettings] = useState({
     fontSize: 14,
@@ -112,6 +126,44 @@ export default function PlaygroundPage() {
   const [isOnline, setIsOnline] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
   const [activeTab, setActiveTab] = useState<'editor' | 'output'>('editor');
+  const workerRef = useRef<Worker | null>(null);
+
+  useEffect(() => {
+    const compileWorker = new Worker(new URL('../../lib/compiler/compile.worker.ts', import.meta.url), {
+      type: 'module',
+    });
+
+    const handleWorkerMessage = (event: MessageEvent<CompileWorkerResponse>) => {
+      const data = event.data;
+      if (data.type === 'log') {
+        setCompileLogs((prev) => [...prev, data.entry]);
+        return;
+      }
+      if (data.type === 'complete') {
+        setIsCompiling(false);
+        if (!data.success && data.errors.length === 0) {
+          setCompileLogs((prev) => [
+            ...prev,
+            {
+              id: crypto.randomUUID?.() ?? `${Date.now()}-compile-failed`,
+              level: 'error',
+              timestamp: new Date().toLocaleTimeString(),
+              message: 'Browser compile failed with unknown diagnostics.',
+            },
+          ]);
+        }
+      }
+    };
+
+    compileWorker.addEventListener('message', handleWorkerMessage);
+    workerRef.current = compileWorker;
+
+    return () => {
+      compileWorker.removeEventListener('message', handleWorkerMessage);
+      compileWorker.terminate();
+      workerRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsInitializing(false), 1500);
@@ -188,7 +240,7 @@ export default function PlaygroundPage() {
   }, [activeFilePath, databaseManager]);
 
   const handleCompile = useCallback(() => {
-    setIsCompiling(true);
+    if (isCompiling) return;
     const stamp = () => new Date().toLocaleTimeString();
     setCompileLogs([
       {
@@ -204,26 +256,28 @@ export default function PlaygroundPage() {
         message: 'Checking Rust target wasm32-unknown-unknown...',
       },
     ]);
-    setTimeout(() => {
+    setIsCompiling(true);
+
+    if (!workerRef.current) {
       setCompileLogs((prev) => [
         ...prev,
         {
-          id: crypto.randomUUID?.() ?? `${Date.now()}-compile-success`,
-          level: 'success',
+          id: crypto.randomUUID?.() ?? `${Date.now()}-compile-error`,
+          level: 'error',
           timestamp: stamp(),
-          message: 'Compilation successful. WASM size: 4.2KB',
-        },
-        {
-          id: crypto.randomUUID?.() ?? `${Date.now()}-compile-ready`,
-          level: 'success',
-          timestamp: stamp(),
-          message:
-            'Contract ready for simulation. Exports: register_hash, verify, history_for_owner, process_payment, refund_payment.',
+          message: 'Unable to start browser compiler worker.',
         },
       ]);
       setIsCompiling(false);
-    }, 1500);
-  }, [activeFilePath]);
+      return;
+    }
+
+    workerRef.current.postMessage({
+      type: 'compile',
+      source: sourceCode,
+      filePath: activeFilePath,
+    });
+  }, [activeFilePath, isCompiling, sourceCode]);
 
   useEffect(() => {
     const handleShortcutCompile = () => {
@@ -355,6 +409,8 @@ export default function PlaygroundPage() {
                   roomName="main-lab-session"
                   collaborationProvider={provider}
                   settings={editorSettings}
+                  value={sourceCode}
+                  onCodeChange={setSourceCode}
                 />
               </WithSkeleton>
             </div>
