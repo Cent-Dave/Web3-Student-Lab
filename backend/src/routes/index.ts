@@ -13,6 +13,7 @@ import exportRouter from './export.routes.js';
 import generatorRouter from './generator/generator.routes.js';
 import healthRouter from './health.routes.js';
 import learningRoutes from './learning/learning.routes.js';
+import curriculumSearchRouter from './search/curriculum-search.routes.js';
 import securityRouter from './security.routes.js';
 import studentsRouter from './students.js';
 
@@ -33,6 +34,7 @@ router.use('/dashboard', dashboardRoutes);
 router.use('/feedback', feedbackRouter);
 router.use('/auth', authRoutes);
 router.use('/learning', learningRoutes);
+router.use('/search', curriculumSearchRouter);
 router.use('/contracts', contractRouter);
 router.use('/notifications', notificationRouter);
 router.use('/security', securityRouter);

@@ -271,3 +271,26 @@ model StudentActivity {
   @@map("student_activities")
 }
 
+/// Denormalised, full-text searchable index of curriculum content
+/// (courses, modules and lessons). Populated by the reindex routine and
+/// queried via PostgreSQL full-text search (see CurriculumSearchService).
+model CurriculumSearchEntry {
+  id           String                   @id @default(cuid())
+  workspaceId  String                   @default("default")
+  entityType   String // 'course' | 'module' | 'lesson'
+  entityId     String // source id, e.g. 'course-1-lesson-1'
+  courseId     String?
+  title        String
+  content      String // text block indexed for search (title + description)
+  difficulty   String?
+  /// Maintained automatically by the curriculum_search_entries_vector_update trigger.
+  searchVector Unsupported("tsvector")?
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+
+  @@unique([workspaceId, entityType, entityId])
+  @@index([workspaceId, entityType])
+  @@index([workspaceId, courseId])
+  @@map("curriculum_search_entries")
+}
+
