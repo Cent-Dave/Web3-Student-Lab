@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import ShareButton from '@/components/roadmap/ShareButton';
 
 const NODES = [
   {
@@ -184,6 +185,7 @@ export default function RoadmapPage() {
                   ? 'Initiate Node'
                   : 'Node Locked'}
             </button>
+            <ShareButton title={activeNode.title} description={activeNode.desc} />
           </div>
         </div>
 

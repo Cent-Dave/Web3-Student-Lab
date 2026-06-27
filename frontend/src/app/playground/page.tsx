@@ -9,6 +9,7 @@ import { TerminalPanel } from '@/components/terminal/TerminalPanel';
 import { DatabaseManager } from '@/lib/storage/DatabaseManager';
 import { SyncManager } from '@/lib/storage/SyncManager';
 import { useState, useEffect, useMemo } from 'react';
+import { ContractSearch, type Contract } from '@/components/playground/ContractSearch';
 import { WithSkeleton } from '@/components/ui/WithSkeleton';
 import { EditorSkeleton } from '@/components/ui/skeletons/EditorSkeleton';
 
@@ -82,6 +83,7 @@ function moveFileNode(
 
 export default function PlaygroundPage() {
   const [output, setOutput] = useState('');
+  const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [isCompiling, setIsCompiling] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [treeData, setTreeData] = useState<FileTreeNode[]>(INITIAL_TREE);
@@ -276,7 +278,7 @@ export default function PlaygroundPage() {
                 Execution_Output
               </h3>
               <pre className="font-mono text-xs leading-loose whitespace-pre-wrap text-red-500/80">
-                {output || '> Initializing environment...\n> Awaiting input signal...'}
+                {output || '> Initializing environment...\n> Awaiting input signal...'}{selectedContract ? `\n> Loaded contract: ${selectedContract.name}` : ''}
               </pre>
               {isCompiling && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm transition-all">
@@ -298,6 +300,7 @@ export default function PlaygroundPage() {
               <h4 className="mb-4 text-[10px] font-black tracking-widest text-white uppercase">
                 Laboratory Notes
               </h4>
+              <ContractSearch onSelect={setSelectedContract} />
               <p className="text-[11px] leading-relaxed font-light text-gray-500">
                 This playground provides a{' '}
                 <span className="text-white">real-time transpilation</span> environment for Soroban

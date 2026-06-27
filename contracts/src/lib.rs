@@ -30,6 +30,7 @@ pub mod payment_scheduler;
 pub mod quadratic_voting;
 pub mod rarity_validator;
 pub mod rbac;
+pub mod referral_program;
 pub mod reputation_system;
 pub mod revocation;
 pub mod route_optimizer;
