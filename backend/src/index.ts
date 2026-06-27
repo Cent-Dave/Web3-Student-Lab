@@ -13,9 +13,11 @@ import config from './config/env.config.js';
 import { setRateLimitEnvOverrides } from './config/rateLimit.config.js';
 import { swaggerSpec } from './config/swagger.js';
 import prisma from './db/index.js';
+import { createGraphQLServer } from './graphql/server.js';
 import { dbRoutingMiddleware } from './middleware/dbRouting.js';
 import { decryptionMiddleware } from './middleware/encryptionMiddleware.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { createI18nMiddleware } from './middleware/i18n.js';
 import { rateLimiter } from './middleware/rateLimiter.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { requireWorkspaceMiddleware } from './middleware/WorkspaceContext.js';
@@ -26,7 +28,6 @@ import logger from './utils/logger.js';
 import { pubClient, redisConnection, subClient } from './utils/redis.js';
 import { getSentryErrorHandler, getSentryRequestHandler, initializeSentry } from './utils/sentry.js';
 import { initializeWebSocket } from './websocket/WebSocketServer.js';
-import { createGraphQLServer } from './graphql/server.js';
 
 // Load environment variables
 // dotenv.config(); // Skip in Docker Compose - use environment variables instead
@@ -158,7 +159,7 @@ async function setupGraphQL() {
   try {
     graphqlServer = await createGraphQLServer();
     const { expressMiddleware } = await import('@apollo/server/express4');
-    
+
     app.use(
       '/graphql',
       express.json(),
@@ -176,7 +177,7 @@ async function setupGraphQL() {
 setupGraphQL().catch(() => {});
 
 // API Routes - with workspace isolation
-app.use('/api/v1', requireWorkspaceMiddleware, routes);
+app.use('/api/v1', requireWorkspaceMiddleware, createI18nMiddleware(), routes);
 
 // Swagger Documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {

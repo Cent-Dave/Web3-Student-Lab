@@ -1,6 +1,6 @@
+import { apiRequestCache } from './api-cache';
 import apiClient from './api-client';
 import { API_BASE_URL } from './api-config';
-import { apiRequestCache } from './api-cache';
 
 export interface User {
   id: string;
@@ -8,6 +8,9 @@ export interface User {
   name: string;
   address?: string;
   walletAddress?: string | null;
+  role?: 'student' | 'administrator' | 'instructor';
+  roles?: Array<'student' | 'administrator' | 'instructor'>;
+  permissions?: string[];
 }
 
 export interface AuthResponse {

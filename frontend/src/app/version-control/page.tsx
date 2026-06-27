@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
-import { VersionControl, type DocumentEntry, type Version } from '@/lib/version-control/engine';
+import { GitConflictResolutionTutorial } from '@/components/version-control/GitConflictResolutionTutorial';
 import { VersionHistory } from '@/components/version-control/VersionHistory';
-import { Plus, FileText, Trash2, Clock, RotateCcw } from 'lucide-react';
 import { formatDistanceToNow } from '@/lib/utils';
+import { VersionControl, type DocumentEntry, type Version } from '@/lib/version-control/engine';
+import { Clock, FileText, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
 
 export default function VersionControlPage() {
   const [documents, setDocuments] = useState<DocumentEntry[]>(() =>
@@ -96,6 +97,10 @@ export default function VersionControlPage() {
           Track changes to learning materials with full version history, comparison, and rollback
           capability.
         </p>
+      </div>
+
+      <div className="mb-8">
+        <GitConflictResolutionTutorial />
       </div>
 
       <div className="grid gap-8 xl:grid-cols-[320px_1fr]">

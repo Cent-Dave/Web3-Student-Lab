@@ -294,3 +294,17 @@ model StudentActivity {
   @@map("student_activities")
 }
 
+model TranslationEntry {
+  id          String   @id @default(cuid())
+  workspaceId String   @default("default")
+  locale      String
+  namespace   String   @default("platform")
+  key         String
+  value       String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, locale, namespace, key])
+  @@index([workspaceId, locale, namespace])
+  @@map("translation_entries")
+}
