@@ -30,6 +30,7 @@ model Student {
   canvases      Canvas[]
 
   @@map("students")
+  @@index([workspaceId, email])
   @@index([firstName, lastName])
   @@index([email])
   @@index([createdAt])
@@ -51,6 +52,7 @@ model Course {
   learningProgress LearningProgress[]
 
   @@map("courses")
+  @@index([workspaceId, title])
   @@index([title])
   @@index([instructor])
   @@index([credits])
@@ -87,6 +89,8 @@ model Certificate {
   @@index([issuedAt])
   @@index([studentId])
   @@index([courseId])
+  @@index([studentId, status])
+  @@index([courseId, issuedAt])
 }
 
 model Enrollment {
@@ -102,6 +106,9 @@ model Enrollment {
 
   @@unique([studentId, courseId])
   @@map("enrollments")
+  @@index([studentId])
+  @@index([courseId])
+  @@index([status])
 }
 
 model Feedback {
@@ -140,6 +147,10 @@ model LearningProgress {
 
   @@unique([studentId, courseId])
   @@map("learning_progress")
+  @@index([studentId])
+  @@index([courseId])
+  @@index([status])
+  @@index([lastAccessedAt])
 }
 
 model AuditLog {
@@ -206,3 +217,80 @@ model Canvas {
   @@index([studentId])
   @@index([createdAt])
 }
+
+model DecentralizedAsset {
+  id            String   @id @default(cuid())
+  workspaceId   String   @default("default")
+  resourceType  String
+  resourceId    String
+  name          String
+  kind          String
+  provider      String   @default("pinata")
+  cid           String   @unique
+  ipfsUri       String
+  gatewayUrl    String
+  mimeType      String?
+  sizeBytes     Int?
+  status        String   @default("queued")
+  referenceCount Int     @default(1)
+  metadata      Json?
+  error         String?
+  pinnedAt      DateTime?
+  unpinnedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([workspaceId, resourceType, resourceId, name])
+  @@index([workspaceId, status])
+  @@index([workspaceId, resourceType, resourceId])
+  @@map("decentralized_assets")
+}
+
+model WebhookSubscription {
+  id          String   @id @default(cuid())
+  workspaceId String   @default("default")
+  url         String
+  secret      String?
+  events      Json     // Array of event names e.g., ["lesson.completed"]
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, url])
+  @@map("webhook_subscriptions")
+}
+
+model NotificationPreferences {
+  id             String   @id @default(cuid())
+  workspaceId    String   @default("default")
+  studentId      String
+  emailEnabled   Boolean  @default(true)
+  pushEnabled    Boolean  @default(true)
+  inAppEnabled   Boolean  @default(true)
+  courseUpdates  Boolean  @default(true)
+  announcements  Boolean  @default(true)
+  newCourses     Boolean  @default(true)
+  reminders      Boolean  @default(true)
+  frequency      String   @default("immediate")
+  quietHoursStart String?
+  quietHoursEnd   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([studentId])
+  @@map("notification_preferences")
+  @@index([studentId])
+  @@index([workspaceId, studentId])
+}
+
+model StudentActivity {
+  id        String   @id @default(cuid())
+  studentId String
+  courseId  String
+  lessonId  String
+  action    String
+  timestamp DateTime @default(now())
+
+  @@map("student_activities")
+}
+

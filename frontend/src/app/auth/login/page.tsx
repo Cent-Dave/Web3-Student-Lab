@@ -10,19 +10,19 @@ import { useEffect } from 'react';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { isAuthenticated } = useAuth();
   const { publicKey } = useWallet();
   const completedProfile = useWalletProfileCompletion(publicKey);
   const profileCompleted = !!completedProfile;
 
   useEffect(() => {
-    if (user) {
+    if (isAuthenticated) {
       router.replace('/dashboard');
     }
-  }, [router, user]);
+  }, [router, isAuthenticated]);
 
   return (
-    <div className="relative flex min-h-[calc(100vh-80px)] items-center justify-center overflow-hidden bg-black px-4 py-12">
+    <div className="relative flex min-h-[calc(100vh-80px)] justify-center bg-black px-4 py-12">
       <div className="pointer-events-none absolute top-1/2 left-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-600/10 blur-[100px]"></div>
 
       <div className="relative z-10 w-full max-w-3xl">

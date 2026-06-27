@@ -130,4 +130,29 @@ router.put('/profile', authenticate, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @route   GET /api/user/onboarding
+ * @desc    Get user onboarding state (mocked)
+ * @access  Private
+ */
+router.get('/onboarding', authenticate, async (req: Request, res: Response) => {
+  // Mock response for now, replace with actual DB query if schema is updated
+  res.json({
+    hasCompletedWalletCreation: false,
+    hasReceivedTokens: false,
+    hasDeployedContract: false,
+    currentStepIndex: 0,
+  });
+});
+
+/**
+ * @route   PUT /api/user/onboarding
+ * @desc    Update user onboarding state (mocked)
+ * @access  Private
+ */
+router.put('/onboarding', authenticate, async (req: Request, res: Response) => {
+  // Mock response for now
+  res.json({ success: true });
+});
+
 export default router;

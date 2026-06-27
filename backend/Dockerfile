@@ -1,42 +1,41 @@
 # Stage 1: Build stage
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Install pnpm and prisma globally
-RUN npm install -g pnpm prisma
+# Install prisma globally
+RUN npm install -g prisma
 
-# Copy package files first (for faster caching)
-COPY package*.json ./
+# Copy package files first for caching
+# We assume the Docker build context is the repository root.
+COPY backend/package*.json ./backend/
 
-# Install dependencies
-RUN pnpm install
-
-# Install backend dependencies
 WORKDIR /app/backend
-RUN pnpm install
+# Use npm ci for reliable builds
+RUN npm ci
 
-# Go back to app root to copy the rest of the files
+# Copy the rest of the backend source code
 WORKDIR /app
-COPY . .
+COPY backend/ ./backend/
 
-# Generate Prisma client with correct path
+WORKDIR /app/backend
+# Generate Prisma client
 RUN npx prisma generate --schema=prisma/schema.prisma
 
-# Change to backend directory and build
-WORKDIR /app/backend
+# Build the application
 RUN npm run build
 
 # Stage 2: Production stage
-FROM node:20-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
-# Copy production dependencies and built files from backend
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/prisma ./prisma
+# Copy production dependencies and built files from the builder stage
+COPY --from=builder /app/backend/package*.json ./
+COPY --from=builder /app/backend/dist ./dist
+COPY --from=builder /app/backend/node_modules ./node_modules
+COPY --from=builder /app/backend/prisma ./prisma
+COPY --from=builder /app/backend/prisma.config.ts ./
 
 # Set environment variables
 ENV NODE_ENV=production
@@ -44,5 +43,5 @@ ENV PORT=8080
 
 EXPOSE 8080
 
-# Start the application
-CMD ["npm", "run", "start:prod"]
+# Start the application with database migrations
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss --schema=prisma/schema.prisma && npm run start:prod"]

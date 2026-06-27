@@ -6,8 +6,8 @@
 //! early withdrawal penalties.
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, Address,
-    Env, token::Client as TokenClient,
+    contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short,
+    token::Client as TokenClient, Address, Env,
 };
 
 /// 1e18 precision for reward calculations.
@@ -99,8 +99,7 @@ impl DynamicStakingContract {
             .instance()
             .set(&StakingDataKey::ReentrancyLock, &false);
 
-        env.events()
-            .publish((symbol_short!("stk_init"),), admin);
+        env.events().publish((symbol_short!("stk_init"),), admin);
     }
 
     /// Stake tokens for a specified duration to earn dynamic yield.
@@ -124,15 +123,24 @@ impl DynamicStakingContract {
             .get::<_, Address>(&StakingDataKey::StakingToken)
             .unwrap();
 
-        // Calculate multiplier: base (1.0) + (lock_duration / MAX_LOCK_DURATION) * 1.0
-        // Resulting multiplier ranges from 1x to 2x.
-        let bonus = (lock_duration_seconds as u128)
-            .saturating_mul(PRECISION)
-            .checked_div(MAX_LOCK_DURATION as u128)
-            .unwrap_or(0);
-        let multiplier = PRECISION.saturating_add(bonus);
+        // Calculate multiplier based on lock-up duration tiers.
+        let day = 86_400u64;
+        let multiplier = if lock_duration_seconds < 30 * day {
+            PRECISION // Tier 1: < 30 days -> 1.0x multiplier
+        } else if lock_duration_seconds < 90 * day {
+            PRECISION + (PRECISION / 4) // Tier 2: 30 to 89 days -> 1.25x multiplier
+        } else if lock_duration_seconds < 180 * day {
+            PRECISION + (PRECISION / 2) // Tier 3: 90 to 179 days -> 1.5x multiplier
+        } else if lock_duration_seconds < 365 * day {
+            PRECISION + (PRECISION * 3 / 4) // Tier 4: 180 to 364 days -> 1.75x multiplier
+        } else {
+            PRECISION * 2 // Tier 5: >= 365 days (MAX_LOCK_DURATION) -> 2.0x multiplier
+        };
 
-        let effective_amount = amount.saturating_mul(multiplier).checked_div(PRECISION).unwrap_or(0);
+        let effective_amount = amount
+            .saturating_mul(multiplier)
+            .checked_div(PRECISION)
+            .unwrap_or(0);
 
         let mut position = Self::get_position(&env, &caller).unwrap_or(UserPosition {
             balance: 0,
@@ -143,7 +151,10 @@ impl DynamicStakingContract {
         });
 
         // Ensure new lock time extends the old one, but doesn't shrink it
-        let new_lock_end = env.ledger().timestamp().saturating_add(lock_duration_seconds);
+        let new_lock_end = env
+            .ledger()
+            .timestamp()
+            .saturating_add(lock_duration_seconds);
         if new_lock_end > position.lock_end {
             position.lock_end = new_lock_end;
         }
@@ -173,8 +184,10 @@ impl DynamicStakingContract {
         let token_client = TokenClient::new(&env, &staking_token);
         token_client.transfer(&caller, &env.current_contract_address(), &(amount as i128));
 
-        env.events()
-            .publish((symbol_short!("stk_stake"), caller), (amount, lock_duration_seconds));
+        env.events().publish(
+            (symbol_short!("stk_stake"), caller),
+            (amount, lock_duration_seconds),
+        );
 
         Self::release_lock(&env);
     }
@@ -200,8 +213,15 @@ impl DynamicStakingContract {
         }
 
         // Calculate proportion of effective balance to remove
-        let proportion = amount.saturating_mul(PRECISION).checked_div(position.balance).unwrap_or(0);
-        let effective_remove = position.effective_balance.saturating_mul(proportion).checked_div(PRECISION).unwrap_or(0);
+        let proportion = amount
+            .saturating_mul(PRECISION)
+            .checked_div(position.balance)
+            .unwrap_or(0);
+        let effective_remove = position
+            .effective_balance
+            .saturating_mul(proportion)
+            .checked_div(PRECISION)
+            .unwrap_or(0);
 
         position.balance = position.balance.saturating_sub(amount);
         position.effective_balance = position.effective_balance.saturating_sub(effective_remove);
@@ -211,11 +231,15 @@ impl DynamicStakingContract {
 
         if is_early {
             // Apply 10% penalty to principal
-            let penalty = amount.saturating_mul(EARLY_WITHDRAWAL_PENALTY_BPS).checked_div(10_000).unwrap_or(0);
+            let penalty = amount
+                .saturating_mul(EARLY_WITHDRAWAL_PENALTY_BPS)
+                .checked_div(10_000)
+                .unwrap_or(0);
             final_transfer_amount = amount.saturating_sub(penalty);
             // Forfeit all accumulated rewards
             position.rewards = 0;
-            env.events().publish((symbol_short!("stk_pnlt"), caller.clone()), penalty);
+            env.events()
+                .publish((symbol_short!("stk_pnlt"), caller.clone()), penalty);
         }
 
         let mut total_supply: u128 = env
@@ -238,7 +262,7 @@ impl DynamicStakingContract {
             .get::<_, Address>(&StakingDataKey::StakingToken)
             .unwrap();
         let token_client = TokenClient::new(&env, &staking_token);
-        
+
         token_client.transfer(
             &env.current_contract_address(),
             &caller,
@@ -295,7 +319,9 @@ impl DynamicStakingContract {
         let current_reward_per_token = Self::reward_per_token(&env);
         let new_rewards = position
             .effective_balance
-            .saturating_mul(current_reward_per_token.saturating_sub(position.user_reward_per_token_paid))
+            .saturating_mul(
+                current_reward_per_token.saturating_sub(position.user_reward_per_token_paid),
+            )
             .checked_div(PRECISION)
             .unwrap_or(0);
 
@@ -313,9 +339,8 @@ impl DynamicStakingContract {
         env.storage()
             .instance()
             .set(&StakingDataKey::RewardRate, &rate);
-            
-        env.events()
-            .publish((symbol_short!("stk_rate"),), rate);
+
+        env.events().publish((symbol_short!("stk_rate"),), rate);
     }
 
     // -----------------------------------------------------------------------
@@ -375,7 +400,7 @@ impl DynamicStakingContract {
 
     fn update_reward(env: &Env, account: &Address) {
         Self::update_reward_global(env);
-        
+
         if let Some(mut position) = Self::get_position(env, account) {
             let rpt = env
                 .storage()

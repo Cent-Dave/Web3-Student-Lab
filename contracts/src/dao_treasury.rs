@@ -56,13 +56,14 @@ impl DaoTreasuryContract {
             panic_with_error!(&env, TreasuryError::AlreadyInitialized);
         }
 
-        env.storage().instance().set(&TreasuryDataKey::Admin, &admin);
+        env.storage()
+            .instance()
+            .set(&TreasuryDataKey::Admin, &admin);
         env.storage()
             .instance()
             .set(&TreasuryDataKey::ReentrancyLock, &false);
-            
-        env.events()
-            .publish((symbol_short!("trsry_ini"),), admin);
+
+        env.events().publish((symbol_short!("trsry_ini"),), admin);
     }
 
     /// Sets or updates the allowance for a governance proposal.
@@ -86,10 +87,8 @@ impl DaoTreasuryContract {
             &amount,
         );
 
-        env.events().publish(
-            (symbol_short!("trsry_alw"), proposal_id),
-            (token, amount),
-        );
+        env.events()
+            .publish((symbol_short!("trsry_alw"), proposal_id), (token, amount));
     }
 
     /// Executes a transfer for a governance proposal.
@@ -108,11 +107,7 @@ impl DaoTreasuryContract {
         Self::acquire_lock(&env);
 
         let allowance_key = TreasuryDataKey::Allowance(proposal_id, token.clone());
-        let current_allowance: i128 = env
-            .storage()
-            .instance()
-            .get(&allowance_key)
-            .unwrap_or(0);
+        let current_allowance: i128 = env.storage().instance().get(&allowance_key).unwrap_or(0);
 
         if current_allowance < amount {
             panic_with_error!(&env, TreasuryError::InsufficientAllowance);
@@ -141,8 +136,11 @@ impl DaoTreasuryContract {
         caller.require_auth();
         Self::require_admin(&env, &caller);
 
-        let unlock_timestamp = env.ledger().timestamp().saturating_add(SWEEP_TIMELOCK_DURATION);
-        
+        let unlock_timestamp = env
+            .ledger()
+            .timestamp()
+            .saturating_add(SWEEP_TIMELOCK_DURATION);
+
         let sweep_info = SweepInfo {
             target: target.clone(),
             unlock_timestamp,

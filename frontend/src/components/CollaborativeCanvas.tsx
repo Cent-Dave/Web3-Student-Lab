@@ -18,6 +18,7 @@ import ReactFlow, {
   NodeChange,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+import { nodeTypes } from './whiteboard/Web3Nodes';
 
 interface CollaborativeCanvasProps {
   roomId: string;
@@ -164,6 +165,22 @@ export function CollaborativeCanvas({ roomId, userId, onCanvasReady }: Collabora
     });
   };
 
+  const handleAddWeb3Node = (type: 'wallet' | 'contract' | 'actor') => {
+    addNode({
+      id: `node-${Date.now()}`,
+      type: type,
+      position: {
+        x: 150 + Math.random() * 200,
+        y: 150 + Math.random() * 200,
+      },
+      data: {
+        label: type.charAt(0).toUpperCase() + type.slice(1),
+        ...(type === 'wallet' ? { address: '0x1234...abcd' } : {}),
+        ...(type === 'contract' ? { network: 'Ethereum' } : {}),
+      },
+    });
+  };
+
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
       changes.forEach((change) => {
@@ -244,6 +261,26 @@ export function CollaborativeCanvas({ roomId, userId, onCanvasReady }: Collabora
           >
             Add Circle
           </button>
+          <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-1" />
+          <button
+            onClick={() => handleAddWeb3Node('wallet')}
+            className="rounded-md bg-purple-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-400"
+          >
+            Add Wallet
+          </button>
+          <button
+            onClick={() => handleAddWeb3Node('contract')}
+            className="rounded-md bg-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-400"
+          >
+            Add Contract
+          </button>
+          <button
+            onClick={() => handleAddWeb3Node('actor')}
+            className="rounded-md bg-green-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-400"
+          >
+            Add Actor
+          </button>
+          <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-1" />
           <button
             onClick={handleExportImage}
             disabled={isExporting}
@@ -286,6 +323,7 @@ export function CollaborativeCanvas({ roomId, userId, onCanvasReady }: Collabora
           <ReactFlow
             nodes={defaultNodes}
             edges={defaultEdges}
+            nodeTypes={nodeTypes}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}

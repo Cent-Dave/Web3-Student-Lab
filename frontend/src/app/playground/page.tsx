@@ -1,17 +1,25 @@
 'use client';
 
-import { CodeEditor } from '@/components/playground/CodeEditor';
 import { VirtualizedFileTree, type FileTreeNode } from '@/components/explorer/VirtualizedFileTree';
-import { FilePresenceManager } from '@/lib/explorer/FilePresence';
-import { CollaborationProvider } from '@/lib/collaboration/YjsProvider';
+import dynamic from 'next/dynamic';
+const CodeEditor = dynamic(() => import('@/components/playground/CodeEditor').then((mod) => mod.CodeEditor), {
+  ssr: false,
+});
 import { OfflineIndicator } from '@/components/storage/OfflineIndicator';
+import {
+  CompileOutputTerminal,
+  type CompileLogEntry,
+} from '@/components/terminal/CompileOutputTerminal';
 import { TerminalPanel } from '@/components/terminal/TerminalPanel';
-import { DatabaseManager } from '@/lib/storage/DatabaseManager';
-import { SyncManager } from '@/lib/storage/SyncManager';
-import { useState, useEffect, useMemo } from 'react';
-import { ContractSearch, type Contract } from '@/components/playground/ContractSearch';
 import { WithSkeleton } from '@/components/ui/WithSkeleton';
 import { EditorSkeleton } from '@/components/ui/skeletons/EditorSkeleton';
+import { useTutorial } from '@/contexts/TutorialContext';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { CollaborationProvider } from '@/lib/collaboration/YjsProvider';
+import { DatabaseManager } from '@/lib/storage/DatabaseManager';
+import { SyncManager } from '@/lib/storage/SyncManager';
+import { FilePresenceManager } from '@/lib/explorer/FilePresence';
+import { Settings, X } from 'lucide-react';
 
 const INITIAL_TREE: FileTreeNode[] = [
   {
@@ -21,6 +29,9 @@ const INITIAL_TREE: FileTreeNode[] = [
     type: 'folder',
     children: [
       { id: 'lib-rs', name: 'lib.rs', path: '/src/lib.rs', type: 'file' },
+      { id: 'file-notarization-rs', name: 'file_notarization.rs', path: '/src/file_notarization.rs', type: 'file' },
+      { id: 'payment-gateway-rs', name: 'payment_gateway.rs', path: '/src/payment_gateway.rs', type: 'file' },
+      { id: 'timestamping-rs', name: 'timestamping.rs', path: '/src/timestamping.rs', type: 'file' },
       { id: 'contract-rs', name: 'contract.rs', path: '/src/contract.rs', type: 'file' },
       { id: 'types-rs', name: 'types.rs', path: '/src/types.rs', type: 'file' },
     ],
@@ -82,10 +93,16 @@ function moveFileNode(
 }
 
 export default function PlaygroundPage() {
-  const [output, setOutput] = useState('');
-  const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
+  const [compileLogs, setCompileLogs] = useState<CompileLogEntry[]>([]);
   const [isCompiling, setIsCompiling] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [editorSettings, setEditorSettings] = useState({
+    fontSize: 14,
+    tabSize: 2,
+    vimBindings: false,
+  });
   const [isInitializing, setIsInitializing] = useState(true);
+  const { startTutorial } = useTutorial();
   const [treeData, setTreeData] = useState<FileTreeNode[]>(INITIAL_TREE);
   const [activeFilePath, setActiveFilePath] = useState('/src/contract.rs');
   const [provider] = useState(() => new CollaborationProvider('main-lab-session'));
@@ -94,6 +111,7 @@ export default function PlaygroundPage() {
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'offline' | 'error'>('idle');
   const [isOnline, setIsOnline] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
+  const [activeTab, setActiveTab] = useState<'editor' | 'output'>('editor');
 
   useEffect(() => {
     const timer = setTimeout(() => setIsInitializing(false), 1500);
@@ -169,6 +187,57 @@ export default function PlaygroundPage() {
     persistActiveFile();
   }, [activeFilePath, databaseManager]);
 
+  const handleCompile = useCallback(() => {
+    setIsCompiling(true);
+    const stamp = () => new Date().toLocaleTimeString();
+    setCompileLogs([
+      {
+        id: crypto.randomUUID?.() ?? `${Date.now()}-compile-start`,
+        level: 'info',
+        timestamp: stamp(),
+        message: `soroban contract build --file ${activeFilePath}`,
+      },
+      {
+        id: crypto.randomUUID?.() ?? `${Date.now()}-compile-check`,
+        level: 'info',
+        timestamp: stamp(),
+        message: 'Checking Rust target wasm32-unknown-unknown...',
+      },
+    ]);
+    setTimeout(() => {
+      setCompileLogs((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID?.() ?? `${Date.now()}-compile-success`,
+          level: 'success',
+          timestamp: stamp(),
+          message: 'Compilation successful. WASM size: 4.2KB',
+        },
+        {
+          id: crypto.randomUUID?.() ?? `${Date.now()}-compile-ready`,
+          level: 'success',
+          timestamp: stamp(),
+          message:
+            'Contract ready for simulation. Exports: register_hash, verify, history_for_owner, process_payment, refund_payment.',
+        },
+      ]);
+      setIsCompiling(false);
+    }, 1500);
+  }, [activeFilePath]);
+
+  useEffect(() => {
+    const handleShortcutCompile = () => {
+      if (!isCompiling) {
+        handleCompile();
+      }
+    };
+
+    document.addEventListener('playground-compile', handleShortcutCompile as EventListener);
+    return () => {
+      document.removeEventListener('playground-compile', handleShortcutCompile as EventListener);
+    };
+  }, [handleCompile, isCompiling]);
+
   useEffect(() => {
     const restoreActiveFile = async () => {
       const stored = await databaseManager.getMetadata('playground:active-file');
@@ -179,21 +248,10 @@ export default function PlaygroundPage() {
     restoreActiveFile();
   }, [databaseManager]);
 
-  const handleCompile = () => {
-    setIsCompiling(true);
-    // Simulate compilation delay
-    setTimeout(() => {
-      setOutput(
-        `✅ Compilation successful!\n📦 WASM size: 4.2KB\n🗂 Active file: ${activeFilePath}\n🚀 Contract ready for simulation.`
-      );
-      setIsCompiling(false);
-    }, 1500);
-  };
-
   return (
     <div className="min-h-[calc(100vh-80px)] bg-black p-6 font-mono text-white md:p-12">
       <div className="mx-auto flex h-full max-w-7xl flex-col">
-        <div className="mb-12 flex items-end justify-between border-b border-white/10 pb-6">
+        <div className="mb-12 flex items-end justify-between border-b border-white/10 pb-6" data-tour-step="playground-header">
           <div>
             <h1 className="mb-2 text-4xl font-black tracking-tighter uppercase">
               Soroban <span className="text-red-500">Playground</span>
@@ -202,16 +260,47 @@ export default function PlaygroundPage() {
               Experimental Smart Contract Runtime v1.0.4
             </p>
           </div>
-          <div className="hidden text-right md:block">
+          <div className="hidden items-center gap-4 md:flex">
             <span className="animate-pulse text-[10px] font-bold tracking-widest text-green-500 uppercase">
               ● Network Active: Stellar Testnet
             </span>
+            <button
+              onClick={() => startTutorial('playground')}
+              className="rounded border border-red-600/30 bg-red-600/10 px-4 py-2 text-[10px] font-black tracking-widest text-red-500 uppercase transition-colors hover:bg-red-600/20"
+              aria-label="Start playground tutorial"
+            >
+              ? Tutorial
+            </button>
           </div>
+        </div>
+
+        {/* Mobile Tab Switcher */}
+        <div className="flex lg:hidden mb-6 border border-white/10 rounded-xl p-1 bg-zinc-950">
+          <button
+            onClick={() => setActiveTab('editor')}
+            className={`flex-1 py-3 text-xs font-bold tracking-widest uppercase rounded-lg transition-all min-h-[44px] flex items-center justify-center ${
+              activeTab === 'editor'
+                ? 'bg-red-600 text-white'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            Editor
+          </button>
+          <button
+            onClick={() => setActiveTab('output')}
+            className={`flex-1 py-3 text-xs font-bold tracking-widest uppercase rounded-lg transition-all min-h-[44px] flex items-center justify-center ${
+              activeTab === 'output'
+                ? 'bg-red-600 text-white'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            Output & Terminal
+          </button>
         </div>
 
         <div className="grid flex-grow grid-cols-1 gap-12 lg:grid-cols-2">
           {/* Editor Placeholder */}
-          <div className="relative flex min-h-[600px] flex-col rounded-3xl border border-white/10 bg-zinc-950 p-8 shadow-2xl">
+          <div className="relative flex min-h-[600px] flex-col rounded-3xl border border-white/10 bg-zinc-950 p-8 shadow-2xl" data-tour-step="playground-editor">
             <div className="mb-6 flex items-center justify-between gap-2 border-b border-white/5 pb-4">
               <div className="flex items-center gap-2">
                 <div className="h-3 w-3 rounded-full bg-red-500"></div>
@@ -221,14 +310,23 @@ export default function PlaygroundPage() {
                   {activeFilePath}
                 </span>
               </div>
-              <div className="flex items-center gap-2 rounded-full border border-red-600/20 bg-red-600/10 px-3 py-1">
+              <div className="flex self-start sm:self-auto items-center gap-2 rounded-full border border-red-600/20 bg-red-600/10 px-3 py-1">
                 <span className="text-[9px] font-black tracking-widest text-red-500 uppercase">
                   Collaborative Mode
                 </span>
               </div>
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(true)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-300 transition hover:border-red-500/40 hover:text-white"
+                aria-label="Open editor settings"
+                title="Editor settings"
+              >
+                <Settings className="h-4 w-4" />
+              </button>
             </div>
 
-            <div className="mb-4">
+            <div className="mb-4" data-tour-step="playground-file-tree">
               <div className="mb-2">
                 <OfflineIndicator
                   isOnline={isOnline}
@@ -253,13 +351,18 @@ export default function PlaygroundPage() {
 
             <div className="relative flex flex-grow flex-col overflow-hidden rounded-xl border border-white/5">
               <WithSkeleton isLoading={isInitializing} skeleton={<EditorSkeleton />}>
-                <CodeEditor roomName="main-lab-session" collaborationProvider={provider} />
+                <CodeEditor
+                  roomName="main-lab-session"
+                  collaborationProvider={provider}
+                  settings={editorSettings}
+                />
               </WithSkeleton>
             </div>
 
             <button
               onClick={handleCompile}
               disabled={isCompiling}
+              data-tour-step="playground-compile-btn"
               className={`mt-4 rounded-xl py-4 text-xs font-black tracking-[0.2em] uppercase transition-all ${
                 isCompiling
                   ? 'cursor-not-allowed bg-zinc-800 text-gray-500'
@@ -271,46 +374,109 @@ export default function PlaygroundPage() {
           </div>
 
           {/* Terminal Output */}
-          <div className="flex flex-col gap-6">
-            <div className="group relative flex-grow overflow-hidden rounded-3xl border border-white/10 bg-black p-8 shadow-inner">
-              <div className="absolute top-0 left-0 h-1 w-full bg-red-600/30"></div>
-              <h3 className="mb-6 text-[10px] font-black tracking-widest text-gray-600 uppercase">
-                Execution_Output
-              </h3>
-              <pre className="font-mono text-xs leading-loose whitespace-pre-wrap text-red-500/80">
-                {output || '> Initializing environment...\n> Awaiting input signal...'}{selectedContract ? `\n> Loaded contract: ${selectedContract.name}` : ''}
-              </pre>
-              {isCompiling && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm transition-all">
-                  <div className="flex flex-col items-center">
-                    <div className="mb-4 h-1 w-12 overflow-hidden rounded-full bg-zinc-800">
-                      <div className="h-full w-1/2 animate-[loading_1s_infinite] bg-red-600"></div>
-                    </div>
-                    <span className="text-[10px] font-black tracking-widest text-gray-500 uppercase">
-                      Processing WASM Bytecode
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
+          <div className="flex flex-col gap-6" data-tour-step="playground-output">
+            <CompileOutputTerminal logs={compileLogs} isCompiling={isCompiling} />
 
             <TerminalPanel />
 
-            <div className="rounded-3xl border border-white/5 bg-zinc-950 p-8">
+            <div className="rounded-3xl border border-white/5 bg-zinc-950 p-4 sm:p-8">
               <h4 className="mb-4 text-[10px] font-black tracking-widest text-white uppercase">
                 Laboratory Notes
               </h4>
               <ContractSearch onSelect={setSelectedContract} />
               <p className="text-[11px] leading-relaxed font-light text-gray-500">
-                This playground provides a{' '}
-                <span className="text-white">real-time transpilation</span> environment for Soroban
-                logic. Validated code can be deployed to the Stellar testnet via the integrated CLI
+                This playground now includes the educational notarization and payment gateway modules.
+                Learners can inspect hash timestamping, escrowed payment processing, refunds, and
+                dispute resolution before deploying validated Soroban logic with the integrated CLI
                 tools in the <span className="text-red-500">Builder Tier</span> modules.
               </p>
             </div>
           </div>
         </div>
       </div>
+      {settingsOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="editor-settings-title"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-zinc-950 p-6 shadow-2xl">
+            <div className="mb-6 flex items-center justify-between">
+              <h2
+                id="editor-settings-title"
+                className="text-sm font-black tracking-widest text-white uppercase"
+              >
+                Editor Settings
+              </h2>
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(false)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-zinc-400 transition hover:text-white"
+                aria-label="Close editor settings"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-6">
+              <label className="block">
+                <span className="mb-2 flex items-center justify-between text-xs font-bold tracking-widest text-zinc-400 uppercase">
+                  Font Size <span className="text-white">{editorSettings.fontSize}px</span>
+                </span>
+                <input
+                  type="range"
+                  min={12}
+                  max={22}
+                  step={1}
+                  value={editorSettings.fontSize}
+                  onChange={(event) =>
+                    setEditorSettings((prev) => ({
+                      ...prev,
+                      fontSize: Number(event.target.value),
+                    }))
+                  }
+                  className="h-2 w-full cursor-pointer accent-red-600"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-2 flex items-center justify-between text-xs font-bold tracking-widest text-zinc-400 uppercase">
+                  Tab Size <span className="text-white">{editorSettings.tabSize}</span>
+                </span>
+                <input
+                  type="range"
+                  min={2}
+                  max={8}
+                  step={2}
+                  value={editorSettings.tabSize}
+                  onChange={(event) =>
+                    setEditorSettings((prev) => ({
+                      ...prev,
+                      tabSize: Number(event.target.value),
+                    }))
+                  }
+                  className="h-2 w-full cursor-pointer accent-red-600"
+                />
+              </label>
+              <label className="flex items-center justify-between rounded-xl border border-white/10 bg-black/30 px-4 py-3">
+                <span className="text-xs font-bold tracking-widest text-zinc-300 uppercase">
+                  Vim Bindings
+                </span>
+                <input
+                  type="checkbox"
+                  checked={editorSettings.vimBindings}
+                  onChange={(event) =>
+                    setEditorSettings((prev) => ({
+                      ...prev,
+                      vimBindings: event.target.checked,
+                    }))
+                  }
+                  className="h-5 w-5 accent-red-600"
+                />
+              </label>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -10,6 +10,13 @@ smart contracts, open-source collaboration, and hackathon project development in
 The platform provides **interactive tools, coding environments, and guided learning paths** designed
 for beginners and university students.
 
+## 🟢 Live Deployment
+
+The application is fully deployed and accessible online:
+- **Frontend Application**: [https://web3-student-lab.vercel.app/](https://web3-student-lab.vercel.app/)
+- **Backend Infrastructure**: Hosted securely on Render using PostgreSQL, Redis, and integrated with the Stellar/Soroban Testnet.
+- **Smart Contracts**: My contract is deployed!
+
 ## 🚀 Core Modules
 
 1. **Blockchain Learning Simulator**: Visually learn how blockchains work (create transactions, mine
@@ -31,7 +38,9 @@ for beginners and university students.
 - Tailwind CSS
 - Monaco Editor
 
+
 **Backend**
+
 
 - Node.js / Express
 - PostgreSQL
@@ -47,15 +56,17 @@ for beginners and university students.
 web3-student-lab/
 ├── contracts/            # Platform smart contracts (e.g., on-chain certificates)
 ├── frontend/             # Next.js/React frontend application
-│   ├── simulator/        # Visual blockchain tools
-│   ├── playground/       # In-browser smart contract editor
-│   ├── roadmap/          # Learning progress tracking and paths
-│   └── ideas/            # Hackathon project generator UI
+│   └── src/app/
+│       ├── simulator/    # Visual blockchain tools
+│       ├── playground/   # In-browser smart contract editor
+│       ├── roadmap/      # Learning progress tracking and paths
+│       └── ideas/        # Hackathon project generator UI
 ├── backend/              # Node.js backend application
-│   ├── blockchain/       # Interaction with Stellar/Soroban
-│   ├── contracts/        # Compilation and execution engine for student code
-│   ├── learning/         # Curriculum and progress APIs
-│   └── generator/        # Prompt/AI layer for hackathon ideas
+│   └── src/
+│       ├── blockchain/   # Interaction with Stellar/Soroban
+│       ├── contracts/    # Compilation and execution engine for student code
+│       ├── learning/     # Curriculum and progress APIs
+│       └── generator/    # Prompt/AI layer for hackathon ideas
 └── docs/                 # Documentation and learning materials
 ```
 

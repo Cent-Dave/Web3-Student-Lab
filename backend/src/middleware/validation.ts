@@ -26,7 +26,7 @@ export const subscriptionUpdateSchema = z.object({
 export const validate = (schema: z.ZodSchema) => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
-      const validatedData = schema.parse(req.body);
+      const validatedData = schema.parse({ ...req.params, ...req.body });
       req.body = validatedData;
       next();
     } catch (error) {
@@ -36,10 +36,16 @@ export const validate = (schema: z.ZodSchema) => {
           message: err.message,
         }));
 
-        return res.status(400).json(ApiResponse.error('Validation failed', errorMessages));
+        return res.status(400).json({
+          ...ApiResponse.error('Validation failed', errorMessages),
+          error: errorMessages.map((e) => `${e.field}: ${e.message}`).join(', '),
+        });
       }
 
-      return res.status(500).json(ApiResponse.error('Internal server error'));
+      return res.status(500).json({
+        ...ApiResponse.error('Internal server error'),
+        error: error instanceof Error ? error.message : 'Internal server error',
+      });
     }
   };
 };

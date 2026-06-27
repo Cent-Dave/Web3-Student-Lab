@@ -32,7 +32,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const PROFILE_STATUS_COOLDOWN_MS = 15_000;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { publicKey } = useWallet();
+  const { publicKey, disconnect } = useWallet();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -100,18 +100,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Initialize auth state from localStorage on mount
   useEffect(() => {
+    let isMounted = true;
     const initAuth = async () => {
       const storedToken = localStorage.getItem('token');
       const storedUser = localStorage.getItem('user');
 
       if (storedToken && storedUser) {
         try {
-          setToken(storedToken);
-          setUser(JSON.parse(storedUser));
+          if (isMounted) {
+            setToken(storedToken);
+            setUser(JSON.parse(storedUser));
+          }
 
           // Verify token is still valid
           const currentUser = await authAPI.getCurrentUser();
-          if (!currentUser) {
+          if (!currentUser && isMounted) {
             // Token invalid, clear storage
             localStorage.removeItem('token');
             localStorage.removeItem('user');
@@ -122,16 +125,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error('Failed to restore session:', err);
           localStorage.removeItem('token');
           localStorage.removeItem('user');
+          if (isMounted) {
+            setUser(null);
+            setToken(null);
+          }
         }
       }
 
-      if (!storedUser && publicKey) {
-        await refreshProfileStatus();
+      if (isMounted) {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
     initAuth();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Handle wallet connection checks separately
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (!storedUser && publicKey) {
+      refreshProfileStatus();
+    }
   }, [publicKey, refreshProfileStatus]);
 
   const login = async (email: string, password: string) => {
@@ -193,6 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    disconnect();
     window.location.href = '/auth/login';
   };
 

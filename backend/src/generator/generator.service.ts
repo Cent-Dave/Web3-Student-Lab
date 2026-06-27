@@ -81,15 +81,7 @@ export class GeneratorService {
       },
       (error) => {
         logger.error(`Circuit breaker fallback for generateProjectIdea triggered: ${error}`);
-        // Fallback response
-        return {
-          title: 'Innovative Web3 DApp',
-          description:
-            'A decentralized application focused on solving local challenges using blockchain technology.',
-          keyFeatures: ['Wallet Integration', 'On-chain Governance', 'Social Impact tracking'],
-          recommendedTech: ['React', 'Stellar', 'Soroban'],
-          difficulty: 'Intermediate' as any,
-        };
+        throw error;
       }
     );
   }

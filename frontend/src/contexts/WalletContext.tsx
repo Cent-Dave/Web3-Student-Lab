@@ -6,7 +6,13 @@ import {
   requestAccess as requestFreighterAccess,
   signTransaction as signFreighterTransaction,
 } from '@stellar/freighter-api';
+import { useMachine } from '@xstate/react';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import {
+  web3TransactionMachine,
+  type Web3TransactionContext,
+  type Web3TransactionStatus,
+} from '@/lib/web3/transactionMachine';
 
 // ─── Wallet Interface ─────────────────────────────────────────────────────────
 
@@ -26,20 +32,35 @@ export interface WalletProvider {
 declare global {
   interface Window {
     freighter?: {
-      isConnected: () => Promise<boolean>;
-      getPublicKey: () => Promise<string>;
-      signTransaction: (xdr: string, opts?: object) => Promise<string>;
+      isConnected: () => Promise<boolean | { isConnected: boolean; error?: string }>;
+      requestAccess?: () => Promise<{ address: string; error?: string }>;
+      getAddress?: () => Promise<{ address: string; error?: string }>;
+      getPublicKey?: () => Promise<string>;
+      signTransaction: (
+        xdr: string,
+        opts?: object
+      ) => Promise<string | { signedTxXdr: string; signerAddress: string; error?: string }>;
     };
     freighterApi?: {
-      isConnected?: () => Promise<boolean>;
-      getPublicKey: () => Promise<string>;
-      signTransaction: (xdr: string, opts?: object) => Promise<string>;
+      isConnected?: () => Promise<boolean | { isConnected: boolean; error?: string }>;
+      requestAccess?: () => Promise<{ address: string; error?: string }>;
+      getAddress?: () => Promise<{ address: string; error?: string }>;
+      getPublicKey?: () => Promise<string>;
+      signTransaction: (
+        xdr: string,
+        opts?: object
+      ) => Promise<string | { signedTxXdr: string; signerAddress: string; error?: string }>;
     };
     stellar?: {
       freighter?: {
-        isConnected?: () => Promise<boolean>;
-        getPublicKey: () => Promise<string>;
-        signTransaction: (xdr: string, opts?: object) => Promise<string>;
+        isConnected?: () => Promise<boolean | { isConnected: boolean; error?: string }>;
+        requestAccess?: () => Promise<{ address: string; error?: string }>;
+        getAddress?: () => Promise<{ address: string; error?: string }>;
+        getPublicKey?: () => Promise<string>;
+        signTransaction: (
+          xdr: string,
+          opts?: object
+        ) => Promise<string | { signedTxXdr: string; signerAddress: string; error?: string }>;
       };
     };
     albedo?: {
@@ -53,6 +74,55 @@ declare global {
   }
 }
 
+const resolveInjectedFreighter = () =>
+  typeof window === 'undefined'
+    ? null
+    : window.freighterApi || window.freighter || window.stellar?.freighter || null;
+
+const normalizeConnection = (connection: boolean | { isConnected: boolean; error?: string }) => {
+  if (typeof connection === 'boolean') {
+    return { isConnected: connection };
+  }
+  return connection;
+};
+
+const getInjectedFreighterAddress = async () => {
+  const injected = resolveInjectedFreighter();
+  if (!injected) {
+    return null;
+  }
+  if (injected.requestAccess) {
+    const access = await injected.requestAccess();
+    if (access.error || !access.address) {
+      throw new Error(access.error || 'Freighter did not return an address');
+    }
+    return access.address;
+  }
+  if (injected.getAddress) {
+    const address = await injected.getAddress();
+    if (address.error || !address.address) {
+      throw new Error(address.error || 'Freighter did not return an address');
+    }
+    return address.address;
+  }
+  return injected.getPublicKey?.() ?? null;
+};
+
+const signWithInjectedFreighter = async (xdr: string) => {
+  const injected = resolveInjectedFreighter();
+  if (!injected?.signTransaction) {
+    return null;
+  }
+  const result = await injected.signTransaction(xdr);
+  if (typeof result === 'string') {
+    return result;
+  }
+  if (result.error || !result.signedTxXdr) {
+    throw new Error(result.error || 'Freighter could not sign the transaction');
+  }
+  return result.signedTxXdr;
+};
+
 const freighterAdapter: WalletProvider = {
   name: 'Freighter',
   icon: '🚀',
@@ -60,26 +130,30 @@ const freighterAdapter: WalletProvider = {
     typeof window !== 'undefined' &&
     (!!window.freighter || !!window.freighterApi || !!window.stellar?.freighter),
   connect: async () => {
-    const connection = await isFreighterConnected();
-    if (connection.error) {
-      throw new Error(connection.error);
+    let access;
+    try {
+      access = await requestFreighterAccess();
+    } catch (e) {
+      throw new Error('Failed to request access from Freighter. Make sure the extension is unlocked and enabled for this site.');
     }
-
-    if (!connection.isConnected) {
-      throw new Error(
-        'Freighter is not available to this page yet. Refresh the page and make sure the extension is enabled for this site.'
-      );
-    }
-
-    const access = await requestFreighterAccess();
-    if (access.error || !access.address) {
-      throw new Error(access.error || 'Freighter did not return an address');
+    
+    if (!access || access.error || !access.address) {
+      throw new Error(access?.error || 'Freighter did not return an address. Please unlock your wallet and try again.');
     }
 
     return access.address;
   },
   disconnect: async () => {},
   getPublicKey: async () => {
+    const injected = resolveInjectedFreighter();
+    if (injected?.getAddress) {
+      const injectedAddress = await injected.getAddress();
+      return injectedAddress.error || !injectedAddress.address ? null : injectedAddress.address;
+    }
+    if (injected?.getPublicKey) {
+      return injected.getPublicKey();
+    }
+
     const address = await getFreighterAddress();
     if (address.error || !address.address) {
       return null;
@@ -88,6 +162,11 @@ const freighterAdapter: WalletProvider = {
     return address.address;
   },
   signTransaction: async (xdr: string) => {
+    const injectedResult = await signWithInjectedFreighter(xdr);
+    if (injectedResult) {
+      return injectedResult;
+    }
+
     const result = await signFreighterTransaction(xdr);
     if (result.error || !result.signedTxXdr) {
       throw new Error(result.error || 'Freighter could not sign the transaction');
@@ -149,7 +228,9 @@ const rabetAdapter: WalletProvider = {
   },
 };
 
-export const WALLET_PROVIDERS: WalletProvider[] = [freighterAdapter, albedoAdapter, rabetAdapter];
+const mockAdapter: WalletProvider = { name: "Dev Mock Wallet", icon: "🛠️", isInstalled: () => true, connect: async () => "GBRPYHIL2CI3FYQMWVUGE62KMGOBQKLCYJ3HLKBUBIW5VZH4S4MNOWT", disconnect: async () => {}, getPublicKey: async () => "GBRPYHIL2CI3FYQMWVUGE62KMGOBQKLCYJ3HLKBUBIW5VZH4S4MNOWT", signTransaction: async (xdr) => xdr };
+
+export const WALLET_PROVIDERS: WalletProvider[] = [freighterAdapter, albedoAdapter, rabetAdapter, mockAdapter];
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
@@ -160,6 +241,8 @@ interface WalletContextType {
   isConnected: boolean;
   connected: boolean;
   error: string | null;
+  transactionState: Web3TransactionStatus;
+  transactionContext: Web3TransactionContext;
   connect: (providerName: string) => Promise<void>;
   disconnect: () => Promise<void>;
   signTransaction: (xdr: string) => Promise<string>;
@@ -173,6 +256,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [activeWallet, setActiveWallet] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [transactionSnapshot, sendTransaction] = useMachine(web3TransactionMachine);
 
   // Restore session
   useEffect(() => {
@@ -181,27 +265,31 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const { wallet, pk } = JSON.parse(saved);
       setActiveWallet(wallet);
       setPublicKey(pk);
+      sendTransaction({ type: 'WALLET_CONNECTED', walletName: wallet, publicKey: pk });
     }
-  }, []);
+  }, [sendTransaction]);
 
   const connect = useCallback(async (providerName: string) => {
     const provider = WALLET_PROVIDERS.find((p) => p.name === providerName);
     if (!provider) throw new Error(`Unknown wallet: ${providerName}`);
     setIsConnecting(true);
     setError(null);
+    sendTransaction({ type: 'CONNECT_WALLET', walletName: providerName });
     try {
       const pk = await provider.connect();
       setPublicKey(pk);
       setActiveWallet(providerName);
       localStorage.setItem('stellar_wallet', JSON.stringify({ wallet: providerName, pk }));
+      sendTransaction({ type: 'WALLET_CONNECTED', walletName: providerName, publicKey: pk });
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Connection failed';
       setError(msg);
+      sendTransaction({ type: 'FAIL', error: msg });
       throw e;
     } finally {
       setIsConnecting(false);
     }
-  }, []);
+  }, [sendTransaction]);
 
   const disconnect = useCallback(async () => {
     const provider = WALLET_PROVIDERS.find((p) => p.name === activeWallet);
@@ -209,15 +297,25 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setPublicKey(null);
     setActiveWallet(null);
     localStorage.removeItem('stellar_wallet');
-  }, [activeWallet]);
+    sendTransaction({ type: 'DISCONNECT_WALLET' });
+  }, [activeWallet, sendTransaction]);
 
   const signTransaction = useCallback(
     async (xdr: string) => {
       const provider = WALLET_PROVIDERS.find((p) => p.name === activeWallet);
       if (!provider) throw new Error('No wallet connected');
-      return provider.signTransaction(xdr);
+      sendTransaction({ type: 'REQUEST_SIGNATURE', transactionXdr: xdr });
+      try {
+        const signedXdr = await provider.signTransaction(xdr);
+        sendTransaction({ type: 'SIGNATURE_APPROVED', signedTransactionXdr: signedXdr });
+        return signedXdr;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Transaction signing failed';
+        sendTransaction({ type: 'FAIL', error: msg });
+        throw e;
+      }
     },
-    [activeWallet]
+    [activeWallet, sendTransaction]
   );
 
   return (
@@ -229,6 +327,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         isConnected: !!publicKey,
         connected: !!publicKey,
         error,
+        transactionState: transactionSnapshot.value as Web3TransactionStatus,
+        transactionContext: transactionSnapshot.context,
         connect,
         disconnect,
         signTransaction,

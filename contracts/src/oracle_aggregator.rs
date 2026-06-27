@@ -7,6 +7,8 @@
 //! - Outlier rejection via Median Absolute Deviation (MAD) before final median calculation
 //! - Overflow-safe arithmetic throughout
 
+#![allow(clippy::unnecessary_cast)]
+
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, Address,
     Env, Symbol, Vec,
@@ -97,9 +99,7 @@ impl OracleAggregatorContract {
             panic_with_error!(&env, OracleError::AlreadyInitialized);
         }
 
-        env.storage()
-            .instance()
-            .set(&OracleDataKey::Admin, &admin);
+        env.storage().instance().set(&OracleDataKey::Admin, &admin);
         env.storage().instance().set(
             &OracleDataKey::StalenessThreshold,
             &DEFAULT_STALENESS_THRESHOLD,
@@ -113,8 +113,7 @@ impl OracleAggregatorContract {
             .instance()
             .set(&OracleDataKey::Oracles, &empty);
 
-        env.events()
-            .publish((symbol_short!("orc_init"),), admin);
+        env.events().publish((symbol_short!("orc_init"),), admin);
     }
 
     // -----------------------------------------------------------------------
@@ -140,8 +139,7 @@ impl OracleAggregatorContract {
             .instance()
             .set(&OracleDataKey::Oracles, &oracles);
 
-        env.events()
-            .publish((symbol_short!("orc_reg"),), oracle);
+        env.events().publish((symbol_short!("orc_reg"),), oracle);
     }
 
     /// Remove an oracle node. Only callable by admin.
@@ -169,8 +167,7 @@ impl OracleAggregatorContract {
             .instance()
             .set(&OracleDataKey::Oracles, &new_oracles);
 
-        env.events()
-            .publish((symbol_short!("orc_rem"),), oracle);
+        env.events().publish((symbol_short!("orc_rem"),), oracle);
     }
 
     /// Returns the list of all registered oracle node addresses.
@@ -314,8 +311,7 @@ impl OracleAggregatorContract {
             .instance()
             .set(&OracleDataKey::StalenessThreshold, &seconds);
 
-        env.events()
-            .publish((symbol_short!("orc_cfg"),), seconds);
+        env.events().publish((symbol_short!("orc_cfg"),), seconds);
     }
 
     /// Set the minimum number of oracle sources required for a valid aggregation.
@@ -331,8 +327,7 @@ impl OracleAggregatorContract {
             .instance()
             .set(&OracleDataKey::MinSources, &count);
 
-        env.events()
-            .publish((symbol_short!("orc_min"),), count);
+        env.events().publish((symbol_short!("orc_min"),), count);
     }
 
     /// Returns the current staleness threshold in seconds.

@@ -1,6 +1,6 @@
 import express from 'express';
-import { asyncHandler } from '../middleware/errorHandler';
-import { sendSuccess } from '../utils/response';
+import { asyncHandler } from '../middleware/errorHandler.js';
+import { sendSuccess } from '../utils/response.js';
 
 const router = express.Router();
 

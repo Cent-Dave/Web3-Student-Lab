@@ -8,7 +8,17 @@ members = [
     ".",
     "proxy",
     "implementation_v1",
-    "implementation_v2"
+    "implementation_v2",
+    "smart_vault",
+    "payment_streaming",
+    "payment_gateway",
+    "commit_reveal_rng",
+    "quadratic_funding",
+    "multisig_wallet_timelock",
+    "course_proxy",
+    "auth_checker",
+    "cross_chain_client",
+    "freelance-platform"
 ]
 
 [lib]

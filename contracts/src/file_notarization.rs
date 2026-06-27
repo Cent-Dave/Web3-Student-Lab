@@ -1,121 +1,291 @@
-#![no_std]
-use crate::timestamping::{get_current_proof, TimestampedProof};
-use soroban_sdk::{contracttype, Address, BytesN, Env, String, Symbol, Vec};
+//! Educational Soroban file notarization contract.
+//!
+//! A notary does not store a document on-chain. Instead, users hash a document
+//! off-chain (for example with SHA-256) and register only that 32-byte digest.
+//! Anyone can later hash the same document and call `verify` to prove the file
+//! existed at or before the stored ledger timestamp without revealing contents.
 
-/// Immutable record of a notarized file hash.
+use soroban_sdk::{
+    contract, contracterror, contractimpl, contracttype, panic_with_error, Address, BytesN, Env,
+    String, Symbol, Vec,
+};
+
+/// Immutable proof-of-existence data captured when a hash is registered.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NotarizationRecord {
-    /// SHA-256 hash of the notarized file.
+    /// SHA-256 (or equivalent 32-byte) document digest supplied by the user.
     pub hash: BytesN<32>,
-    /// Address that performed the notarization.
+    /// Account that registered the hash and must authorize registration.
     pub owner: Address,
-    /// On-chain proof including timestamp and ledger sequence.
-    pub proof: TimestampedProof,
-    /// Optional metadata or descriptive text for the file.
+    /// Ledger close timestamp in seconds. This is the educational notarization
+    /// time anchor used by verifiers.
+    pub timestamp: u64,
+    /// Ledger sequence captured with the timestamp for deterministic ordering.
+    pub ledger_sequence: u32,
+    /// Short user-facing note such as a filename, version, or classroom label.
+    /// The real document should stay off-chain to preserve privacy and save gas.
     pub metadata: String,
 }
 
-/// Storage keys for notarization data.
+/// Storage layout for the notarization registry.
 #[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum NotarizationKey {
-    /// Individual record indexed by file hash.
+    /// Global record lookup by document hash.
     Record(BytesN<32>),
-    /// List of file hashes notarized by a specific address.
-    OwnerHistory(Address),
+    /// Per-owner list of hashes to power playground history screens.
+    OwnerHashes(Address),
 }
 
-/// Logic for the File Notarization System.
-pub struct NotarizationManager;
+/// Revert reasons intentionally use stable numeric discriminants so tests and
+/// learners can identify exactly why a transaction failed.
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum NotarizationError {
+    /// A hash can be notarized only once because the first timestamp is the
+    /// legally meaningful proof-of-existence anchor in this lab.
+    HashAlreadyRegistered = 1,
+    /// Bulk calls must provide one metadata entry per hash to avoid accidental
+    /// mismatches in classroom exercises.
+    MetadataLengthMismatch = 2,
+    /// Empty batches waste ledger resources and usually indicate a UI mistake.
+    EmptyBatch = 3,
+}
 
-impl NotarizationManager {
-    /// Notarizes a file hash on-chain.
+#[contract]
+pub struct FileNotarizationContract;
+
+#[contractimpl]
+impl FileNotarizationContract {
+    /// Register a 32-byte file hash with the current ledger timestamp.
     ///
-    /// # Arguments
-    /// * `env` - The Soroban environment.
-    /// * `owner` - The address notarizing the file (must authorize).
-    /// * `hash` - The SHA-256 hash of the file.
-    /// * `metadata` - Optional metadata for the notarization.
-    pub fn notarize(env: &Env, owner: Address, hash: BytesN<32>, metadata: String) {
+    /// The caller supplies `owner` explicitly so tests and frontends can teach
+    /// authorization: `owner.require_auth()` ensures only that address can create
+    /// records in its own name. If the hash already exists the contract reverts,
+    /// preserving the original timestamp and owner.
+    pub fn register_hash(
+        env: Env,
+        owner: Address,
+        hash: BytesN<32>,
+        metadata: String,
+    ) -> NotarizationRecord {
         owner.require_auth();
+        Self::store_new_record(&env, owner, hash, metadata)
+    }
 
-        // Check if already notarized to maintain immutability and uniqueness
-        if env
-            .storage()
-            .persistent()
-            .has(&NotarizationKey::Record(hash.clone()))
-        {
-            // We return early instead of panicking to save gas if the file is already protected
-            return;
+    /// Register several hashes in one transaction.
+    ///
+    /// This helper mirrors the single-hash path and still emits one event per
+    /// file. It is useful for showing how notarization can batch classroom
+    /// submissions while keeping each file independently verifiable.
+    pub fn register_batch(
+        env: Env,
+        owner: Address,
+        hashes: Vec<BytesN<32>>,
+        metadata: Vec<String>,
+    ) -> Vec<NotarizationRecord> {
+        if hashes.is_empty() {
+            panic_with_error!(&env, NotarizationError::EmptyBatch);
+        }
+        if hashes.len() != metadata.len() {
+            panic_with_error!(&env, NotarizationError::MetadataLengthMismatch);
+        }
+
+        owner.require_auth();
+        let mut records = Vec::new(&env);
+        for index in 0..hashes.len() {
+            let record = Self::store_new_record(
+                &env,
+                owner.clone(),
+                hashes.get(index).unwrap(),
+                metadata.get(index).unwrap(),
+            );
+            records.push_back(record);
+        }
+        records
+    }
+
+    fn store_new_record(
+        env: &Env,
+        owner: Address,
+        hash: BytesN<32>,
+        metadata: String,
+    ) -> NotarizationRecord {
+        let record_key = NotarizationKey::Record(hash.clone());
+        if env.storage().persistent().has(&record_key) {
+            panic_with_error!(env, NotarizationError::HashAlreadyRegistered);
         }
 
         let record = NotarizationRecord {
             hash: hash.clone(),
             owner: owner.clone(),
-            proof: get_current_proof(env),
+            timestamp: env.ledger().timestamp(),
+            ledger_sequence: env.ledger().sequence(),
             metadata,
         };
 
-        // Store the record indexed by hash
-        env.storage()
-            .persistent()
-            .set(&NotarizationKey::Record(hash.clone()), &record);
+        env.storage().persistent().set(&record_key, &record);
 
-        // Update owner's notarization history
-        let mut history: Vec<BytesN<32>> = env
+        let history_key = NotarizationKey::OwnerHashes(owner.clone());
+        let mut hashes: Vec<BytesN<32>> = env
             .storage()
             .persistent()
-            .get(&NotarizationKey::OwnerHistory(owner.clone()))
+            .get(&history_key)
             .unwrap_or_else(|| Vec::new(env));
+        hashes.push_back(hash.clone());
+        env.storage().persistent().set(&history_key, &hashes);
 
-        history.push_back(hash.clone());
-        env.storage()
-            .persistent()
-            .set(&NotarizationKey::OwnerHistory(owner), &history);
-
-        // Emit notarization event
         env.events().publish(
-            (Symbol::new(env, "notarize"), Symbol::new(env, "v1")),
-            (record.hash, record.owner, record.proof.timestamp),
+            (Symbol::new(env, "file_notarized"), owner.clone()),
+            (hash, record.timestamp, record.ledger_sequence),
         );
+
+        record
     }
 
-    /// Verifies if a file hash has been notarized on-chain.
-    pub fn verify(env: &Env, hash: BytesN<32>) -> Option<NotarizationRecord> {
+    /// Return the notarization record for `hash`, if it exists.
+    pub fn verify(env: Env, hash: BytesN<32>) -> Option<NotarizationRecord> {
         env.storage()
             .persistent()
             .get(&NotarizationKey::Record(hash))
     }
 
-    /// Retrieves all notarization records for a specific address.
-    pub fn get_history(env: &Env, owner: Address) -> Vec<NotarizationRecord> {
+    /// Convenience boolean for playground simulations and beginner exercises.
+    pub fn is_registered(env: Env, hash: BytesN<32>) -> bool {
+        env.storage()
+            .persistent()
+            .has(&NotarizationKey::Record(hash))
+    }
+
+    /// Return all records created by `owner` in registration order.
+    pub fn history_for_owner(env: Env, owner: Address) -> Vec<NotarizationRecord> {
         let hashes: Vec<BytesN<32>> = env
             .storage()
             .persistent()
-            .get(&NotarizationKey::OwnerHistory(owner))
-            .unwrap_or_else(|| Vec::new(env));
+            .get(&NotarizationKey::OwnerHashes(owner))
+            .unwrap_or_else(|| Vec::new(&env));
 
-        let mut records = Vec::new(env);
+        let mut records = Vec::new(&env);
         for hash in hashes.iter() {
-            if let Some(record) = Self::verify(env, hash) {
+            if let Some(record) = Self::verify(env.clone(), hash) {
                 records.push_back(record);
             }
         }
         records
     }
+}
 
-    /// Bulk notarization helper.
-    pub fn bulk_notarize(
-        env: &Env,
-        owner: Address,
-        hashes: Vec<BytesN<32>>,
-        metadata: Vec<String>,
-    ) {
-        owner.require_auth();
-        for i in 0..hashes.len() {
-            let hash = hashes.get(i).unwrap();
-            let meta = metadata.get(i).unwrap_or_else(|| String::from_str(env, ""));
-            Self::notarize(env, owner.clone(), hash, meta);
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use soroban_sdk::{
+        testutils::{Address as _, Ledger},
+        vec, BytesN, Env, String,
+    };
+
+    fn hash(env: &Env, seed: u8) -> BytesN<32> {
+        BytesN::from_array(env, &[seed; 32])
+    }
+
+    fn setup() -> (Env, Address, FileNotarizationContractClient<'static>) {
+        let env = Env::default();
+        env.mock_all_auths();
+        env.ledger().with_mut(|ledger| {
+            ledger.timestamp = 1_772_600_400;
+            ledger.sequence_number = 42;
+        });
+        let owner = Address::generate(&env);
+        let contract_id = env.register(FileNotarizationContract, ());
+        let client = FileNotarizationContractClient::new(&env, &contract_id);
+        (env, owner, client)
+    }
+
+    #[test]
+    fn registers_hash_with_timestamp_and_metadata() {
+        let (env, owner, client) = setup();
+        let digest = hash(&env, 7);
+        let note = String::from_str(&env, "final-report.pdf");
+
+        let record = client.register_hash(&owner, &digest, &note);
+
+        assert_eq!(record.hash, digest);
+        assert_eq!(record.owner, owner);
+        assert_eq!(record.timestamp, 1_772_600_400);
+        assert_eq!(record.ledger_sequence, 42);
+        assert_eq!(record.metadata, note);
+        assert!(client.is_registered(&digest));
+    }
+
+    #[test]
+    fn verify_returns_record_and_missing_hash_returns_none() {
+        let (env, owner, client) = setup();
+        let digest = hash(&env, 11);
+        let missing = hash(&env, 12);
+
+        let created = client.register_hash(&owner, &digest, &String::from_str(&env, "lab"));
+
+        assert_eq!(client.verify(&digest), Some(created));
+        assert_eq!(client.verify(&missing), None);
+    }
+
+    #[test]
+    fn owner_history_preserves_registration_order() {
+        let (env, owner, client) = setup();
+        let first = hash(&env, 1);
+        let second = hash(&env, 2);
+
+        let first_record = client.register_hash(&owner, &first, &String::from_str(&env, "a"));
+        let second_record = client.register_hash(&owner, &second, &String::from_str(&env, "b"));
+
+        let history = client.history_for_owner(&owner);
+        assert_eq!(history.len(), 2);
+        assert_eq!(history.get(0).unwrap(), first_record);
+        assert_eq!(history.get(1).unwrap(), second_record);
+    }
+
+    #[test]
+    fn batch_registration_creates_independent_records() {
+        let (env, owner, client) = setup();
+        let hashes = vec![&env, hash(&env, 21), hash(&env, 22)];
+        let metadata = vec![
+            &env,
+            String::from_str(&env, "chapter-1"),
+            String::from_str(&env, "chapter-2"),
+        ];
+
+        let records = client.register_batch(&owner, &hashes, &metadata);
+
+        assert_eq!(records.len(), 2);
+        assert!(client.is_registered(&hashes.get(0).unwrap()));
+        assert!(client.is_registered(&hashes.get(1).unwrap()));
+        assert_eq!(client.history_for_owner(&owner).len(), 2);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1)")]
+    fn duplicate_hash_reverts_to_keep_first_timestamp_immutable() {
+        let (env, owner, client) = setup();
+        let digest = hash(&env, 5);
+
+        client.register_hash(&owner, &digest, &String::from_str(&env, "original"));
+        client.register_hash(&owner, &digest, &String::from_str(&env, "duplicate"));
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #2)")]
+    fn batch_metadata_length_must_match_hashes() {
+        let (env, owner, client) = setup();
+        let hashes = vec![&env, hash(&env, 31), hash(&env, 32)];
+        let metadata = vec![&env, String::from_str(&env, "only-one")];
+
+        client.register_batch(&owner, &hashes, &metadata);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #3)")]
+    fn empty_batch_reverts() {
+        let (env, owner, client) = setup();
+        client.register_batch(&owner, &Vec::new(&env), &Vec::new(&env));
     }
 }

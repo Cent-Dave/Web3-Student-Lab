@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import * as React from 'react';
+import { useState, useEffect } from 'react';
 import ProgressChart from './ProgressChart';
 import SkillRadar from './SkillRadar';
 import CompletionPie from './CompletionPie';
@@ -8,10 +9,16 @@ import StudyHeatmap from './StudyHeatmap';
 import TrendChart from './TrendChart';
 import TimeDistributionChart from './TimeDistributionChart';
 import { DataProcessor } from '@/lib/analytics/DataProcessor';
-import { FileDown, Calendar } from 'lucide-react';
+import { ErrorBoundary, AnalyticsDashboardSkeleton, WithSkeleton } from '@/components/ui';
 
 export default function Dashboard() {
   const [dateRange, setDateRange] = useState('30');
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 800);
+    return () => clearTimeout(timer);
+  }, []);
 
   const progressData = DataProcessor.generateMockProgressData(parseInt(dateRange));
   const skillData = DataProcessor.generateMockSkillData();
@@ -35,7 +42,9 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-8">
+    <ErrorBoundary>
+    <WithSkeleton isLoading={isLoading} skeleton={<AnalyticsDashboardSkeleton />}>
+    <div className="space-y-8" aria-busy={isLoading}>
       {/* Header with filters and export */}
       <div className="bg-bg-secondary border-border-theme flex flex-col items-start justify-between gap-4 rounded-2xl border p-6 md:flex-row md:items-center">
         <div>
@@ -49,7 +58,9 @@ export default function Dashboard() {
 
         <div className="flex items-center gap-3">
           <div className="bg-background border-border-theme flex items-center gap-2 rounded-lg border px-3 py-2">
-            <Calendar className="text-text-secondary h-4 w-4" />
+            <svg xmlns="http://www.w3.org/2000/svg" className="text-text-secondary h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
             <select
               value={dateRange}
               onChange={(e) => setDateRange(e.target.value)}
@@ -67,7 +78,9 @@ export default function Dashboard() {
             className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-xs font-bold tracking-widest text-white uppercase transition-colors hover:bg-red-700"
             aria-label="Export data as CSV"
           >
-            <FileDown className="h-4 w-4" />
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
             Export CSV
           </button>
         </div>
@@ -157,5 +170,7 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
+    </WithSkeleton>
+    </ErrorBoundary>
   );
 }

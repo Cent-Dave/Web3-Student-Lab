@@ -244,7 +244,6 @@ export function useCanvasCollaborationFixed(roomId: string, userId: string) {
     const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:1234';
     const provider = new WebsocketProvider(wsUrl, `canvas-${roomId}`, doc, {
       connect: true,
-      awareness: true,
     });
 
     providerRef.current = provider;

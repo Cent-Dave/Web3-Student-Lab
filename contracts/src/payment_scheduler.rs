@@ -17,6 +17,9 @@
 //! - Execution count cannot be decremented or reset
 //! - All errors are explicitly typed (no silent failures)
 
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::implicit_saturating_sub)]
+
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, Address, Env, String,
     Symbol, Vec,
@@ -171,7 +174,7 @@ impl PaymentSchedulerContract {
     ///
     /// # Errors
     /// Returns `PaymentSchedulerError::AlreadyInitialized` if already initialized
-    pub fn init(env: Env, admin: Address) {
+    pub fn init_scheduler(env: Env, admin: Address) {
         if env.storage().persistent().has(&PaymentSchedulerKey::Admin) {
             panic_with_error!(&env, PaymentSchedulerError::NotInitialized);
         }
@@ -526,7 +529,7 @@ mod tests {
         let client = PaymentSchedulerContractClient::new(&env, &contract_id);
 
         let admin = Address::generate(&env);
-        client.init(&admin);
+        client.init_scheduler(&admin);
 
         (env, admin, client)
     }

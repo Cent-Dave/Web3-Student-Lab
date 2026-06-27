@@ -5,6 +5,7 @@ import {
   Compass,
   LayoutDashboard,
   Rocket,
+  Calculator,
 } from 'lucide-react';
 
 export type NavItem = {
@@ -30,6 +31,11 @@ export const primaryNav: NavItem[] = [
     description: 'Check certificate records and public credential status.',
   },
   {
+    label: 'Calculator',
+    href: '/yield-calculator',
+    description: 'Estimate compounding yield returns based on APY, frequency, and lock-up terms.',
+  },
+  {
     label: 'Dashboard',
     href: '/dashboard',
     description: 'Track progress, enrollments, and issued credentials.',
@@ -48,6 +54,12 @@ export const spotlightTools = [
     href: '/roadmap',
     summary: 'A clearer path from fundamentals to hackathon-ready project work.',
     icon: Compass,
+  },
+  {
+    title: 'Yield Calculator',
+    href: '/yield-calculator',
+    summary: 'Estimate compounding yield returns based on APY, frequency, and lock-up terms.',
+    icon: Calculator,
   },
   {
     title: 'Verification Center',

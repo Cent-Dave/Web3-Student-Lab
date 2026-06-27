@@ -2,49 +2,52 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
+import { useI18n } from '@/i18n';
 import { certificatesAPI, Course, coursesAPI, enrollmentsAPI } from '@/lib/api';
-import { getCourseContent } from '@/lib/course-content';
+import { getTranslatedCourseContent } from '@/lib/course-content';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { ErrorBoundary, ErrorFallback, CourseDetailSkeleton } from '@/components/ui';
 
 export default function CourseDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { user, isLoading: isAuthLoading } = useAuth();
   const { publicKey } = useWallet();
+  const { t, tn } = useI18n();
   const [course, setCourse] = useState<Course | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [isMinting, setIsMinting] = useState(false);
   const [mintSuccess, setMintSuccess] = useState(false);
 
-  useEffect(() => {
+  const loadCourse = useCallback(async () => {
     if (!params?.id) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const id = typeof params?.id === 'string' ? params.id : params?.id?.[0];
+      if (!id) return;
+      const data = await coursesAPI.getById(id);
+      setCourse(data);
 
-    async function loadCourse() {
-      try {
-        const id = typeof params?.id === 'string' ? params.id : params?.id?.[0];
-        if (!id) return;
-        const data = await coursesAPI.getById(id);
-        setCourse(data);
-
-        // Check if user is enrolled
-        if (user) {
-          const enrollments = await enrollmentsAPI.getByStudentId(user.id);
-          const enrolled = enrollments.some((enrollment) => enrollment.courseId === data.id);
-          setIsEnrolled(enrolled);
-        }
-      } catch (error) {
-        console.error('Failed to load course:', error);
-        router.push('/courses');
-      } finally {
-        setIsLoading(false);
+      if (user) {
+        const enrollments = await enrollmentsAPI.getByStudentId(user.id);
+        const enrolled = enrollments.some((enrollment) => enrollment.courseId === data.id);
+        setIsEnrolled(enrolled);
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load course');
+    } finally {
+      setIsLoading(false);
     }
+  }, [params, user]);
 
+  useEffect(() => {
     loadCourse();
-  }, [params, user, router]);
+  }, [loadCourse]);
 
   const handleEnroll = () => {
     if (!course) return;
@@ -81,12 +84,16 @@ export default function CourseDetailPage() {
   };
 
   if (isLoading) {
+    return <CourseDetailSkeleton />;
+  }
+
+  if (error) {
     return (
       <div className="flex min-h-[calc(100vh-80px)] items-center justify-center bg-black">
         <div className="text-center">
           <div className="mx-auto mb-4 h-16 w-16 animate-spin rounded-full border-4 border-red-600/30 border-t-red-600"></div>
           <p className="font-mono text-sm tracking-widest text-red-500 uppercase">
-            Loading Header Data...
+            {t('courses.detail.checking_session')}
           </p>
         </div>
       </div>
@@ -98,24 +105,25 @@ export default function CourseDetailPage() {
       <div className="flex min-h-[calc(100vh-80px)] items-center justify-center bg-black">
         <div className="rounded-2xl border border-red-500/50 bg-zinc-950 p-12 text-center shadow-[0_0_30px_rgba(220,38,38,0.2)]">
           <h2 className="mb-4 text-2xl font-black tracking-widest text-white uppercase">
-            Node Not Found
+            {t('courses.detail.not_found_title')}
           </h2>
           <Link
             href="/courses"
             className="group flex items-center justify-center gap-2 text-sm font-bold tracking-widest text-red-500 uppercase hover:text-red-400"
           >
             <span className="transform transition-transform group-hover:-translate-x-1">←</span>{' '}
-            Return to Directory
+            {t('courses.detail.not_found_back')}
           </Link>
         </div>
       </div>
     );
   }
 
-  const courseContent = getCourseContent(course);
+  const courseContent = getTranslatedCourseContent(course, tn);
 
   return (
-    <div className="relative min-h-[calc(100vh-80px)] overflow-hidden bg-black pb-20 text-white">
+    <ErrorBoundary>
+    <div className="relative min-h-[calc(100vh-80px)] overflow-hidden bg-black pb-20 text-white" aria-busy={isLoading}>
       {/* Background Glow */}
       <div className="pointer-events-none absolute top-0 right-0 h-[600px] w-[600px] rounded-full bg-red-600/10 blur-[120px]"></div>
 
@@ -127,12 +135,12 @@ export default function CourseDetailPage() {
             className="group mb-8 inline-flex items-center gap-2 text-xs font-bold tracking-widest text-gray-500 uppercase transition-colors hover:text-red-500"
           >
             <span className="transform transition-transform group-hover:-translate-x-1">←</span>{' '}
-            Network Directory
+            {t('courses.detail.back')}
           </Link>
           <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
             <div>
               <div className="mb-4 inline-block rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1 font-mono text-xs tracking-widest text-red-500 uppercase">
-                Module Initialization
+                {t('courses.detail.badge')}
               </div>
               <h1 className="mb-4 text-4xl font-black tracking-tight text-white uppercase transition-colors group-hover:text-red-50 md:text-5xl">
                 {course.title}
@@ -141,19 +149,19 @@ export default function CourseDetailPage() {
               <div className="flex flex-wrap items-center gap-6 font-mono text-sm tracking-wider text-gray-400 uppercase">
                 <span className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-gray-600"></span>
-                  Instructor: <span className="text-white">{course.instructor}</span>
+                  {t('courses.detail.instructor')} <span className="text-white">{course.instructor}</span>
                 </span>
                 <span className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-red-600"></span>
-                  Payload: <span className="text-white">{course.credits} UNIT</span>
+                  {t('courses.detail.payload')} <span className="text-white">{course.credits} {t('courses.detail.unit')}</span>
                 </span>
                 <span className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
-                  Level: <span className="text-white">{courseContent.level}</span>
+                  {t('courses.detail.level')} <span className="text-white">{courseContent.level}</span>
                 </span>
                 <span className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-blue-500"></span>
-                  Duration: <span className="text-white">{courseContent.duration}</span>
+                  {t('courses.detail.duration')} <span className="text-white">{courseContent.duration}</span>
                 </span>
               </div>
             </div>
@@ -168,16 +176,15 @@ export default function CourseDetailPage() {
           <div className="space-y-8 lg:col-span-2">
             <div className="rounded-2xl border border-white/10 bg-zinc-950 p-8 transition-colors hover:border-red-500/30">
               <h2 className="mb-6 flex items-center gap-3 text-2xl font-black tracking-widest text-white uppercase">
-                <span className="inline-block h-4 w-4 rounded-sm bg-red-600"></span> Protocol
-                Specifications
+                <span className="inline-block h-4 w-4 rounded-sm bg-red-600"></span> {t('courses.detail.protocol_specs')}
               </h2>
               <p className="mb-8 text-lg leading-relaxed font-light text-gray-400">
-                {course.description || 'System metadata missing. Awaiting curriculum upload.'}
+                {course.description || t('courses.detail.description_fallback')}
               </p>
 
               <div className="mt-8 border-t border-white/10 pt-8">
                 <h3 className="mb-6 text-lg font-bold tracking-widest text-gray-300 uppercase">
-                  Execution Objectives
+                  {t('courses.detail.execution_objectives')}
                 </h3>
                 <ul className="space-y-4">
                   {courseContent.outcomes.map((outcome) => (
@@ -206,8 +213,7 @@ export default function CourseDetailPage() {
 
             <div className="rounded-2xl border border-white/10 bg-zinc-950 p-8">
               <h2 className="mb-6 flex items-center gap-3 text-2xl font-black tracking-widest text-white uppercase">
-                <span className="inline-block h-4 w-4 rounded-sm bg-emerald-500"></span> Curriculum
-                Map
+                <span className="inline-block h-4 w-4 rounded-sm bg-emerald-500"></span> {t('courses.detail.curriculum_map')}
               </h2>
               <div className="grid gap-4 md:grid-cols-3">
                 {courseContent.modules.map((module, index) => (
@@ -216,7 +222,7 @@ export default function CourseDetailPage() {
                     className="rounded-2xl border border-white/8 bg-white/4 p-5"
                   >
                     <p className="mb-3 text-xs font-bold tracking-[0.18em] text-red-400 uppercase">
-                      Module {index + 1}
+                      {t('courses.detail.module').replace('{number}', String(index + 1))}
                     </p>
                     <h3 className="text-lg font-semibold text-white">{module.title}</h3>
                     <p className="mt-3 text-sm leading-7 text-gray-400">{module.description}</p>
@@ -228,7 +234,7 @@ export default function CourseDetailPage() {
             <div className="grid gap-8 md:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-zinc-950 p-8">
                 <h2 className="mb-6 text-xl font-black tracking-widest text-white uppercase">
-                  Deliverables
+                  {t('courses.detail.deliverables')}
                 </h2>
                 <div className="space-y-4">
                   {courseContent.deliverables.map((deliverable) => (
@@ -244,7 +250,7 @@ export default function CourseDetailPage() {
 
               <div className="rounded-2xl border border-white/10 bg-zinc-950 p-8">
                 <h2 className="mb-6 text-xl font-black tracking-widest text-white uppercase">
-                  Tools You Will Touch
+                  {t('courses.detail.tools')}
                 </h2>
                 <div className="flex flex-wrap gap-3">
                   {courseContent.tools.map((tool) => (
@@ -264,7 +270,7 @@ export default function CourseDetailPage() {
           <div className="lg:col-span-1">
             <div className="sticky top-28 rounded-2xl border border-white/10 bg-zinc-950 p-8 shadow-[0_0_30px_rgba(0,0,0,0.5)]">
               <h3 className="mb-6 text-xl font-black tracking-widest text-white uppercase">
-                Connection Status
+                {t('courses.detail.connection_status')}
               </h3>
 
               {isEnrolled ? (
@@ -286,26 +292,25 @@ export default function CourseDetailPage() {
                       </svg>
                     </div>
                     <p className="mb-1 text-sm font-bold tracking-widest text-green-500 uppercase">
-                      Uplink Active
+                      {t('courses.detail.uplink_active')}
                     </p>
                     <p className="font-mono text-xs text-gray-400">
-                      Module execution in progress...
+                      {t('courses.detail.in_progress')}
                     </p>
                   </div>
 
                   <div className="border-t border-white/10 pt-6">
                     <p className="mb-4 text-sm font-light text-gray-400">
-                      Completed the curriculum? Execute the smart contract below to mint your
-                      verifiable credential on the Stellar blockchain.
+                      {t('courses.detail.mint_prompt')}
                     </p>
 
                     {mintSuccess ? (
                       <div className="animate-pulse rounded-xl border border-blue-500/30 bg-blue-500/10 p-4 text-center">
                         <p className="text-sm font-bold tracking-widest text-blue-500 uppercase">
-                          Token Minted
+                          {t('courses.detail.token_minted')}
                         </p>
                         <p className="mt-1 font-mono text-xs text-blue-400/70">
-                          Redirecting to Vault...
+                          {t('courses.detail.redirecting')}
                         </p>
                       </div>
                     ) : (
@@ -318,7 +323,7 @@ export default function CourseDetailPage() {
                             : 'transform bg-red-600 text-white hover:-translate-y-0.5 hover:bg-red-700 hover:shadow-[0_0_30px_rgba(220,38,38,0.6)]'
                         }`}
                       >
-                        {isMinting ? 'Compiling tx...' : 'Extract Certificate'}
+                        {isMinting ? t('courses.detail.compiling_tx') : t('courses.detail.extract_certificate')}
                       </button>
                     )}
                   </div>
@@ -335,23 +340,23 @@ export default function CourseDetailPage() {
                     }`}
                   >
                     {isAuthLoading
-                      ? 'Checking session...'
+                      ? t('courses.detail.checking_session')
                       : !publicKey
-                        ? 'Connect Wallet'
+                        ? t('courses.detail.connect_wallet')
                         : !user
-                          ? 'Complete Profile'
-                          : 'Start Enrollment'}
+                          ? t('courses.detail.complete_profile')
+                          : t('courses.detail.start_enrollment')}
                   </button>
                   <p className="mt-4 text-center font-mono text-xs text-gray-500">
-                    5-step wizard with progress saving
+                    {t('courses.detail.wizard_hint')}
                   </p>
                   {!isAuthLoading && !user && publicKey && (
                     <p className="mt-2 text-center text-xs text-red-400">
-                      Finish your profile once, then enrollment will stay available.
+                      {t('courses.detail.profile_hint')}
                     </p>
                   )}
                   <p className="mt-2 text-center font-mono text-xs text-gray-600">
-                    NO GAS FEES • PUBLIC TESTNET
+                    {t('courses.detail.no_gas_fees')}
                   </p>
                 </div>
               )}
@@ -372,7 +377,7 @@ export default function CourseDetailPage() {
                         d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                       />
                     </svg>
-                    Asynchronous Execution
+                    {t('courses.detail.async_execution')}
                   </div>
                   <div className="flex items-center gap-4 font-mono text-xs tracking-widest text-gray-400 uppercase">
                     <svg
@@ -388,7 +393,7 @@ export default function CourseDetailPage() {
                         d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                       />
                     </svg>
-                    On-chain Verification
+                    {t('courses.detail.onchain_verification')}
                   </div>
                   <div className="flex items-center gap-4 font-mono text-xs tracking-widest text-gray-400 uppercase">
                     <svg
@@ -404,7 +409,7 @@ export default function CourseDetailPage() {
                         d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
                       />
                     </svg>
-                    Encrypted Payload
+                    {t('courses.detail.encrypted_payload')}
                   </div>
                 </div>
               </div>
@@ -413,5 +418,6 @@ export default function CourseDetailPage() {
         </div>
       </main>
     </div>
+    </ErrorBoundary>
   );
 }

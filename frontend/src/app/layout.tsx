@@ -1,6 +1,18 @@
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { WalletProvider } from '@/contexts/WalletContext';
+import { SkeletonThemeWrapper } from '@/components/ui/SkeletonThemeWrapper';
+import { I18nProvider } from '@/i18n';
+import { KeyboardShortcutsProvider } from '@/components/keyboard/KeyboardShortcutsProvider';
+import Navbar from '@/components/layout/Navbar';
+import ResiliencyBanner from '@/components/layout/ResiliencyBanner';
+import RenderWarningModal from '@/components/layout/RenderWarningModal';
+import { CourseNotificationListener, ToastContainer } from '@/components/notifications';
+import { OfflineSyncHandler } from '@/components/OfflineSyncHandler';
+import { NotificationProvider } from '@/contexts/NotificationContext';
+import { Web3OnboardingProvider } from '@/contexts/Web3OnboardingContext';
+import { TutorialProvider } from '@/contexts/TutorialContext';
+import { SkipLink } from '@/components/ui/SkipLink';
 import type { Metadata } from 'next';
 import './globals.css';
 
@@ -9,12 +21,6 @@ export const metadata: Metadata = {
   description:
     'An open-source educational platform for blockchain, smart contracts, open-source collaboration, and hackathon project development.',
 };
-
-import Navbar from '@/components/layout/Navbar';
-import ResiliencyBanner from '@/components/layout/ResiliencyBanner';
-import { ToastContainer } from '@/components/notifications/ToastContainer';
-import { NotificationProvider } from '@/contexts/NotificationContext';
-import { I18nProvider } from '@/i18n';
 
 export default function RootLayout({
   children,
@@ -29,7 +35,7 @@ export default function RootLayout({
             __html: `
               (function() {
                 try {
-                  var theme = localStorage.getItem('theme');
+                  var theme = localStorage.getItem('web3-lab-theme');
                   var isDark = theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches);
                   if (isDark) {
                     document.documentElement.classList.add('dark');
@@ -48,15 +54,26 @@ export default function RootLayout({
             <AuthProvider>
               <I18nProvider>
                 <NotificationProvider>
-                  <a href="#main-content" className="skip-to-content">
-                    Skip to main content
-                  </a>
-                  <Navbar />
-                  <ResiliencyBanner />
-                  <main id="main-content" className="flex-grow">
-                    {children}
-                  </main>
-                  <ToastContainer />
+                  <Web3OnboardingProvider>
+                    <KeyboardShortcutsProvider>
+                      <TutorialProvider>
+                        <SkipLink
+                          targets={[
+                            { id: 'main-content', label: 'Skip to main content' },
+                            { id: 'primary-navigation', label: 'Skip to navigation' },
+                          ]}
+                        />
+                        <Navbar />
+                        <ResiliencyBanner />
+                        <RenderWarningModal />
+                        <OfflineSyncHandler />
+                        <main id="main-content" className="flex-grow outline-none" tabIndex={-1}>
+                          {children}
+                        </main>
+                        <ToastContainer />
+                      </TutorialProvider>
+                    </KeyboardShortcutsProvider>
+                  </Web3OnboardingProvider>
                 </NotificationProvider>
               </I18nProvider>
             </AuthProvider>
@@ -66,3 +83,4 @@ export default function RootLayout({
     </html>
   );
 }
+export const dynamic = 'force-dynamic';

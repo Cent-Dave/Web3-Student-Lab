@@ -2,7 +2,7 @@
 // Language: Rust (Soroban)
 
 #![no_std]
-use soroban_sdk::{contractimpl, contracttype, Address, BytesN, Env, IntoVal, Map, Symbol, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Map, Vec, Bytes};
 
 const MAX_SIGNERS: usize = 10;
 
@@ -12,7 +12,7 @@ pub struct Proposal {
     pub proposer: Address,
     pub to: Address,
     pub value: i128,
-    pub data: Vec<u8>,
+    pub data: Bytes,
     pub approvals: Vec<Address>,
     pub executed: bool,
     pub created_at: u64,
@@ -28,6 +28,7 @@ pub enum DataKey {
     TimelockPeriod,
 }
 
+#[contract]
 pub struct MultiSigWalletContract;
 
 #[contractimpl]
@@ -38,20 +39,24 @@ impl MultiSigWalletContract {
             threshold > 0 && threshold <= signers.len(),
             "Invalid threshold"
         );
-        env.storage().set(&DataKey::Signers, &signers);
-        env.storage().set(&DataKey::Threshold, &threshold);
-        env.storage().set(&DataKey::ProposalCount, &0u32);
-        env.storage()
-            .set(&DataKey::TimelockPeriod, &timelock_period);
+        env.storage().instance().set(&DataKey::Signers, &signers);
+        env.storage().instance().set(&DataKey::Threshold, &threshold);
+        env.storage().instance().set(&DataKey::ProposalCount, &0u32);
+        env.storage().instance().set(&DataKey::TimelockPeriod, &timelock_period);
     }
 
-    pub fn submit_proposal(env: Env, to: Address, value: i128, data: Vec<u8>) -> u32 {
-        let proposer = env.invoker();
+    pub fn submit_proposal(env: Env, proposer: Address, to: Address, value: i128, data: Bytes) -> u32 {
+        proposer.require_auth();
+
+        let signers: Vec<Address> = env.storage().instance().get(&DataKey::Signers).unwrap();
+        assert!(signers.contains(&proposer), "Not a signer");
+
         let mut proposals: Map<u32, Proposal> =
-            env.storage().get(&DataKey::Proposals).unwrap_or_default();
-        let proposal_count: u32 = env.storage().get(&DataKey::ProposalCount).unwrap_or(0);
-        let timelock_period: u64 = env.storage().get(&DataKey::TimelockPeriod).unwrap_or(0);
+            env.storage().instance().get(&DataKey::Proposals).unwrap_or_else(|| Map::new(&env));
+        let proposal_count: u32 = env.storage().instance().get(&DataKey::ProposalCount).unwrap_or(0);
+        let timelock_period: u64 = env.storage().instance().get(&DataKey::TimelockPeriod).unwrap_or(0);
         let now = env.ledger().timestamp();
+
         let proposal = Proposal {
             proposer: proposer.clone(),
             to,
@@ -63,82 +68,108 @@ impl MultiSigWalletContract {
             timelock: now + timelock_period,
         };
         proposals.set(proposal_count, proposal);
-        env.storage().set(&DataKey::Proposals, &proposals);
-        env.storage()
-            .set(&DataKey::ProposalCount, &(proposal_count + 1));
+        env.storage().instance().set(&DataKey::Proposals, &proposals);
+        env.storage().instance().set(&DataKey::ProposalCount, &(proposal_count + 1));
+
         proposal_count
     }
 
-    pub fn approve_proposal(env: Env, proposal_id: u32) {
-        let signer = env.invoker();
-        let mut proposals: Map<u32, Proposal> = env.storage().get(&DataKey::Proposals).unwrap();
-        let mut proposal = proposals.get(proposal_id).unwrap();
-        let signers: Vec<Address> = env.storage().get(&DataKey::Signers).unwrap();
+    pub fn approve_proposal(env: Env, signer: Address, proposal_id: u32) {
+        signer.require_auth();
+
+        let signers: Vec<Address> = env.storage().instance().get(&DataKey::Signers).unwrap();
         assert!(signers.contains(&signer), "Not a signer");
+
+        let mut proposals: Map<u32, Proposal> = env.storage().instance().get(&DataKey::Proposals).unwrap();
+        let mut proposal = proposals.get(proposal_id).unwrap();
+
         assert!(!proposal.executed, "Already executed");
         assert!(!proposal.approvals.contains(&signer), "Already approved");
+
         proposal.approvals.push_back(signer);
         proposals.set(proposal_id, proposal);
-        env.storage().set(&DataKey::Proposals, &proposals);
+        env.storage().instance().set(&DataKey::Proposals, &proposals);
     }
 
     pub fn execute_proposal(env: Env, proposal_id: u32) {
-        let mut proposals: Map<u32, Proposal> = env.storage().get(&DataKey::Proposals).unwrap();
+        let mut proposals: Map<u32, Proposal> = env.storage().instance().get(&DataKey::Proposals).unwrap();
         let mut proposal = proposals.get(proposal_id).unwrap();
-        let threshold: u32 = env.storage().get(&DataKey::Threshold).unwrap();
+        let threshold: u32 = env.storage().instance().get(&DataKey::Threshold).unwrap();
         let now = env.ledger().timestamp();
+
         assert!(!proposal.executed, "Already executed");
         assert!(
             proposal.approvals.len() as u32 >= threshold,
             "Not enough approvals"
         );
         assert!(now >= proposal.timelock, "Timelock not expired");
+
         // Execute transaction logic here (e.g., transfer funds)
+
         proposal.executed = true;
         proposals.set(proposal_id, proposal);
-        env.storage().set(&DataKey::Proposals, &proposals);
+        env.storage().instance().set(&DataKey::Proposals, &proposals);
     }
 
     pub fn add_signer(env: Env, new_signer: Address) {
-        let mut signers: Vec<Address> = env.storage().get(&DataKey::Signers).unwrap();
+        env.current_contract_address().require_auth();
+
+        let mut signers: Vec<Address> = env.storage().instance().get(&DataKey::Signers).unwrap();
         assert!(!signers.contains(&new_signer), "Already a signer");
         assert!(signers.len() < MAX_SIGNERS as u32, "Max signers reached");
+
         signers.push_back(new_signer);
-        env.storage().set(&DataKey::Signers, &signers);
+        env.storage().instance().set(&DataKey::Signers, &signers);
     }
 
     pub fn remove_signer(env: Env, signer: Address) {
-        let mut signers: Vec<Address> = env.storage().get(&DataKey::Signers).unwrap();
+        env.current_contract_address().require_auth();
+
+        let mut signers: Vec<Address> = env.storage().instance().get(&DataKey::Signers).unwrap();
         let idx = signers
             .iter()
-            .position(|s| s == &signer)
+            .position(|s| s == signer)
             .expect("Signer not found");
+
         signers.remove(idx as u32);
-        env.storage().set(&DataKey::Signers, &signers);
+        env.storage().instance().set(&DataKey::Signers, &signers);
     }
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
-    use soroban_sdk::{testutils::Address as _, Env};
+    use soroban_sdk::{testutils::Address as _, testutils::Ledger, Env};
 
     #[test]
     fn test_multisig_flow() {
         let env = Env::default();
-        let signer1 = Address::random(&env);
-        let signer2 = Address::random(&env);
+        env.mock_all_auths();
+
+        let contract_id = env.register(MultiSigWalletContract, ());
+        let client = MultiSigWalletContractClient::new(&env, &contract_id);
+
+        let signer1 = Address::generate(&env);
+        let signer2 = Address::generate(&env);
         let signers = Vec::from_array(&env, [signer1.clone(), signer2.clone()]);
-        MultiSigWalletContract::initialize(env.clone(), signers, 2, 10);
-        let to = Address::random(&env);
-        let proposal_id =
-            MultiSigWalletContract::submit_proposal(env.clone(), to, 100, Vec::new(&env));
-        MultiSigWalletContract::approve_proposal(env.clone(), proposal_id);
-        env.set_invoker(signer2.clone());
-        MultiSigWalletContract::approve_proposal(env.clone(), proposal_id);
-        env.ledger().set_timestamp(20);
-        MultiSigWalletContract::execute_proposal(env.clone(), proposal_id);
-        let proposals: Map<u32, Proposal> = env.storage().get(&DataKey::Proposals).unwrap();
+
+        client.initialize(&signers, &2, &10);
+
+        let to = Address::generate(&env);
+        let data = Bytes::new(&env);
+        let proposal_id = client.submit_proposal(&signer1, &to, &100, &data);
+
+        client.approve_proposal(&signer1, &proposal_id);
+        client.approve_proposal(&signer2, &proposal_id);
+
+        // Advance ledger timestamp to pass timelock period (timelock period = 10)
+        env.ledger().with_mut(|l| l.timestamp = 20);
+
+        client.execute_proposal(&proposal_id);
+
+        let proposals: Map<u32, Proposal> = env.as_contract(&contract_id, || {
+            env.storage().instance().get(&DataKey::Proposals).unwrap()
+        });
         let proposal = proposals.get(proposal_id).unwrap();
         assert!(proposal.executed);
     }

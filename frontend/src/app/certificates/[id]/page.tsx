@@ -3,38 +3,39 @@
 import { Certificate, certificatesAPI } from '@/lib/api';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-// import { useAuth } from "@/contexts/AuthContext"; // Reserved for future auth features
+import { useEffect, useState, useCallback } from 'react';
+import { ErrorBoundary, ErrorFallback, CertificateDetailSkeleton } from '@/components/ui';
 
 export default function CertificateNFTPage() {
   const params = useParams();
   const router = useRouter();
-  // const { user } = useAuth(); // Uncomment when user context is needed
   const [certificate, setCertificate] = useState<Certificate | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationResult, setVerificationResult] = useState<{
     verified: boolean;
     hash?: string;
   } | null>(null);
 
-  useEffect(() => {
+  const loadCertificate = useCallback(async () => {
     if (!params?.id) return;
-
-    async function loadCertificate() {
-      try {
-        const data = await certificatesAPI.getById(params?.id as string);
-        setCertificate(data);
-      } catch (error) {
-        console.error('Failed to load certificate:', error);
-        router.push('/certificates');
-      } finally {
-        setIsLoading(false);
-      }
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await certificatesAPI.getById(params?.id as string);
+      setCertificate(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load certificate');
+      console.error('Failed to load certificate:', err);
+    } finally {
+      setIsLoading(false);
     }
+  }, [params]);
 
+  useEffect(() => {
     loadCertificate();
-  }, [params, router]);
+  }, [loadCertificate]);
 
   const verifyOnChain = async () => {
     if (!certificate) return;
@@ -51,13 +52,14 @@ export default function CertificateNFTPage() {
   };
 
   if (isLoading) {
+    return <CertificateDetailSkeleton />;
+  }
+
+  if (error) {
     return (
-      <div className="flex min-h-[calc(100vh-80px)] items-center justify-center bg-black">
-        <div className="text-center">
-          <div className="mx-auto mb-4 h-16 w-16 animate-spin rounded-full border-4 border-red-600/30 border-t-red-600"></div>
-          <p className="font-mono text-sm tracking-widest text-red-500 uppercase">
-            Decoding Token Asset...
-          </p>
+      <div className="flex min-h-[calc(100vh-80px)] items-center justify-center bg-black p-8">
+        <div className="w-full max-w-md">
+          <ErrorFallback message={error} onRetry={loadCertificate} variant="card" />
         </div>
       </div>
     );
@@ -66,7 +68,8 @@ export default function CertificateNFTPage() {
   if (!certificate) return null;
 
   return (
-    <div className="relative min-h-[calc(100vh-80px)] overflow-hidden bg-black px-4 py-12 text-white sm:px-6">
+    <ErrorBoundary>
+    <div className="relative min-h-[calc(100vh-80px)] overflow-hidden bg-black px-4 py-12 text-white sm:px-6" aria-busy={isLoading}>
       {/* Background Glow */}
       <div className="pointer-events-none absolute top-1/2 left-1/2 h-[800px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-600/10 blur-[150px]"></div>
 
@@ -247,5 +250,6 @@ export default function CertificateNFTPage() {
         </div>
       </div>
     </div>
+    </ErrorBoundary>
   );
 }

@@ -2,9 +2,11 @@
 
 ## Overview
 
+
 This document describes the implementation of a decentralized carbon credit platform built on Soroban smart contracts. The platform enables tokenization, verification, trading, and retirement of carbon credits with full transparency and auditability.
 
 ## Architecture
+
 
 ### Smart Contract Components
 

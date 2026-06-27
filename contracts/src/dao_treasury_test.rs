@@ -1,6 +1,8 @@
 #![cfg(test)]
 
-use crate::dao_treasury::{DaoTreasuryContract, DaoTreasuryContractClient, TreasuryError, SweepInfo};
+use crate::dao_treasury::{
+    DaoTreasuryContract, DaoTreasuryContractClient, SweepInfo, TreasuryError,
+};
 use soroban_sdk::{
     testutils::{Address as _, Ledger},
     token, Address, Env,
@@ -12,7 +14,7 @@ fn setup_test() -> (Env, Address, DaoTreasuryContractClient<'static>) {
     let contract_id = env.register(DaoTreasuryContract, ());
     let client = DaoTreasuryContractClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    
+
     (env, admin, client)
 }
 
@@ -56,7 +58,7 @@ fn test_set_allowance_unauthorized() {
 
     let not_admin = Address::generate(&env);
     let token = Address::generate(&env);
-    
+
     client.set_proposal_allowance(&not_admin, &1, &token, &100);
 }
 
@@ -111,7 +113,7 @@ fn test_execute_proposal_transfer_insufficient_allowance() {
 
     let token = Address::generate(&env);
     client.set_proposal_allowance(&admin, &1, &token, &50);
-    
+
     // Attempting to transfer 100 but allowance is 50
     client.execute_proposal_transfer(&1, &token, &Address::generate(&env), &100);
 }
@@ -136,7 +138,7 @@ fn test_emergency_sweep() {
     token_client.mint(&client.address, &10000);
 
     let sweep_target = Address::generate(&env);
-    
+
     // Initial time is 0, so sweep unlock time will be 0 + 86400
     env.ledger().set_timestamp(0);
 

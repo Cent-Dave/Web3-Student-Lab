@@ -1,3 +1,4 @@
+#![allow(unused_variables)]
 #![cfg(test)]
 
 use crate::oracle_aggregator::{

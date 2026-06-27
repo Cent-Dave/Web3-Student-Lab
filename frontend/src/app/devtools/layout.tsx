@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 const tabs = [
   { name: 'EVENTS', path: '/devtools/events' },
   { name: 'FEES', path: '/devtools/fees' },
+  { name: 'SIMULATOR', path: '/devtools/simulator' },
   { name: 'WALLET', path: '/devtools/wallet' },
   { name: 'STORAGE', path: '/devtools/storage' },
 ];

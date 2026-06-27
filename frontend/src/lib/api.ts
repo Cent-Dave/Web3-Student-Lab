@@ -412,7 +412,7 @@ export const generatorAPI = {
     difficulty: string;
   }): Promise<ProjectIdea> => {
     const response = await apiClient.post('/generator/generate', params);
-    return response.data;
+    return response.data.projectIdea;
   },
 };
 

@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, Address, Env, Map,
     String, Symbol, Vec,
@@ -51,6 +53,8 @@ pub struct GamingAssetExchangeContract;
 
 #[contractimpl]
 impl GamingAssetExchangeContract {
+    /// Initialize the gaming asset contract and set the admin, fee collector,
+    /// and marketplace fee ratio.
     pub fn init(env: Env, admin: Address, fee_collector: Address, fee_ratio: u32) {
         admin.require_auth();
         env.storage().instance().set(&DataKey::Admin, &admin);
@@ -63,6 +67,8 @@ impl GamingAssetExchangeContract {
         env.storage().instance().set(&DataKey::AssetCounter, &0u32);
     }
 
+    /// Mint a new gaming asset for a game and assign ownership to `to`.
+    /// Asset metadata includes attributes and an external URI for richer UIs.
     pub fn mint_asset(
         env: Env,
         caller: Address,
@@ -120,6 +126,8 @@ impl GamingAssetExchangeContract {
         counter
     }
 
+    /// Transfer a gaming asset from one address to another.
+    /// Any active marketplace listing is cancelled when ownership changes.
     pub fn transfer_asset(env: Env, from: Address, to: Address, asset_id: u32) {
         from.require_auth();
 
@@ -133,7 +141,6 @@ impl GamingAssetExchangeContract {
             panic_with_error!(&env, ExchangeError::NotAuthorized);
         }
 
-        // Cancel listing if transferring
         let listing_key = DataKey::AssetListing(asset_id);
         if env.storage().instance().has(&listing_key) {
             env.storage().instance().remove(&listing_key);
@@ -149,6 +156,7 @@ impl GamingAssetExchangeContract {
         );
     }
 
+    /// List an owned asset for sale at a positive price.
     pub fn list_asset(env: Env, seller: Address, asset_id: u32, price: i128) {
         seller.require_auth();
 
@@ -179,6 +187,7 @@ impl GamingAssetExchangeContract {
             .publish((Symbol::new(&env, "Listed"),), (asset_id, seller, price));
     }
 
+    /// Remove an active marketplace listing.
     pub fn delist_asset(env: Env, seller: Address, asset_id: u32) {
         seller.require_auth();
 
@@ -199,8 +208,7 @@ impl GamingAssetExchangeContract {
             .publish((Symbol::new(&env, "Delisted"),), (asset_id, seller));
     }
 
-    // In a real implementation this would involve a native token transfer or RS token.
-    // We mock the buy interaction here to demonstrate state change.
+    /// Purchase an active listing. The asset owner changes and the listing is removed.
     pub fn buy_asset(env: Env, buyer: Address, asset_id: u32) {
         buyer.require_auth();
 
@@ -213,8 +221,6 @@ impl GamingAssetExchangeContract {
         if !listing.active {
             panic_with_error!(&env, ExchangeError::ListingNotActive);
         }
-
-        // Normally we'd transfer funds from `buyer` to `listing.seller` minus fee to `fee_collector` here using a Token interface
 
         env.storage()
             .instance()
@@ -229,6 +235,7 @@ impl GamingAssetExchangeContract {
         );
     }
 
+    /// Return the metadata stored for an asset.
     pub fn get_asset(env: Env, asset_id: u32) -> AssetMetadata {
         env.storage()
             .instance()
@@ -236,10 +243,39 @@ impl GamingAssetExchangeContract {
             .unwrap_or_else(|| panic_with_error!(&env, ExchangeError::AssetNotFound))
     }
 
+    /// Return the current owner of a gaming asset.
     pub fn get_owner(env: Env, asset_id: u32) -> Address {
         env.storage()
             .instance()
             .get(&DataKey::AssetOwner(asset_id))
             .unwrap_or_else(|| panic_with_error!(&env, ExchangeError::AssetNotFound))
+    }
+
+    /// Return an active listing for an asset.
+    pub fn get_listing(env: Env, asset_id: u32) -> Listing {
+        env.storage()
+            .instance()
+            .get(&DataKey::AssetListing(asset_id))
+            .unwrap_or_else(|| panic_with_error!(&env, ExchangeError::ListingNotFound))
+    }
+
+    /// Return the list of asset IDs minted for a given game.
+    pub fn get_assets_by_game(env: Env, game_id: String) -> Vec<u32> {
+        env.storage()
+            .instance()
+            .get(&DataKey::GameAssets(game_id))
+            .unwrap_or(Vec::new(&env))
+    }
+
+    /// Return whether the asset exists in contract storage.
+    pub fn asset_exists(env: Env, asset_id: u32) -> bool {
+        env.storage().instance().has(&DataKey::Asset(asset_id))
+    }
+
+    /// Return whether the asset is currently listed for sale.
+    pub fn is_listed(env: Env, asset_id: u32) -> bool {
+        env.storage()
+            .instance()
+            .has(&DataKey::AssetListing(asset_id))
     }
 }

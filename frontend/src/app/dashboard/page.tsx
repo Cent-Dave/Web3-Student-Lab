@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import Link from 'next/link';
 import {
   BookOpen,
@@ -22,6 +22,8 @@ import {
   enrollmentsAPI,
 } from '@/lib/api';
 import { getLearningJourney, LearningLevel, LearningTask } from '@/lib/learning-journey';
+import { ErrorBoundary, ErrorFallback } from '@/components/ui';
+import { DashboardSkeleton } from '@/components/ui';
 
 type ProgressState = Record<string, boolean>;
 
@@ -33,6 +35,7 @@ export default function DashboardPage() {
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeCourseId, setActiveCourseId] = useState<string | null>(null);
   const [completedTasks, setCompletedTasks] = useState<ProgressState>({});
 
@@ -59,36 +62,42 @@ export default function DashboardPage() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(completedTasks));
   }, [completedTasks]);
 
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [courseData, certificateData, enrollmentData] = await Promise.all([
+        coursesAPI.getAll(),
+        user ? certificatesAPI.getByStudentId(user.id) : Promise.resolve([]),
+        user ? enrollmentsAPI.getByStudentId(user.id) : Promise.resolve([]),
+      ]);
+
+      setCourses(courseData);
+      setCertificates(certificateData);
+      setEnrollments(enrollmentData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
+      setCourses([]);
+      setCertificates([]);
+      setEnrollments([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
   useEffect(() => {
     let mounted = true;
 
     async function load() {
-      try {
-        const [courseData, certificateData, enrollmentData] = await Promise.all([
-          coursesAPI.getAll(),
-          user ? certificatesAPI.getByStudentId(user.id) : Promise.resolve([]),
-          user ? enrollmentsAPI.getByStudentId(user.id) : Promise.resolve([]),
-        ]);
-
-        if (!mounted) return;
-        setCourses(courseData);
-        setCertificates(certificateData);
-        setEnrollments(enrollmentData);
-      } catch {
-        if (!mounted) return;
-        setCourses([]);
-        setCertificates([]);
-        setEnrollments([]);
-      } finally {
-        if (mounted) setLoading(false);
-      }
+      if (!mounted) return;
+      await loadData();
     }
 
     load();
     return () => {
       mounted = false;
     };
-  }, [user]);
+  }, [loadData]);
 
   const courseMap = useMemo(() => new Map(courses.map((course) => [course.id, course])), [courses]);
 
@@ -165,7 +174,8 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-4 pb-20 pt-12 sm:px-6 lg:px-8">
+    <ErrorBoundary>
+    <div className="mx-auto max-w-7xl px-4 pb-20 pt-12 sm:px-6 lg:px-8" aria-busy={loading}>
       <section className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-6">
           <span className="eyebrow">Student learning dashboard</span>
@@ -223,260 +233,8 @@ export default function DashboardPage() {
           </div>
         </div>
       </section>
-
-      {loading && <div className="mt-10 h-64 animate-pulse rounded-[2rem] bg-white/5" />}
-
-      {!loading && enrolledCourses.length === 0 && (
-        <section className="mt-10 surface-card p-8 sm:p-10">
-          <h2 className="text-2xl font-semibold text-[var(--text-strong)]">
-            Start your first learning track
-          </h2>
-          <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--muted)]">
-            After you enroll, this page becomes your daily learning workspace with levels, tasks,
-            lesson links, and progress tracking.
-          </p>
-          <div className="mt-6">
-            <Link
-              href="/courses"
-              className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(240,100,45,0.35)] bg-[rgba(240,100,45,0.12)] px-5 py-3 text-sm font-medium text-[var(--text-strong)]"
-            >
-              Browse courses
-            </Link>
-          </div>
-        </section>
-      )}
-
-      {!loading && enrolledCourses.length > 0 && activeCourse && activeJourney && activeLevel && (
-        <>
-          <section className="mt-10 grid gap-8 xl:grid-cols-[1.15fr_0.85fr]">
-            <div className="surface-card p-6 sm:p-8">
-              <div className="flex flex-wrap items-start justify-between gap-5">
-                <div>
-                  <p className="text-xs font-semibold tracking-[0.18em] text-[var(--brand-strong)] uppercase">
-                    Active learning track
-                  </p>
-                  <h2 className="mt-3 text-3xl font-semibold text-[var(--text-strong)]">
-                    {activeCourse.title}
-                  </h2>
-                  <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--muted)]">
-                    {activeJourney.headline}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-white/8 bg-white/4 px-4 py-3 text-right">
-                  <p className="text-xs tracking-[0.18em] text-[var(--muted)] uppercase">
-                    Current level
-                  </p>
-                  <p className="mt-1 text-lg font-semibold text-[var(--text-strong)]">
-                    Level {currentLevelNumber}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-8 rounded-[1.75rem] border border-white/8 bg-white/4 p-5">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-[var(--text-strong)]">
-                      {activeLevel.title}
-                    </p>
-                    <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
-                      {activeLevel.summary}
-                    </p>
-                  </div>
-                  <div className="hidden rounded-2xl bg-[rgba(240,100,45,0.12)] p-3 text-[var(--brand-strong)] sm:block">
-                    <Trophy className="h-5 w-5" />
-                  </div>
-                </div>
-
-                <div className="mt-6">
-                  <div className="mb-3 flex items-center justify-between text-sm">
-                    <span className="text-[var(--muted)]">Track progress</span>
-                    <span className="font-medium text-[var(--text-strong)]">
-                      {progressPercent}%
-                    </span>
-                  </div>
-                  <div className="h-3 overflow-hidden rounded-full bg-white/8">
-                    <div
-                      className="h-full rounded-full bg-[linear-gradient(90deg,var(--brand),#f4a261)] transition-all"
-                      style={{ width: `${progressPercent}%` }}
-                    />
-                  </div>
-                  <p className="mt-3 text-xs leading-6 text-[var(--muted)]">
-                    Goal for this level: {activeLevel.goal}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="surface-card p-6 sm:p-8">
-              <div className="flex items-center gap-3">
-                <div className="rounded-2xl bg-emerald-500/12 p-3 text-emerald-300">
-                  <Target className="h-5 w-5" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-semibold text-[var(--text-strong)]">
-                    Today&apos;s tasks
-                  </h2>
-                  <p className="text-sm text-[var(--muted)]">
-                    Finish these and your momentum stays alive.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-6 space-y-3">
-                {dailyTasks.map((task) => (
-                  <TaskRow
-                    key={task.id}
-                    task={task}
-                    checked={!!completedTasks[task.id]}
-                    onToggle={() => toggleTask(task.id)}
-                  />
-                ))}
-              </div>
-
-              <div className="mt-6 rounded-2xl border border-white/8 bg-white/4 p-4">
-                <p className="text-xs tracking-[0.18em] text-[var(--muted)] uppercase">
-                  Done today
-                </p>
-                <p className="mt-2 text-2xl font-semibold text-[var(--text-strong)]">
-                  {dailyTasks.filter((task) => completedTasks[task.id]).length}/{dailyTasks.length}
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <section className="mt-10 grid gap-8 xl:grid-cols-[0.82fr_1.18fr]">
-            <div className="space-y-8">
-              <div className="surface-card p-6 sm:p-8">
-                <h2 className="text-xl font-semibold text-[var(--text-strong)]">Your tracks</h2>
-                <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
-                  Switch between enrolled courses and continue learning where you left off.
-                </p>
-
-                <div className="mt-6 space-y-3">
-                  {enrolledCourses.map(({ enrollment, course }) => {
-                    const isActive = course.id === activeCourse.id;
-                    const journey = getLearningJourney(course);
-                    return (
-                      <button
-                        key={enrollment.id}
-                        type="button"
-                        onClick={() => setActiveCourseId(course.id)}
-                        className={`w-full rounded-2xl border p-4 text-left transition ${
-                          isActive
-                            ? 'border-[rgba(240,100,45,0.4)] bg-[rgba(240,100,45,0.12)]'
-                            : 'border-white/8 bg-white/4 hover:border-[rgba(240,100,45,0.25)]'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <p className="text-sm font-semibold text-[var(--text-strong)]">
-                              {course.title}
-                            </p>
-                            <p className="mt-2 text-xs text-[var(--muted)]">{journey.levelLabel}</p>
-                          </div>
-                          <span className="rounded-full bg-emerald-500/12 px-3 py-1 text-xs font-medium capitalize text-emerald-300">
-                            {enrollment.status}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="surface-card p-6 sm:p-8">
-                <h2 className="text-xl font-semibold text-[var(--text-strong)]">
-                  Milestone rewards
-                </h2>
-                <div className="mt-5 space-y-3">
-                  <MilestoneCard
-                    label="Level cleared"
-                    copy="Finish every task in your current level to unlock the next one."
-                  />
-                  <MilestoneCard
-                    label="Credential path"
-                    copy="When the course work is done, come back and mint your certificate."
-                  />
-                  <MilestoneCard
-                    label="Builder habit"
-                    copy="Try to complete at least one task per day to keep momentum strong."
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-8">
-              <div className="surface-card p-6 sm:p-8">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl bg-blue-500/12 p-3 text-blue-300">
-                    <PlayCircle className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-semibold text-[var(--text-strong)]">
-                      Lessons and resources
-                    </h2>
-                    <p className="text-sm text-[var(--muted)]">
-                      Videos, reading, and labs for the level you&apos;re in now.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-6 grid gap-4 md:grid-cols-3">
-                  {activeLevel.resources.map((resource) => (
-                    <a
-                      key={resource.title}
-                      href={resource.href}
-                      target={resource.href.startsWith('http') ? '_blank' : undefined}
-                      rel={resource.href.startsWith('http') ? 'noreferrer' : undefined}
-                      className="rounded-2xl border border-white/8 bg-white/4 p-5 transition hover:border-[rgba(240,100,45,0.35)]"
-                    >
-                      <p className="text-xs tracking-[0.18em] text-[var(--brand-strong)] uppercase">
-                        {resource.type}
-                      </p>
-                      <h3 className="mt-3 text-lg font-semibold text-[var(--text-strong)]">
-                        {resource.title}
-                      </h3>
-                      <div className="mt-5 flex items-center justify-between text-sm text-[var(--muted)]">
-                        <span>{resource.duration}</span>
-                        <span>Open</span>
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              </div>
-
-              <div className="surface-card p-6 sm:p-8">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl bg-white/7 p-3 text-[var(--text-strong)]">
-                    <Clock3 className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-semibold text-[var(--text-strong)]">
-                      Level roadmap
-                    </h2>
-                    <p className="text-sm text-[var(--muted)]">
-                      Move through the course one stage at a time.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-6 space-y-4">
-                  {activeJourney.levels.map((level, index) => (
-                    <LevelCard
-                      key={level.id}
-                      level={level}
-                      levelNumber={index + 1}
-                      isCurrent={index === activeLevelIndex}
-                      completedTasks={completedTasks}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-          </section>
-        </>
-      )}
     </div>
+    </ErrorBoundary>
   );
 }
 

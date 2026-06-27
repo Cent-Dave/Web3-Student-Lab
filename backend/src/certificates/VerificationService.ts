@@ -23,9 +23,14 @@ export class VerificationService {
    */
   async verifyByTokenId(tokenId: string): Promise<VerificationResult> {
     try {
-      // Find certificate
+      // Find certificate by either tokenId or id
       const certificate = await prisma.certificate.findFirst({
-        where: { tokenId },
+        where: {
+          OR: [
+            { tokenId: tokenId },
+            { id: tokenId }
+          ]
+        },
         include: {
           student: {
             select: {
@@ -78,12 +83,13 @@ export class VerificationService {
       throw new Error('Maximum 100 certificates allowed per batch verification');
     }
 
-    // Fetch all certificates in a single query
+    // Fetch all certificates in a single query by either tokenId or id
     const certificates = await prisma.certificate.findMany({
       where: {
-        tokenId: {
-          in: tokenIds,
-        },
+        OR: [
+          { tokenId: { in: tokenIds } },
+          { id: { in: tokenIds } }
+        ]
       },
       include: {
         student: {
@@ -98,8 +104,12 @@ export class VerificationService {
       },
     });
 
-    // Create a map for O(1) lookup
-    const certMap = new Map(certificates.map((c) => [c.tokenId, c]));
+    // Create a map for O(1) lookup by both id and tokenId
+    const certMap = new Map();
+    certificates.forEach((c) => {
+      if (c.tokenId) certMap.set(c.tokenId, c);
+      if (c.id) certMap.set(c.id, c);
+    });
 
     const results: VerificationResult[] = [];
 

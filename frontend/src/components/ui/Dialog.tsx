@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { cn } from '@/lib/utils';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { KEYS } from '@/lib/keyboard-navigation';
 
 interface DialogProps {
   open?: boolean;
@@ -8,12 +10,41 @@ interface DialogProps {
 }
 
 export function Dialog({ open, onOpenChange, children }: DialogProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  useFocusTrap(containerRef, {
+    enabled: !!open,
+    initialFocus: !!open,
+    returnFocusOnDeactivate: true,
+    onEscape: () => onOpenChange?.(false),
+  });
+
   if (!open) return null;
 
+  const handleBackdropKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === KEYS.ESCAPE) {
+      e.stopPropagation();
+      onOpenChange?.(false);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="fixed inset-0 bg-black/50" onClick={() => onOpenChange?.(false)} />
-      <div className="relative mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="fixed inset-0 bg-black/50"
+        onClick={() => onOpenChange?.(false)}
+        onKeyDown={handleBackdropKeyDown}
+        aria-hidden="true"
+      />
+      <div
+        ref={containerRef}
+        className="relative mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-lg"
+      >
         {children}
       </div>
     </div>

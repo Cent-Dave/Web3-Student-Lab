@@ -242,8 +242,8 @@ impl DexAggregatorContract {
 
         // Slippage check
         let per_pool = amount_in / count as u128;
-        for i in 0..count {
-            if per_pool > 0 && slippage_bps(&snaps[i], per_pool) > MAX_SLIPPAGE_BPS {
+        for snap in snaps.iter().take(count as usize) {
+            if per_pool > 0 && slippage_bps(snap, per_pool) > MAX_SLIPPAGE_BPS {
                 panic_with_error!(&env, AggError::SlippageExceeded);
             }
         }

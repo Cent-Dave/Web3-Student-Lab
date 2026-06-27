@@ -1,6 +1,7 @@
 'use client';
 
 import { CollaborativeCanvas } from '@/components/CollaborativeCanvas';
+import { EncryptedRoomChat } from '@/components/collaboration/EncryptedRoomChat';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -172,23 +173,33 @@ function BrainstormContent() {
         </div>
       </div>
 
-      {/* Canvas component */}
-      {roomId && user ? (
-        <CollaborativeCanvas
-          roomId={roomId}
-          userId={user.id}
-          onCanvasReady={() => {
-            // Canvas is ready
-          }}
-        />
-      ) : (
-        <div className="flex flex-1 items-center justify-center">
-          <div className="text-center">
-            <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-gray-300 border-t-blue-600"></div>
-            <p className="text-gray-600 dark:text-gray-400">Initializing canvas...</p>
-          </div>
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        {/* Canvas component */}
+        <div className="min-h-0 flex-1">
+          {roomId && user ? (
+            <CollaborativeCanvas
+              roomId={roomId}
+              userId={user.id}
+              onCanvasReady={() => {
+                // Canvas is ready
+              }}
+            />
+          ) : (
+            <div className="flex h-full flex-1 items-center justify-center">
+              <div className="text-center">
+                <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-gray-300 border-t-blue-600"></div>
+                <p className="text-gray-600 dark:text-gray-400">Initializing canvas...</p>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+
+        {roomId && (
+          <div className="h-[420px] shrink-0 lg:h-auto">
+            <EncryptedRoomChat roomId={roomId} />
+          </div>
+        )}
+      </div>
 
       {/* Info panel */}
       <div className="border-t border-gray-200 bg-white px-6 py-3 dark:border-gray-700 dark:bg-gray-900">

@@ -7,6 +7,7 @@ import { loginSchema, registerSchema, web3VerifySchema } from '../../auth/valida
 import { createNonce, verifySignature } from '../../auth/web3.service.js';
 import { slidingWindowRateLimiter } from '../../middleware/rateLimiter.js';
 import { validateRequest } from '../../utils/validation.js';
+import { auditAction } from '../../middleware/audit.js';
 
 const router = Router();
 
@@ -15,7 +16,11 @@ const router = Router();
  * @desc    Register a new student
  * @access  Public
  */
-router.post('/register', validateRequest(registerSchema), async (req: Request, res: Response) => {
+router.post(
+  '/register',
+  validateRequest(registerSchema),
+  auditAction('USER_REGISTER', 'User'),
+  async (req: Request, res: Response) => {
   try {
     // Request body is already validated by middleware
     const { email, password, firstName, lastName, walletAddress } = req.body;
@@ -59,6 +64,7 @@ router.get('/profile-status', async (req: Request, res: Response) => {
     const result = await getProfileStatusByWallet(walletAddress);
     res.json(result);
   } catch (_error) {
+    console.error("PROFILE STATUS ERROR:", _error);
     res.status(500).json({ error: 'Failed to fetch profile status' });
   }
 });
@@ -68,7 +74,11 @@ router.get('/profile-status', async (req: Request, res: Response) => {
  * @desc    Login student
  * @access  Public
  */
-router.post('/login', validateRequest(loginSchema), async (req: Request, res: Response) => {
+router.post(
+  '/login',
+  validateRequest(loginSchema),
+  auditAction('USER_LOGIN', 'User'),
+  async (req: Request, res: Response) => {
   const { email, password }: LoginRequest = req.body;
 
   try {
@@ -137,7 +147,11 @@ router.post('/refresh', async (req: Request, res: Response) => {
  * @desc    Logout student and blacklist current access token
  * @access  Private
  */
-router.post('/logout', authenticate, async (req: Request, res: Response) => {
+router.post(
+  '/logout',
+  authenticate,
+  auditAction('USER_LOGOUT', 'User'),
+  async (req: Request, res: Response) => {
   const authHeader = req.headers.authorization;
   const token = authHeader?.split(' ')[1];
 
@@ -171,7 +185,7 @@ router.get(
       }
 
       // Validate wallet address format
-      if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+      if (!/^G[A-Z2-7]{55}$/.test(walletAddress)) {
         res.status(400).json({ error: 'Invalid wallet address format' });
         return;
       }
@@ -195,7 +209,11 @@ router.get(
  * @desc    Verify Web3 wallet signature and authenticate user
  * @access  Public
  */
-router.post('/verify', validateRequest(web3VerifySchema), async (req: Request, res: Response) => {
+router.post(
+  '/verify',
+  validateRequest(web3VerifySchema),
+  auditAction('WEB3_LOGIN', 'User'),
+  async (req: Request, res: Response) => {
   try {
     const { walletAddress, signature, nonce } = req.body;
 

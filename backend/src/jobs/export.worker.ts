@@ -106,7 +106,12 @@ const worker = new Worker(
     return result;
   },
   {
-    connection: redisConnection,
+    connection: {
+      host: new URL(process.env.REDIS_URL || 'redis://localhost:6379').hostname,
+      port: Number(new URL(process.env.REDIS_URL || 'redis://localhost:6379').port) || 6379,
+      password: new URL(process.env.REDIS_URL || 'redis://localhost:6379').password || undefined,
+      maxRetriesPerRequest: null,
+    },
   }
 );
 
@@ -129,11 +134,25 @@ const _cleanupWorker = new Worker(
       }
     }
   },
-  { connection: redisConnection }
+  {
+    connection: {
+      host: new URL(process.env.REDIS_URL || 'redis://localhost:6379').hostname,
+      port: Number(new URL(process.env.REDIS_URL || 'redis://localhost:6379').port) || 6379,
+      password: new URL(process.env.REDIS_URL || 'redis://localhost:6379').password || undefined,
+      maxRetriesPerRequest: null,
+    },
+  }
 );
 
 import { Queue } from 'bullmq';
-const cleanupQueue = new Queue(CLEANUP_QUEUE_NAME, { connection: redisConnection });
+const cleanupQueue = new Queue(CLEANUP_QUEUE_NAME, {
+  connection: {
+    host: new URL(process.env.REDIS_URL || 'redis://localhost:6379').hostname,
+    port: Number(new URL(process.env.REDIS_URL || 'redis://localhost:6379').port) || 6379,
+    password: new URL(process.env.REDIS_URL || 'redis://localhost:6379').password || undefined,
+    maxRetriesPerRequest: null,
+  }
+});
 await cleanupQueue.add(
   'cleanup',
   {},
