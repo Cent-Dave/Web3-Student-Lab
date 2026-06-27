@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import dashboardRoutes from '../dashboard/dashboard.routes.js';
 import feedbackRouter from '../feedback/feedback.routes.js';
+import licenseRoutes from '../licenses/license.routes.js';
 import userRouter from '../user/routes.js';
 import analyticsRouter from './analytics.routes.js';
 import authRoutes from './auth/auth.routes.js';
@@ -38,6 +39,7 @@ router.use('/contracts', contractRouter);
 router.use('/notifications', notificationRouter);
 router.use('/notifications/preferences', notificationPreferencesRouter);
 router.use('/security', securityRouter);
+router.use('/licenses', licenseRoutes);
 router.use('/generator', generatorRouter);
 router.use('/export', exportRouter);
 router.use('/webhooks', webhooksRouter);
