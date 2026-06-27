@@ -20,6 +20,23 @@ import { DatabaseManager } from '@/lib/storage/DatabaseManager';
 import { SyncManager } from '@/lib/storage/SyncManager';
 import { FilePresenceManager } from '@/lib/explorer/FilePresence';
 import { Settings, X } from 'lucide-react';
+import { DependencyUpdatePanel } from '@/components/playground/DependencyUpdatePanel';
+
+const DEFAULT_CARGO_TOML = `[package]
+name = "soroban-contract"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+soroban-sdk = "21.7.6"
+soroban-auth = "21.0.0"
+stellar-xdr = "21.2.0"
+num-integer = "0.1.44"
+num-traits = "0.2.17"
+`;
 
 const INITIAL_TREE: FileTreeNode[] = [
   {
@@ -378,6 +395,8 @@ export default function PlaygroundPage() {
             <CompileOutputTerminal logs={compileLogs} isCompiling={isCompiling} />
 
             <TerminalPanel />
+
+            <DependencyUpdatePanel cargoToml={DEFAULT_CARGO_TOML} />
 
             <div className="rounded-3xl border border-white/5 bg-zinc-950 p-4 sm:p-8">
               <h4 className="mb-4 text-[10px] font-black tracking-widest text-white uppercase">
