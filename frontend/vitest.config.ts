@@ -1,5 +1,5 @@
-import { defineConfig } from 'vitest/config';
 import path from 'path';
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   resolve: {
@@ -22,11 +22,14 @@ export default defineConfig({
       },
       include: [
         'src/lib/keyboard-navigation.ts',
+        'src/lib/editor/SorobanAccessibilityAuditor.ts',
         'src/hooks/useKeyboardNavigation.ts',
         'src/hooks/useFocusTrap.ts',
         'src/hooks/useRovingTabindex.ts',
+        'src/hooks/useAccessibilityAudit.ts',
         'src/components/ui/SkipLink.tsx',
         'src/components/ui/FocusTrap.tsx',
+        'src/components/playground/AccessibilityAuditPanel.tsx',
       ],
     },
   },
