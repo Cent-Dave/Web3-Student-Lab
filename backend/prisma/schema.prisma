@@ -294,3 +294,21 @@ model StudentActivity {
   @@map("student_activities")
 }
 
+model VestingSchedule {
+  id             String   @id @default(cuid())
+  workspaceId    String   @default("default")
+  projectId      String   @unique
+  tokenName      String
+  tokenSymbol    String
+  amount         Float
+  cliffMonths    Int
+  durationMonths Int
+  beneficiary    String
+  claimedAmount  Float    @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("vesting_schedules")
+  @@index([projectId])
+}
+

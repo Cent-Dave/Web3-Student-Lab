@@ -235,7 +235,7 @@ export function getEnvVar(name: string, defaultValue?: string): string {
   if (value && value.trim() !== '') {
     return value;
   }
-  if (defaultValue) {
+  if (defaultValue !== undefined) {
     return defaultValue;
   }
   throw new EnvironmentValidationError(`Environment variable ${name} is required`);
