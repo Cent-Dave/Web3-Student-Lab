@@ -2,7 +2,12 @@
 
 import * as d3 from 'd3';
 import { Plus, Trash2, TreeDeciduous } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  buildOptimizedMerkleTree,
+  getMerkleProof,
+  stableHash,
+} from '@/lib/merkle-tree-builder';
 
 interface MerkleNode {
   id: string;
@@ -25,6 +30,7 @@ export default function MerkleTreePage() {
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const [validationPath, setValidationPath] = useState<string[]>([]);
   const svgRef = useRef<SVGSVGElement>(null);
+  const merkleResult = useMemo(() => buildOptimizedMerkleTree(addresses), [addresses]);
 
   const simpleHash = (input: string): string => {
     let hash = 0;
@@ -138,7 +144,9 @@ export default function MerkleTreePage() {
     const nodeRadius = 25;
 
     // Convert tree to d3 hierarchy
-    const rootD3 = d3.hierarchy(root);
+    const rootD3 = d3.hierarchy(root, (node: any) =>
+      [node.left, node.right].filter(Boolean)
+    );
 
     // Create tree layout
     const treeLayout = d3.tree<MerkleNode>().size([width - 100, height - 100]);
@@ -173,7 +181,8 @@ export default function MerkleTreePage() {
       .attr('r', nodeRadius)
       .attr('fill', (d: any) => {
         if (d.data.isLeaf) {
-          return d.data.address === selectedAddress ? '#22c55e' : '#ef4444';
+          const leafValue = d.data.address ?? d.data.value;
+          return leafValue === selectedAddress ? '#22c55e' : '#ef4444';
         }
         return '#3b82f6';
       })
@@ -191,10 +200,14 @@ export default function MerkleTreePage() {
       })
       .style('cursor', 'pointer')
       .on('click', (event: any, d: any) => {
-        if (d.data.isLeaf && d.data.address) {
-          setSelectedAddress(d.data.address);
-          const tree = buildMerkleTree(addresses);
-          setValidationPath(findValidationPath(tree, d.data.address));
+        const leafValue = d.data.address ?? d.data.value;
+        if (d.data.isLeaf && leafValue) {
+          setSelectedAddress(leafValue);
+          setValidationPath([
+            stableHash(leafValue),
+            ...getMerkleProof(merkleResult, leafValue).map((step) => step.hash),
+            merkleResult.root.hash,
+          ]);
         }
       });
 
@@ -215,15 +228,14 @@ export default function MerkleTreePage() {
       .attr('fill', '#ffffff')
       .attr('font-size', '9px')
       .attr('font-family', 'monospace')
-      .text((d: any) => d.data.address);
+      .text((d: any) => d.data.address ?? d.data.value);
   };
 
   useEffect(() => {
     if (addresses.length > 0) {
-      const tree = buildMerkleTree(addresses);
-      renderTree(tree);
+      renderTree(merkleResult.root as MerkleNode);
     }
-  }, [addresses, selectedAddress, validationPath]);
+  }, [addresses, selectedAddress, validationPath, merkleResult]);
 
   const addAddress = () => {
     const newAddress = `0x${Math.random().toString(16).substring(2, 6)}...${Math.random().toString(16).substring(2, 6)}`;
@@ -240,8 +252,11 @@ export default function MerkleTreePage() {
 
   const verifyAddress = (address: string) => {
     setSelectedAddress(address);
-    const tree = buildMerkleTree(addresses);
-    setValidationPath(findValidationPath(tree, address));
+    setValidationPath([
+      stableHash(address),
+      ...getMerkleProof(merkleResult, address).map((step) => step.hash),
+      merkleResult.root.hash,
+    ]);
   };
 
   return (
@@ -278,6 +293,11 @@ export default function MerkleTreePage() {
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
+                <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                  <span className="text-[10px] font-bold text-gray-300 uppercase">
+                    Root {merkleResult.root.hash} · {merkleResult.leafCount} Leaves · Depth {merkleResult.depth}
+                  </span>
+                </div>
                 <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2">
                   <div className="h-3 w-3 rounded-full bg-red-500" />
                   <span className="text-[10px] font-bold text-red-500 uppercase">Leaf Node</span>
