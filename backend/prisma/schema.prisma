@@ -12,28 +12,46 @@ datasource db {
 }
 
 model Student {
-  id           String   @id @default(cuid())
-  workspaceId  String   @default("default")
-  email        String   @unique
-  did          String?  @unique
-  password     String
-  firstName    String
-  lastName     String
-  walletAddress String? @unique
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String   @id @default(cuid())
+  workspaceId     String   @default("default")
+  email           String   @unique
+  did             String?  @unique
+  password        String
+  firstName       String
+  lastName        String
+  walletAddress   String?  @unique
+  githubId        Int?     @unique
+  githubUsername  String?
+  githubAvatarUrl String?
+  githubAccessToken String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  enrollments   Enrollment[]
-  certificates  Certificate[]
-  feedback      Feedback[]
+  enrollments      Enrollment[]
+  certificates     Certificate[]
+  feedback         Feedback[]
   learningProgress LearningProgress[]
-  canvases      Canvas[]
+  canvases         Canvas[]
 
   @@map("students")
   @@index([workspaceId, email])
   @@index([firstName, lastName])
   @@index([email])
   @@index([createdAt])
+  @@index([githubId])
+}
+
+model OAuthState {
+  id        String   @id @default(cuid())
+  state     String   @unique
+  provider  String   @default("github")
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  usedAt    DateTime?
+
+  @@map("oauth_states")
+  @@index([state])
+  @@index([expiresAt])
 }
 
 model Course {
