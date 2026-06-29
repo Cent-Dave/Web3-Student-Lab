@@ -1,6 +1,7 @@
 'use client';
 
 import { type KeyboardEvent, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import type { RoadmapNodeData, NodePosition } from '@/lib/types/roadmap';
 import {
   getNodeColor,
@@ -16,6 +17,7 @@ interface RoadmapNodeProps {
   isHovered: boolean;
   onSelect: (nodeId: string) => void;
   onHover: (nodeId: string | null) => void;
+  index?: number; // Optional index to stagger entry animations cleanly
 }
 
 const STATUS_ICONS = {
@@ -32,6 +34,7 @@ export function RoadmapNode({
   isHovered,
   onSelect,
   onHover,
+  index = 0,
 }: RoadmapNodeProps) {
   const color = getNodeColor(node.status);
   const bgColor = getNodeBgColor(node.status);
@@ -61,7 +64,7 @@ export function RoadmapNode({
   }, [onHover]);
 
   return (
-    <button
+    <motion.button
       type="button"
       onClick={handleClick}
       onKeyDown={handleKeyDown}
@@ -71,25 +74,39 @@ export function RoadmapNode({
       aria-current={isSelected ? 'step' : undefined}
       aria-disabled={node.status === 'locked'}
       tabIndex={0}
-      className={`group absolute flex flex-col items-center justify-center rounded-xl border-2 transition-all duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-strong)] ${
+
+      // 1. Framer Motion Lifecycle Animations
+      initial={{ opacity: 0, scale: 0.8, x: position.x, y: position.y + 20 }}
+      animate={{
+        opacity: node.status === 'locked' ? 0.5 : 1,
+        scale: isSelected ? 1.1 : isHovered ? 1.05 : 1,
+        x: position.x + (isSelected ? -4 : 0),
+        y: position.y + (isSelected ? -4 : 0),
+        borderColor: isSelected ? color : `${color}40`,
+        backgroundColor: isSelected ? bgColor : 'rgba(0,0,0,0.3)'
+      }}
+      exit={{ opacity: 0, scale: 0.8 }}
+      transition={{
+        type: 'spring',
+        stiffness: 300,
+        damping: 25,
+        delay: index * 0.05
+      }}
+
+      className={`group absolute flex flex-col items-center justify-center rounded-xl border-2 transition-shadow duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-strong)] ${
         isSelected
-          ? 'z-30 scale-110 shadow-xl'
+          ? 'z-30 shadow-xl'
           : isHovered
-            ? 'z-20 scale-105'
+            ? 'z-20'
             : 'z-10'
       } ${
         node.status === 'locked'
-          ? 'cursor-not-allowed opacity-50'
+          ? 'cursor-not-allowed'
           : 'cursor-pointer'
       }`}
       style={{
-        left: position.x,
-        top: position.y,
         width: 160,
         height: 80,
-        borderColor: isSelected ? color : `${color}40`,
-        backgroundColor: isSelected ? bgColor : 'rgba(0,0,0,0.3)',
-        transform: `translate(${isSelected ? -4 : 0}px, ${isSelected ? -4 : 0}px)`,
       }}
     >
       <Icon
@@ -109,6 +126,6 @@ export function RoadmapNode({
           {node.progress}%
         </span>
       )}
-    </button>
+    </motion.button>
   );
 }
