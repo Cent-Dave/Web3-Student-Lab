@@ -19,6 +19,8 @@ import studentsRouter from './students.js';
 import notificationRouter from '../notifications/notification.routes.js';
 import notificationPreferencesRouter from '../notifications/preferences.routes.js';
 import metricsRouter from './metrics.routes.js';
+import infrastructureRouter from '../infrastructure/infrastructure.routes.js';
+import simulatorRouter from '../simulator/simulator.routes.js';
 
 import webhooksRouter from './webhooks.js';
 
@@ -43,5 +45,7 @@ router.use('/export', exportRouter);
 router.use('/webhooks', webhooksRouter);
 router.use('/user', userRouter);
 router.use('/metrics', metricsRouter);
+router.use('/infrastructure', infrastructureRouter);
+router.use('/simulator', simulatorRouter);
 
 export default router;
