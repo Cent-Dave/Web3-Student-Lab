@@ -49,6 +49,27 @@ const REQUIRED_VARS: EnvVarConfig[] = [
 ];
 
 /**
+ * Environment variables for S3 backup (required in all envs if backup is enabled)
+ */
+const BACKUP_REQUIRED_VARS: EnvVarConfig[] = [
+  {
+    name: 'BACKUP_S3_BUCKET',
+    required: false,
+    description: 'S3 bucket name for database backups',
+  },
+  {
+    name: 'BACKUP_S3_ACCESS_KEY_ID',
+    required: false,
+    description: 'AWS access key ID with S3 write permissions for backups',
+  },
+  {
+    name: 'BACKUP_S3_SECRET_ACCESS_KEY',
+    required: false,
+    description: 'AWS secret access key for S3 backup authentication',
+  },
+];
+
+/**
  * Environment variables required only in production
  */
 const PRODUCTION_REQUIRED_VARS: EnvVarConfig[] = [
