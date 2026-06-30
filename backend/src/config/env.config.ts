@@ -32,8 +32,8 @@ export const config = {
     logLevel: getEnvVar('LOG_LEVEL', 'info'),
   },
   db: {
-    url: getEnvVar('DATABASE_URL'), // Required
-    readReplicaUrl: getEnvVar('DATABASE_READ_REPLICA_URL'), // Optional - falls back to primary if not set
+    url: getEnvVar('DATABASE_URL'),
+    readReplicaUrl: getEnvVar('DATABASE_READ_REPLICA_URL', ''),
   },
   redis: {
     url: getEnvVar('REDIS_URL', 'redis://localhost:6379'),
