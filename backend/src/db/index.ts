@@ -18,6 +18,8 @@ const workspaceModels = new Set([
   'AuditLog',
   'Canvas',
   'WebhookSubscription',
+  'TranslationEntry',
+  'VestingSchedule',
 ]);
 
 

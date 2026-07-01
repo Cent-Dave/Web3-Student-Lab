@@ -19,7 +19,12 @@ members = [
     "auth_checker",
     "cross_chain_client",
     "freelance-platform",
-    "pr_simulation"
+    "pr_simulation",
+    "hackathon-team-matching",
+    "content_management_system",
+    "testnet_faucet_integration",
+    "automated_testing_suite",
+    "cicd_pipeline"
 ]
 
 [lib]

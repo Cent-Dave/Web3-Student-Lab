@@ -27,8 +27,9 @@ The application is fully deployed and accessible online:
    blockchain architecture, smart contracts, and full Web3 applications.
 4. **Hackathon Project Idea Generator**: Overcome coder's block by generating ideas based on
    technology and sector preferences.
-5. **Open Source Contribution Trainer**: Get hands-on with Git, simulated GitHub issues, and PR
-   exercises to confidently contribute to open source.
+5. **Open Source Contribution Trainer**: Get hands-on with Git, simulated GitHub issues, PR
+   exercises, and decentralized identity verification that attaches DID-backed contributor proof to
+   saved training submissions.
 
 ## 🛠 Technology Stack
 
@@ -69,6 +70,18 @@ web3-student-lab/
 │       └── generator/    # Prompt/AI layer for hackathon ideas
 └── docs/                 # Documentation and learning materials
 ```
+
+## 🔐 MVP Update: Decentralized Identity Verification
+
+The Open Source Contribution Trainer now includes decentralized identity verification for contributor
+workflows in `frontend/src/app/version-control/page.tsx`.
+
+- Contributors link a DID, Stellar wallet address, and GitHub handle before saving a verified
+  trainer version.
+- Verified saves persist proof metadata in the version history engine at
+  `frontend/src/lib/version-control/engine.ts`.
+- Core attestation creation and verification logic lives in
+  `frontend/src/lib/open-source-trainer/identity.ts`.
 
 ## 🤝 Contributing
 
