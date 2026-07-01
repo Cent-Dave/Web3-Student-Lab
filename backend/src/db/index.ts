@@ -19,6 +19,7 @@ const workspaceModels = new Set([
   'Canvas',
   'WebhookSubscription',
   'TranslationEntry',
+  'VestingSchedule',
 ]);
 
 

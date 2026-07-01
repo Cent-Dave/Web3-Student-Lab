@@ -12,28 +12,46 @@ datasource db {
 }
 
 model Student {
-  id           String   @id @default(cuid())
-  workspaceId  String   @default("default")
-  email        String   @unique
-  did          String?  @unique
-  password     String
-  firstName    String
-  lastName     String
-  walletAddress String? @unique
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String   @id @default(cuid())
+  workspaceId     String   @default("default")
+  email           String   @unique
+  did             String?  @unique
+  password        String
+  firstName       String
+  lastName        String
+  walletAddress   String?  @unique
+  githubId        Int?     @unique
+  githubUsername  String?
+  githubAvatarUrl String?
+  githubAccessToken String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  enrollments   Enrollment[]
-  certificates  Certificate[]
-  feedback      Feedback[]
+  enrollments      Enrollment[]
+  certificates     Certificate[]
+  feedback         Feedback[]
   learningProgress LearningProgress[]
-  canvases      Canvas[]
+  canvases         Canvas[]
 
   @@map("students")
   @@index([workspaceId, email])
   @@index([firstName, lastName])
   @@index([email])
   @@index([createdAt])
+  @@index([githubId])
+}
+
+model OAuthState {
+  id        String   @id @default(cuid())
+  state     String   @unique
+  provider  String   @default("github")
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  usedAt    DateTime?
+
+  @@map("oauth_states")
+  @@index([state])
+  @@index([expiresAt])
 }
 
 model Course {
@@ -307,4 +325,100 @@ model TranslationEntry {
   @@unique([workspaceId, locale, namespace, key])
   @@index([workspaceId, locale, namespace])
   @@map("translation_entries")
+model VestingSchedule {
+  id             String   @id @default(cuid())
+  workspaceId    String   @default("default")
+  projectId      String   @unique
+  tokenName      String
+  tokenSymbol    String
+  amount         Float
+  cliffMonths    Int
+  durationMonths Int
+  beneficiary    String
+  claimedAmount  Float    @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("vesting_schedules")
+  @@index([projectId])
+}
+
+model Idea {
+  id          String   @id @default(cuid())
+  workspaceId String   @default("default")
+  title       String
+  description String
+  studentId   String
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  votes       Vote[]
+
+  @@map("ideas")
+  @@index([workspaceId])
+  @@index([studentId])
+}
+
+model Vote {
+  id        String   @id @default(cuid())
+  ideaId    String
+  studentId String
+  value     Int      // 1 for upvote, -1 for downvote
+  createdAt DateTime @default(now())
+
+  idea      Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([ideaId, studentId])
+  @@map("votes")
+}
+
+model HashSimulation {
+  id        String   @id @default(cuid())
+  studentId String
+  inputData String
+  hashType  String   // e.g., "SHA-256"
+  hashValue String
+  createdAt DateTime @default(now())
+
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@map("hash_simulations")
+  @@index([studentId])
+}
+
+model P2PNode {
+  id          String   @id @default(cuid())
+  workspaceId String   @default("default")
+  nodeId      String   @unique
+  nodeName    String
+  status      String   @default("online")
+  ipAddress   String?
+  port        Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  messagesSent     P2PMessage[] @relation("MessagesSent")
+  messagesReceived P2PMessage[] @relation("MessagesReceived")
+
+  @@map("p2p_nodes")
+  @@index([workspaceId])
+}
+
+model P2PMessage {
+  id          String   @id @default(cuid())
+  senderId    String
+  receiverId  String
+  payload     Json
+  status      String   @default("pending") // pending, delivered, failed
+  createdAt   DateTime @default(now())
+
+  sender      P2PNode  @relation("MessagesSent", fields: [senderId], references: [nodeId], onDelete: Cascade)
+  receiver    P2PNode  @relation("MessagesReceived", fields: [receiverId], references: [nodeId], onDelete: Cascade)
+
+  @@map("p2p_messages")
+  @@index([senderId])
+  @@index([receiverId])
 }

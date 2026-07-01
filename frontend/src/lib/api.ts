@@ -154,6 +154,34 @@ export const authAPI = {
       { ttlMs: DEFAULT_CACHE_TTL_MS }
     );
   },
+
+  /**
+   * Get the GitHub OAuth authorization URL to redirect the user
+   */
+  getGitHubOAuthUrl: (): string => {
+    return `${API_BASE_URL}/oauth/github`;
+  },
+
+  /**
+   * Check if the current user has a linked GitHub account
+   */
+  getGitHubStatus: async (): Promise<{
+    linked: boolean;
+    githubId?: number;
+    githubUsername?: string;
+    githubAvatarUrl?: string | null;
+  }> => {
+    const response = await apiClient.get('/oauth/github/status');
+    return response.data;
+  },
+
+  /**
+   * Link a GitHub account to the current user
+   */
+  linkGitHubAccount: async (code: string): Promise<AuthResponse> => {
+    const response = await apiClient.post('/oauth/github/link', { code });
+    return response.data;
+  },
 };
 
 // Courses APIs
@@ -459,5 +487,98 @@ export const activityAPI = {
   getStudentActivity: async (userId: string): Promise<ActivityEntry[]> => {
     const response = await apiClient.get(`/activity/user/${userId}`);
     return response.data;
+  },
+};
+
+export interface VestingSchedule {
+  id: string;
+  workspaceId: string;
+  projectId: string;
+  tokenName: string;
+  tokenSymbol: string;
+  amount: number;
+  cliffMonths: number;
+  durationMonths: number;
+  beneficiary: string;
+  claimedAmount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const vestingAPI = {
+  create: async (data: Omit<VestingSchedule, 'id' | 'workspaceId' | 'claimedAmount' | 'createdAt' | 'updatedAt'>): Promise<VestingSchedule> => {
+    try {
+      const response = await apiClient.post('/generator/vesting', data);
+      return response.data;
+    } catch (err) {
+      const schedule: VestingSchedule = {
+        ...data,
+        id: `local-${Math.random().toString(36).substring(2, 9)}`,
+        workspaceId: 'local',
+        claimedAmount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`vesting_schedule_${data.projectId}`, JSON.stringify(schedule));
+      }
+      return schedule;
+    }
+  },
+
+  getByProjectId: async (projectId: string): Promise<VestingSchedule> => {
+    try {
+      const response = await apiClient.get(`/generator/vesting/${projectId}`);
+      return response.data;
+    } catch (err: any) {
+      if (typeof window !== 'undefined') {
+        const local = localStorage.getItem(`vesting_schedule_${projectId}`);
+        if (local) {
+          return JSON.parse(local);
+        }
+      }
+      throw err;
+    }
+  },
+
+  list: async (): Promise<VestingSchedule[]> => {
+    try {
+      const response = await apiClient.get('/generator/vesting');
+      return response.data;
+    } catch (err) {
+      const list: VestingSchedule[] = [];
+      if (typeof window !== 'undefined') {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('vesting_schedule_')) {
+            const item = localStorage.getItem(key);
+            if (item) list.push(JSON.parse(item));
+          }
+        }
+      }
+      return list;
+    }
+  },
+
+  claim: async (projectId: string, amount: number, simulatedMonthsElapsed?: number): Promise<VestingSchedule> => {
+    try {
+      const response = await apiClient.post(`/generator/vesting/${projectId}/claim`, {
+        amount,
+        simulatedMonthsElapsed,
+      });
+      return response.data;
+    } catch (err: any) {
+      if (typeof window !== 'undefined') {
+        const local = localStorage.getItem(`vesting_schedule_${projectId}`);
+        if (local) {
+          const schedule: VestingSchedule = JSON.parse(local);
+          schedule.claimedAmount = (schedule.claimedAmount || 0) + amount;
+          schedule.updatedAt = new Date().toISOString();
+          localStorage.setItem(`vesting_schedule_${projectId}`, JSON.stringify(schedule));
+          return schedule;
+        }
+      }
+      throw err;
+    }
   },
 };

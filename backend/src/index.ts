@@ -24,6 +24,7 @@ import { requireWorkspaceMiddleware } from './middleware/WorkspaceContext.js';
 import freelanceRoute from './routes/freelance.js';
 import routes from './routes/index.js';
 import startWebhookWorker, { stopWebhookWorker } from './services/webhooks/index.js';
+import { startBackupWorker, stopBackupWorker, scheduleBackupCron } from './jobs/backup.worker.js';
 import logger from './utils/logger.js';
 import { pubClient, redisConnection, subClient } from './utils/redis.js';
 import { getSentryErrorHandler, getSentryRequestHandler, initializeSentry } from './utils/sentry.js';
@@ -58,6 +59,11 @@ if (config.app.env !== 'test') {
   });
 
   startWebhookWorker();
+
+  startBackupWorker();
+  scheduleBackupCron().catch((err) => {
+    logger.warn('Failed to schedule backup cron:', err);
+  });
 
   logger.info('Distributed caching layer initialized');
 }
@@ -204,6 +210,7 @@ if (config.app.env !== 'test') {
     blockHeaderListener.stop();
     cacheWarmer.stop();
     await stopWebhookWorker();
+    await stopBackupWorker();
     await distributedCacheManager.gracefulShutdown();
 
     // Clean up connections
@@ -224,6 +231,7 @@ if (config.app.env !== 'test') {
     blockHeaderListener.stop();
     cacheWarmer.stop();
     await stopWebhookWorker();
+    await stopBackupWorker();
     await distributedCacheManager.gracefulShutdown();
 
     // Clean up connections

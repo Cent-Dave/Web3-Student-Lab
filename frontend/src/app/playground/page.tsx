@@ -1,25 +1,45 @@
 'use client';
 
 import { VirtualizedFileTree, type FileTreeNode } from '@/components/explorer/VirtualizedFileTree';
-import dynamic from 'next/dynamic';
-const CodeEditor = dynamic(() => import('@/components/playground/CodeEditor').then((mod) => mod.CodeEditor), {
-  ssr: false,
-});
 import { OfflineIndicator } from '@/components/storage/OfflineIndicator';
 import {
-  CompileOutputTerminal,
-  type CompileLogEntry,
+    CompileOutputTerminal,
+    type CompileLogEntry,
 } from '@/components/terminal/CompileOutputTerminal';
 import { TerminalPanel } from '@/components/terminal/TerminalPanel';
 import { WithSkeleton } from '@/components/ui/WithSkeleton';
 import { EditorSkeleton } from '@/components/ui/skeletons/EditorSkeleton';
 import { useTutorial } from '@/contexts/TutorialContext';
-import { useState, useEffect, useMemo, useCallback } from 'react';
 import { CollaborationProvider } from '@/lib/collaboration/YjsProvider';
+import { FilePresenceManager } from '@/lib/explorer/FilePresence';
 import { DatabaseManager } from '@/lib/storage/DatabaseManager';
 import { SyncManager } from '@/lib/storage/SyncManager';
-import { FilePresenceManager } from '@/lib/explorer/FilePresence';
 import { Settings, X } from 'lucide-react';
+import { DependencyUpdatePanel } from '@/components/playground/DependencyUpdatePanel';
+import { AccessibilityAuditPanel } from '@/components/playground/AccessibilityAuditPanel';
+import { useAccessibilityAudit } from '@/hooks/useAccessibilityAudit';
+import dynamic from 'next/dynamic';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+
+const CodeEditor = dynamic(() => import('@/components/playground/CodeEditor').then((mod) => mod.CodeEditor), {
+  ssr: false,
+});
+
+const DEFAULT_CARGO_TOML = `[package]
+name = "soroban-contract"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+soroban-sdk = "21.7.6"
+soroban-auth = "21.0.0"
+stellar-xdr = "21.2.0"
+num-integer = "0.1.44"
+num-traits = "0.2.17"
+`;
 
 const INITIAL_TREE: FileTreeNode[] = [
   {
@@ -112,6 +132,12 @@ export default function PlaygroundPage() {
   const [isOnline, setIsOnline] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
   const [activeTab, setActiveTab] = useState<'editor' | 'output'>('editor');
+
+  // Track the live editor code so the audit panel can analyse it
+  const [editorCode, setEditorCode] = useState('');
+  const { result: auditResult, isPending: auditPending, runAudit } = useAccessibilityAudit(editorCode, {
+    debounceMs: 500,
+  });
 
   useEffect(() => {
     const timer = setTimeout(() => setIsInitializing(false), 1500);
@@ -355,6 +381,7 @@ export default function PlaygroundPage() {
                   roomName="main-lab-session"
                   collaborationProvider={provider}
                   settings={editorSettings}
+                  onCodeChange={setEditorCode}
                 />
               </WithSkeleton>
             </div>
@@ -378,6 +405,13 @@ export default function PlaygroundPage() {
             <CompileOutputTerminal logs={compileLogs} isCompiling={isCompiling} />
 
             <TerminalPanel />
+
+            <DependencyUpdatePanel cargoToml={DEFAULT_CARGO_TOML} />
+            <AccessibilityAuditPanel
+              result={auditResult}
+              isPending={auditPending}
+              onRunAudit={runAudit}
+            />
 
             <div className="rounded-3xl border border-white/5 bg-zinc-950 p-4 sm:p-8">
               <h4 className="mb-4 text-[10px] font-black tracking-widest text-white uppercase">
