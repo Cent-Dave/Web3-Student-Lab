@@ -2,10 +2,17 @@ use soroban_sdk::{
     contract, contractimpl, contracttype, symbol_short, Address, Env, Map, Symbol, Vec,
 };
 
-use crate::events::{
-    publish_permission_updated_event, publish_role_granted_event, publish_role_revoked_event,
-};
-use crate::storage_types::DataKey;
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DataKey {
+    RBACInitialized,
+    RoleDefinition(RoleLevel),
+    UserRole(Address),
+    UserDelegations(Address),
+    Delegation(Address, Permission),
+    UserTemporaryPermissions(Address),
+    TemporaryPermission(Address, Permission),
+}
 
 // Role hierarchy levels (higher number = more permissions)
 #[contracttype]
@@ -336,18 +343,18 @@ impl RBACContract {
     }
 
     /// Require user to have specific permission (panics if not)
-    pub fn require_permission(env: &Env, user: &Address, permission: &Permission) {
-        if !Self::has_permission(env.clone(), user.clone(), permission.clone()) {
+    pub fn require_permission(env: Env, user: Address, permission: Permission) {
+        if !Self::has_permission(env.clone(), user.clone(), permission) {
             panic!("Insufficient permissions");
         }
     }
 
     /// Get user's current role
-    pub fn get_user_role(env: &Env, user: &Address) -> UserRole {
+    pub fn get_user_role(env: Env, user: Address) -> UserRole {
         match env
             .storage()
             .persistent()
-            .get(&DataKey::UserRole(user.clone()))
+            .get(&DataKey::UserRole(user))
         {
             Some(role) => {
                 let user_role: UserRole = role;
@@ -375,10 +382,10 @@ impl RBACContract {
     }
 
     /// Get role definition
-    pub fn get_role_definition(env: &Env, role: &RoleLevel) -> Role {
+    pub fn get_role_definition(env: Env, role: RoleLevel) -> Role {
         env.storage()
             .persistent()
-            .get(&DataKey::RoleDefinition(role.clone()))
+            .get(&DataKey::RoleDefinition(role))
             .unwrap_or_else(|| panic!("Role definition not found"))
     }
 

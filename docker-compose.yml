@@ -135,6 +135,11 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/web3-student-lab?schema=public
       - NODE_ENV=development
       - JWT_SECRET=your-secret-key-change-in-production
+      # GitHub OAuth Configuration
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-your-github-client-id}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-your-github-client-secret}
+      - GITHUB_REDIRECT_URI=http://localhost:8080/api/v1/oauth/github/callback
+      - FRONTEND_URL=http://localhost:3000
       # Redis Configuration - Choose one of: standalone, sentinel, cluster
       - REDIS_MODE=standalone
       # Standalone Redis

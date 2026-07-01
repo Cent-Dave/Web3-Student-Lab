@@ -32,7 +32,8 @@ export const config = {
     logLevel: getEnvVar('LOG_LEVEL', 'info'),
   },
   db: {
-    url: getEnvVar('DATABASE_URL'), // Required
+    url: getEnvVar('DATABASE_URL'),
+    readReplicaUrl: getEnvVar('DATABASE_READ_REPLICA_URL', ''),
   },
   redis: {
     url: getEnvVar('REDIS_URL', 'redis://localhost:6379'),
@@ -67,8 +68,23 @@ export const config = {
     adminSustainedMax: parseInt(getEnvVar('RATE_LIMIT_ADMIN_SUSTAINED_MAX', '2000'), 10),
     loginBurstMax: parseInt(getEnvVar('RATE_LIMIT_LOGIN_BURST_MAX', '5'), 10),
     registerBurstMax: parseInt(getEnvVar('RATE_LIMIT_REGISTER_BURST_MAX', '3'), 10),
+    quizSubmissionBurstMax: parseInt(getEnvVar('RATE_LIMIT_QUIZ_BURST_MAX', '10'), 10),
+    playgroundCompileBurstMax: parseInt(getEnvVar('RATE_LIMIT_PLAYGROUND_BURST_MAX', '5'), 10),
   },
-  
+  backup: {
+    s3: {
+      region: getEnvVar('BACKUP_S3_REGION', 'us-east-1'),
+      bucket: getEnvVar('BACKUP_S3_BUCKET', ''),
+      accessKeyId: process.env.BACKUP_S3_ACCESS_KEY_ID || '',
+      secretAccessKey: process.env.BACKUP_S3_SECRET_ACCESS_KEY || '',
+      endpoint: process.env.BACKUP_S3_ENDPOINT || '',
+    },
+    cronSchedule: getEnvVar('BACKUP_CRON_SCHEDULE', '0 2 * * *'),
+    retentionDays: parseInt(getEnvVar('BACKUP_RETENTION_DAYS', '30'), 10),
+    compress: process.env.BACKUP_COMPRESS !== 'false',
+    tempDir: getEnvVar('BACKUP_TEMP_DIR', '/tmp/backups'),
+  },
+
   /**
    * Helper to safely log configuration without exposing secrets
    */
@@ -87,7 +103,20 @@ export const config = {
       },
       openai: {
         apiKey: this.openai.apiKey ? '***REDACTED***' : '',
-      }
+      },
+      backup: {
+        s3: {
+          region: this.backup.s3.region,
+          bucket: this.maskSecret(this.backup.s3.bucket),
+          accessKeyId: this.backup.s3.accessKeyId ? '***REDACTED***' : '',
+          secretAccessKey: this.backup.s3.secretAccessKey ? '***REDACTED***' : '',
+          endpoint: this.backup.s3.endpoint || '',
+        },
+        cronSchedule: this.backup.cronSchedule,
+        retentionDays: this.backup.retentionDays,
+        compress: this.backup.compress,
+        tempDir: this.backup.tempDir,
+      },
     };
   },
 

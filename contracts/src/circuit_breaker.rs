@@ -35,7 +35,7 @@
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, Address,
-    Env, Vec,
+    Env, Symbol, Vec,
 };
 
 // ---------------------------------------------------------------------------
@@ -210,7 +210,7 @@ impl CircuitBreakerContract {
             admins.push_back(new_admin.clone());
             env.storage().instance().set(&CBKey::Admins, &admins);
         }
-        env.events().publish((symbol_short!("cb_adm_add"),), new_admin);
+        env.events().publish((Symbol::new(&env, "cb_adm_add"),), new_admin);
     }
 
     /// Add a new guardian. Requires an existing admin's authorisation.
@@ -222,7 +222,7 @@ impl CircuitBreakerContract {
             guardians.push_back(new_guardian.clone());
             env.storage().instance().set(&CBKey::Guardians, &guardians);
         }
-        env.events().publish((symbol_short!("cb_grd_add"),), new_guardian);
+        env.events().publish((Symbol::new(&env, "cb_grd_add"),), new_guardian);
     }
 
     /// Update the unpause threshold. Requires admin auth.

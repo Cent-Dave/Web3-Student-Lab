@@ -1,15 +1,15 @@
 import { Request, Response, Router } from 'express';
-import logger from '../utils/logger.js';
 import prisma from '../db/index.js';
-import {
-  canonicalizeWebhookPayload,
-  enqueueWebhookDeliveries,
-  verifyWebhookSignature,
-} from '../services/webhooks/index.js';
 import type {
-  WebhookDestination,
-  WebhookEventPayload,
+    WebhookDestination,
+    WebhookEventPayload,
 } from '../services/webhooks/index.js';
+import {
+    canonicalizeWebhookPayload,
+    enqueueWebhookDeliveries,
+    verifyWebhookSignature,
+} from '../services/webhooks/index.js';
+import logger from '../utils/logger.js';
 
 const router = Router();
 
@@ -124,6 +124,9 @@ router.post('/subscriptions', async (req: Request, res: Response) => {
 router.delete('/subscriptions/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    if (!id || typeof id !== 'string') {
+      return res.status(400).json({ error: 'Invalid subscription ID' });
+    }
 
     const exists = await prisma.webhookSubscription.findUnique({
       where: { id },

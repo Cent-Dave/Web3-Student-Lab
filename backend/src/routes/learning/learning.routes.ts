@@ -1,21 +1,21 @@
 import { Request, Response, Router } from 'express';
 import { authenticate } from '../../auth/auth.middleware.js';
-import { validateBody, validateParams, validateQuery } from '../../utils/validation.js';
-import {
-  getCourseCurriculum,
-  getStudentProgress,
-  listCourses,
-  updateStudentProgress,
-} from './learning.service.js';
-import {
-  courseParamsSchema,
-  coursesQuerySchema,
-  progressUpdateSchema,
-} from './validation.schemas.js';
-import prisma from '../../db/index.js';
 import cacheService from '../../cache/CacheService.js';
+import prisma from '../../db/index.js';
 import { MarkdownParserService } from '../../services/markdownParser.service.js';
 import { buildGatewayUrl } from '../../services/storage/utils.js';
+import { validateBody, validateParams, validateQuery } from '../../utils/validation.js';
+import {
+    getCourseCurriculum,
+    getStudentProgress,
+    listCourses,
+    updateStudentProgress,
+} from './learning.service.js';
+import {
+    courseParamsSchema,
+    coursesQuerySchema,
+    progressUpdateSchema,
+} from './validation.schemas.js';
 
 const router = Router();
 
@@ -88,7 +88,7 @@ router.get(
       const asset = await prisma.decentralizedAsset.findFirst({
         where: {
           resourceType: 'lesson',
-          resourceId: lessonId,
+          resourceId: typeof lessonId === 'string' ? lessonId : undefined,
         },
       });
 

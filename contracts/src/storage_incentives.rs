@@ -52,8 +52,8 @@ pub struct StorageIncentives;
 impl StorageIncentives {
     pub fn initialize(env: Env) {
         if env.storage().instance().has(&KEY_PAYMENTS) { panic!("Already initialized"); }
-        env.storage().instance().set(&KEY_PAYMENTS, &Vec::<(Address, i128, u64)>(&env));
-        env.storage().instance().set(&KEY_PROOFS, &Vec::<StorageProof>(&env));
+        env.storage().instance().set(&KEY_PAYMENTS, &Vec::<(Address, i128, u64)>::new(&env));
+        env.storage().instance().set(&KEY_PROOFS, &Vec::<StorageProof>::new(&env));
         env.storage().instance().set(&KEY_EARNINGS, &Map::<Address, ProviderEarnings>::new(&env));
     }
 

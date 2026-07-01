@@ -3,6 +3,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { usePerformanceMetrics } from '@/hooks/usePerformanceMetrics';
 import PerformanceMetricsDashboard from '@/components/performance-metrics/PerformanceMetricsDashboard';
+import ContributionPerformanceProfiler from '@/components/performance-metrics/ContributionPerformanceProfiler';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -84,6 +85,9 @@ export default function PerformanceMetricsPage() {
             error={error}
             isFallback={isFallback}
           />
+          <div className="mt-8">
+            <ContributionPerformanceProfiler />
+          </div>
         </motion.div>
       </main>
     </div>

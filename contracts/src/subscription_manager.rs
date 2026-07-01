@@ -12,7 +12,7 @@
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error,
-    Address, BytesN, Env, String, Symbol, Vec, Map, U256, u64, i128
+    Address, BytesN, Env, String, Symbol, Vec, Map, U256
 };
 
 /// Subscription plan tiers
@@ -153,7 +153,7 @@ pub enum SubscriptionError {
 }
 
 /// Contract events
-#[contractevent]
+#[contracttype]
 pub struct SubscriptionCreated {
     pub subscription_id: u64,
     pub user: Address,
@@ -162,7 +162,7 @@ pub struct SubscriptionCreated {
     pub end_date: u64,
 }
 
-#[contractevent]
+#[contracttype]
 pub struct SubscriptionUpdated {
     pub subscription_id: u64,
     pub user: Address,
@@ -170,7 +170,7 @@ pub struct SubscriptionUpdated {
     pub new_status: SubscriptionStatus,
 }
 
-#[contractevent]
+#[contracttype]
 pub struct PaymentProcessed {
     pub subscription_id: u64,
     pub user: Address,
@@ -179,7 +179,7 @@ pub struct PaymentProcessed {
     pub payment_date: u64,
 }
 
-#[contractevent]
+#[contracttype]
 pub struct SubscriptionCancelled {
     pub subscription_id: u64,
     pub user: Address,
@@ -187,14 +187,14 @@ pub struct SubscriptionCancelled {
     pub refund_amount: Option<i128>,
 }
 
-#[contractevent]
+#[contracttype]
 pub struct PlanUpdated {
     pub tier: SubscriptionTier,
     pub updated_by: Address,
     pub update_date: u64,
 }
 
-#[contractevent]
+#[contracttype]
 pub struct EmergencyPause {
     pub paused_by: Address,
     pub pause_date: u64,

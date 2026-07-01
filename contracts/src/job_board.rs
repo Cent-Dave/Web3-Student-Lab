@@ -171,7 +171,7 @@ impl JobBoardContract {
         env.storage().persistent().set(&JobKey::Job(job_id), &job);
 
         env.events().publish(
-            (soroban_sdk::symbol_short!("job_assign"), job.employer),
+            (soroban_sdk::Symbol::new(&env, "job_assign"), job.employer),
             (job_id, worker),
         );
     }
@@ -221,7 +221,7 @@ impl JobBoardContract {
         env.storage().persistent().set(&JobKey::Job(job_id), &job);
 
         env.events().publish(
-            (soroban_sdk::symbol_short!("ms_approve"), job.employer),
+            (soroban_sdk::Symbol::new(&env, "ms_approve"), job.employer),
             (job_id, milestone_idx, payment, worker),
         );
     }

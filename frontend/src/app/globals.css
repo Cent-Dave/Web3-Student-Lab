@@ -323,3 +323,19 @@ textarea {
 .lesson-viewer .token.url { color: var(--prism-operator); }
 
 .lesson-viewer .token.punctuation { color: var(--prism-punctuation); }
+
+/* Thin themed scrollbar shared by simulator-style panels */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #ef4444;
+}

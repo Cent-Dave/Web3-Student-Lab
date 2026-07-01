@@ -1,14 +1,14 @@
 // @ts-nocheck
 import { Router } from 'express';
 import { normalizeSorobanDid } from '../auth/auth.service.js';
-import { cacheMiddleware } from '../cache/CacheMiddleware.js';
 import { invalidateUserCache } from '../cache/CacheInvalidation.js';
+import { cacheMiddleware } from '../cache/CacheMiddleware.js';
 import { CACHE_KEYS } from '../cache/CacheService.js';
 import { cacheTTL } from '../config/redis.config.js';
 import prisma from '../db/index.js';
+import { auditAction } from '../middleware/audit.js';
 import { broadcastEvent } from '../websocket/gateway.js';
 import { linkDidToCertificates } from './certificates.js';
-import { auditAction } from '../middleware/audit.js';
 
 const router = Router();
 
@@ -105,7 +105,7 @@ router.post('/', auditAction('CREATE_STUDENT', 'Student'), async (req, res) => {
 });
 
 // PUT /api/students/:id - Update a student
-router.put('/:id', auditAction('UPDATE_STUDENT', 'Student'), async (req, res) => {
+router.put('/:id', auditAction('UPDATE_STUDENT', 'Student'), auditAction('UPDATE_ONBOARDING', 'Student'), async (req, res) => {
   try {
     const { id } = req.params;
     const { email, firstName, lastName, did } = req.body;

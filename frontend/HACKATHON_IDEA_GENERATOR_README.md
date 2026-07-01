@@ -10,6 +10,8 @@ Built with **React 19 + TypeScript**, styled to match the existing app.
 
 Route: `/hackathon-ideas`
 
+Block Explorer sub-route: `/hackathon-ideas/explorer`
+
 ## Architecture
 
 Follows the project's **data → derive → render** separation so each layer is
@@ -29,6 +31,10 @@ Idea generation is AI-powered on the **backend** (`/generator/generate`, OpenAI
 existing [`generatorAPI`](src/lib/api.ts) in `src/lib/api.ts` — no new client is
 introduced. `buildGeneratorParams()` maps the UI filters to the request shape the
 endpoint already accepts (`{ theme, techStack, difficulty }`).
+
+The backend endpoint also accepts an optional `customRpcUrl` string in the
+request body; when provided the AI prompt will be instructed to prefer that RPC
+endpoint for any blockchain interactions mentioned in the generated idea.
 
 ## Filtering
 
