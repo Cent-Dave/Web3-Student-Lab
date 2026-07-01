@@ -3,6 +3,7 @@ import {
   BrainCircuit,
   CheckCircle2,
   Compass,
+  Fuel,
   LayoutDashboard,
   Rocket,
   Calculator,
@@ -36,6 +37,11 @@ export const primaryNav: NavItem[] = [
     description: 'Estimate compounding yield returns based on APY, frequency, and lock-up terms.',
   },
   {
+    label: 'Gas Auction',
+    href: '/mempool-auction',
+    description: 'Simulate a mempool fee market where the highest bidders are mined first.',
+  },
+  {
     label: 'Dashboard',
     href: '/dashboard',
     description: 'Track progress, enrollments, and issued credentials.',
@@ -60,6 +66,12 @@ export const spotlightTools = [
     href: '/yield-calculator',
     summary: 'Estimate compounding yield returns based on APY, frequency, and lock-up terms.',
     icon: Calculator,
+  },
+  {
+    title: 'Gas Fee Auction',
+    href: '/mempool-auction',
+    summary: 'Watch a live mempool sort by fee bids and mine the highest bidders into blocks.',
+    icon: Fuel,
   },
   {
     title: 'Verification Center',

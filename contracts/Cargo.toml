@@ -18,7 +18,12 @@ members = [
     "course_proxy",
     "auth_checker",
     "cross_chain_client",
-    "freelance-platform"
+    "freelance-platform",
+    "hackathon-team-matching",
+    "content_management_system",
+    "testnet_faucet_integration",
+    "automated_testing_suite",
+    "cicd_pipeline"
 ]
 
 [lib]

@@ -69,9 +69,28 @@ export const web3VerifySchema = z.object({
 });
 
 /**
+ * GitHub OAuth Callback Schema
+ * Validates the request body for GitHub OAuth callback
+ */
+export const githubOAuthCallbackSchema = z.object({
+  code: z.string().min(1, 'Authorization code is required'),
+  state: z.string().min(1, 'State parameter is required'),
+});
+
+/**
+ * GitHub OAuth Link Schema
+ * Validates the request body for linking a GitHub account
+ */
+export const githubOAuthLinkSchema = z.object({
+  code: z.string().min(1, 'Authorization code is required'),
+});
+
+/**
  * Type inference for validated data
  */
 export type RegisterRequest = z.infer<typeof registerSchema>;
 export type LoginRequest = z.infer<typeof loginSchema>;
 export type Web3NonceRequest = z.infer<typeof web3NonceSchema>;
 export type Web3VerifyRequest = z.infer<typeof web3VerifySchema>;
+export type GitHubOAuthCallbackRequest = z.infer<typeof githubOAuthCallbackSchema>;
+export type GitHubOAuthLinkRequest = z.infer<typeof githubOAuthLinkSchema>;

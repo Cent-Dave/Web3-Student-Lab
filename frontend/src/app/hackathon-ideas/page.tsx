@@ -74,6 +74,14 @@ export default function HackathonIdeasPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
+          <div className="mb-6">
+            <Link
+              href="/hackathon-ideas/explorer"
+              className="inline-flex items-center gap-2 rounded-lg border border-red-500/40 px-4 py-2 text-xs font-bold tracking-widest text-red-400 uppercase hover:bg-red-500/10"
+            >
+              Open Block Explorer →
+            </Link>
+          </div>
           <IdeaGeneratorPanel />
         </motion.div>
       </main>
