@@ -1,17 +1,17 @@
 'use client';
 
-import dynamic from 'next/dynamic';
-import type { OnMount } from '@monaco-editor/react';
-import type { editor } from 'monaco-editor';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronRight, FileText } from 'lucide-react';
 import type { CollaborationProvider } from '@/lib/collaboration/YjsProvider';
-import { extendRustLanguage } from '@/lib/editor/SorobanLanguage';
 import { registerSorobanCompletion } from '@/lib/editor/SorobanCompletion';
 import { registerSorobanHover } from '@/lib/editor/SorobanHover';
-import { createSorobanLinter } from '@/lib/editor/SorobanLinter';
+import { extendRustLanguage } from '@/lib/editor/SorobanLanguage';
 import type { SorobanLinterInstance } from '@/lib/editor/SorobanLinter';
+import { createSorobanLinter } from '@/lib/editor/SorobanLinter';
 import { THEME_COLORS } from '@/lib/theme/themeColors';
+import type { OnMount } from '@monaco-editor/react';
+import { ChevronRight, FileText } from 'lucide-react';
+import type { editor } from 'monaco-editor';
+import dynamic from 'next/dynamic';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const Editor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
@@ -27,16 +27,19 @@ const Editor = dynamic(() => import('@monaco-editor/react'), {
 
 interface CodeEditorProps {
   roomName: string;
-
-  /** Called once the editor mounts; receives a function that returns current code. */
-  onEditorReady?: (getValue: () => string) => void;
+  mobileMode?: boolean;
+  collaborationProvider?: CollaborationProvider;
+  settings?: MonacoEditorSettings;
+  value?: string;
+  /** Optional callback fired whenever the editor content changes */
+  onCodeChange?: (value: string) => void;
 }
 
-export const CodeEditor: React.FC<CodeEditorProps> = ({ roomName, onEditorReady }) => {
-  const providerRef = useRef<CollaborationProvider | null>(null);
-  const editorRef = useRef<any>(null);
-  const bindingRef = useRef<MonacoBinding | null>(null);
-
+export interface MonacoEditorSettings {
+  fontSize: number;
+  tabSize: number;
+  vimBindings: boolean;
+}
 
 const DEFAULT_CODE = `#![no_std]
 
@@ -61,11 +64,9 @@ class EditorErrorBoundary extends React.Component<
     this.state = { hasError: false };
   }
 
-
-  const handleEditorDidMount: OnMount = (editor, monaco) => {
-    editorRef.current = editor;
-    onEditorReady?.(() => editor.getValue());
-
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
 
   componentDidCatch() {
     this.props.onError();
@@ -117,9 +118,11 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   mobileMode = false,
   collaborationProvider,
   settings = { fontSize: 14, tabSize: 2, vimBindings: false },
+  value,
+  onCodeChange,
 }) => {
   const [editorInstance, setEditorInstance] = useState<editor.IStandaloneCodeEditor | null>(null);
-  const [code, setCode] = useState(DEFAULT_CODE);
+  const [code, setCode] = useState(value ?? DEFAULT_CODE);
   const [monacoError, setMonacoError] = useState(false);
   const linterRef = useRef<SorobanLinterInstance | null>(null);
   const compileActionRef = useRef<{ dispose: () => void } | null>(null);
@@ -133,8 +136,16 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   }, [collaborationProvider, roomName]);
 
   const handleCodeChange = useCallback((value: string | undefined) => {
-    setCode(value ?? '');
-  }, []);
+    const next = value ?? '';
+    setCode(next);
+    onCodeChange?.(next);
+  }, [onCodeChange]);
+
+  useEffect(() => {
+    if (value !== undefined && value !== code) {
+      setCode(value);
+    }
+  }, [value, code]);
 
   const handleMonacoError = useCallback(() => {
     setMonacoError(true);
@@ -236,6 +247,12 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       compileActionRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (value !== undefined && value !== code) {
+      setCode(value);
+    }
+  }, [value, code]);
 
   if (monacoError) {
     return (

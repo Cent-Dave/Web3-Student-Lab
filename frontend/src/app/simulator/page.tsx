@@ -1,10 +1,11 @@
 'use client';
 
+import { RoleGuard } from '@/components/auth/RoleGuard';
 import { NetworkGraph } from '@/components/simulator/NetworkGraph';
-import { useEffect, useState } from 'react';
 import { WithSkeleton } from '@/components/ui/WithSkeleton';
 import { GraphSkeleton } from '@/components/ui/skeletons/GraphSkeleton';
 import { useTutorial } from '@/contexts/TutorialContext';
+import { useEffect, useState } from 'react';
 
 interface Transaction {
   id: string;
@@ -79,7 +80,8 @@ export default function SimulatorPage() {
   }, [ledgers, isLive]);
 
   return (
-    <div className="relative min-h-[calc(100vh-80px)] overflow-y-auto lg:overflow-hidden bg-black p-6 font-mono text-white md:p-12">
+    <RoleGuard requiredRoles={['student', 'administrator']}>
+      <div className="relative min-h-[calc(100vh-80px)] overflow-y-auto lg:overflow-hidden bg-black p-6 font-mono text-white md:p-12">
       {/* Background Grid Accent */}
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px]"></div>
 
@@ -241,6 +243,7 @@ export default function SimulatorPage() {
           background: #ef4444;
         }
       `}</style>
-    </div>
+      </div>
+    </RoleGuard>
   );
 }

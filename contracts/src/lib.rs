@@ -1,25 +1,86 @@
 #![no_std]
-
-pub mod admin;
-pub mod enrollment;
-pub mod events;
-pub mod activity_log;
-pub mod statistics;
-pub mod payment_gateway;
-pub mod revocation;
-pub mod sai_wrapper;
-pub mod session;
-pub mod staking;
+pub mod crowdfunding;
+pub mod dynamic_staking;
+pub mod token_buyback;
+pub mod token_gated_access;
 pub mod verification;
 // Fuzz module uses `std` and legacy Soroban test patterns; keep out of the default test build
 // until it is refreshed for the current SDK (`sequence_number`, token `mint` arity, etc.).
 // #[cfg(test)]
 // pub mod fuzz;
+pub mod airdrop_manager;
+pub mod merkle_distributor;
+pub mod milestone_release;
 pub mod token;
-pub mod swap_router;
+pub mod playground_cache;
+pub mod upgrade;
+pub mod lending;
+#[cfg(test)]
+pub mod lending_tests;
+pub mod circuit_breaker;
+#[cfg(test)]
+pub mod circuit_breaker_tests;
+pub mod bounty_escrow;
+#[cfg(test)]
+pub mod bounty_escrow_tests;
 
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env};
+
+const BASIS_POINTS: i128 = 10_000;
+const MINIMUM_LIQUIDITY: i128 = 1_000;
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String};
+
+const SCALE: i128 = 1_000_000_000_000;
+const PEG_BPS: i128 = 10_000;
+use soroban_sdk::{
+    contract, contractimpl, contracttype, xdr::ToXdr, Address, Bytes, BytesN, Env, Vec,
+};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, BytesN, Env};
+
+const BASIS_POINTS: u32 = 10_000;
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum AuctionKind {
+    English,
+    Dutch,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum AuctionStatus {
+    Open,
+    Settled,
+    Cancelled,
+}
+
+// Issue #511 – Reentrancy Guard & Security Primitives Module
+pub mod security_primitives;
+// Issue #498 – Cross-Chain Messaging Protocol Interface
+pub mod cross_chain_messaging;
+// Issue #500 – On-Chain Governance & Voting Proposal System
+pub mod governance;
+// Issue #502 – Flash Loan Provider with Arbitrage Protection
+pub mod flash_loan;
+
+// Test modules for the four new contracts (declared here so Rust resolves them
+// relative to lib.rs's directory, i.e. src/, where the test files live).
+#[cfg(test)]
+pub mod security_primitives_test;
+#[cfg(test)]
+pub mod cross_chain_messaging_test;
+#[cfg(test)]
+pub mod governance_test;
+#[cfg(test)]
+pub mod flash_loan_test;
+
+use crate::activity_log::{ActivityLogManager, EventType as LogEventType};
+use crate::admin::{AdminPolicy, AdminRole, Permission};
+use crate::events::EventRecorder;
 use crate::revocation::{CertificateState, CertificateStatus, RevocationReason, RevocationRecord};
+use crate::statistics::StatisticsManager;
 use crate::token::RsTokenContractClient;
+use crate::upgrade::{ContractVersion, PendingUpgrade};
 use crate::verification::{CertificateMetadata, VerificationResult};
 use soroban_sdk::xdr::ToXdr;
 use soroban_sdk::{
@@ -30,2160 +91,1612 @@ use soroban_sdk::{
 /// Issued certificate record.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Certificate {
-    pub course_symbol: Symbol,
-    pub student: Address,
-    pub course_name: String,
-    pub issue_date: u64,
-    pub did: Option<String>,
-    pub revoked: bool,
-    pub grade: Option<String>,
-}
-
-/// RBAC roles. `Admin` here means **governance multisig member** (one of the three init addresses).
-#[contracttype]
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum Role {
+pub struct Pool {
+    pub token_a: Address,
+    pub token_b: Address,
+    pub fee_bps: i128,
+    pub reserve_a: i128,
+    pub reserve_b: i128,
+    pub total_lp: i128,
+    pub price_cumulative_a: i128,
+    pub price_cumulative_b: i128,
+    pub last_updated: u64,
+pub struct Config {
+    pub admin: Address,
+    pub oracle: Address,
+    pub upper_band_bps: i128,
+    pub lower_band_bps: i128,
+    pub breaker_bps: i128,
+    pub max_price_age: u64,
+pub enum DataKey {
     Admin,
-    Instructor,
-    Student,
+    Phase,
+    Root(u32),
+    ClaimedWord(u32, u32),
+pub struct Auction {
+    pub id: u64,
+    pub seller: Address,
+    pub nft_contract: Address,
+    pub token_id: BytesN<32>,
+    pub royalty_receiver: Address,
+    pub royalty_bps: u32,
+    pub kind: AuctionKind,
+    pub status: AuctionStatus,
+    pub reserve_price: i128,
+    pub buyout_price: i128,
+    pub start_price: i128,
+    pub end_price: i128,
+    pub starts_at: u64,
+    pub ends_at: u64,
+    pub highest_bidder: Option<Address>,
+    pub highest_bid: i128,
 }
 
-/// Configuration changes that require **2-of-3** governance approvals.
-#[contracttype]
-#[derive(Clone)]
-pub enum PendingAdminAction {
-    SetMintCap(u32),
-    Upgrade(BytesN<32>),
-}
-
-#[contracttype]
-#[derive(Clone)]
-pub struct AdminProposal {
-    pub action: PendingAdminAction,
-    /// Bit *i* set if governance admin index *i* has approved (including the proposer).
-    pub approval_mask: u32,
-}
-
-/// W3C-compliant Decentralized Identifier (DID) stored for each student.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct StudentDid {
-    pub student: Address,
-    pub did: String,
+pub enum DataKey {
+    Pool,
+    Lp(Address),
+}
+
+#[contract]
+pub struct AmmLiquidityPoolContract;
+
+#[contractimpl]
+impl AmmLiquidityPoolContract {
+    /// Initialize a constant-product x*y=k liquidity pool.
+    pub fn initialize(env: Env, token_a: Address, token_b: Address, fee_bps: i128) {
+        if env.storage().instance().has(&DataKey::Pool) {
+            panic!("already initialized");
+        }
+        if token_a == token_b {
+            panic!("identical tokens");
+        }
+        if fee_bps < 0 || fee_bps >= BASIS_POINTS {
+            panic!("invalid fee");
+        }
+        env.storage().instance().set(
+            &DataKey::Pool,
+            &Pool {
+                token_a,
+                token_b,
+                fee_bps,
+                reserve_a: 0,
+                reserve_b: 0,
+                total_lp: 0,
+                price_cumulative_a: 0,
+                price_cumulative_b: 0,
+                last_updated: env.ledger().timestamp(),
+            },
+        );
+    }
+
+    /// Add liquidity and mint LP shares.
+    ///
+    /// The caller supplies minimum LP output for slippage protection. Token
+    /// transfers are expected to be performed by an adapter around this core.
+    pub fn add_liquidity(
+        env: Env,
+        provider: Address,
+        amount_a: i128,
+        amount_b: i128,
+        min_lp: i128,
+    ) -> i128 {
+        provider.require_auth();
+        validate_amount(amount_a);
+        validate_amount(amount_b);
+        let mut pool = pool(&env);
+        update_twap(&env, &mut pool);
+
+        let lp = if pool.total_lp == 0 {
+            let minted = checked_sub(
+                integer_sqrt(checked_mul(amount_a, amount_b)),
+                MINIMUM_LIQUIDITY,
+            );
+            if minted <= 0 {
+                panic!("insufficient initial liquidity");
+            }
+            pool.total_lp = checked_add(pool.total_lp, MINIMUM_LIQUIDITY);
+            minted
+        } else {
+            let lp_a = checked_div(checked_mul(amount_a, pool.total_lp), pool.reserve_a);
+            let lp_b = checked_div(checked_mul(amount_b, pool.total_lp), pool.reserve_b);
+            min(lp_a, lp_b)
+        };
+        if lp < min_lp {
+            panic!("slippage");
+        }
+
+        pool.reserve_a = checked_add(pool.reserve_a, amount_a);
+        pool.reserve_b = checked_add(pool.reserve_b, amount_b);
+        pool.total_lp = checked_add(pool.total_lp, lp);
+        add_lp(&env, provider, lp);
+        save_pool(&env, &pool);
+        lp
+    }
+
+    /// Remove liquidity and return proportional token amounts.
+    pub fn remove_liquidity(
+        env: Env,
+        provider: Address,
+        lp_amount: i128,
+        min_a: i128,
+        min_b: i128,
+    ) -> (i128, i128) {
+        provider.require_auth();
+        validate_amount(lp_amount);
+        let mut pool = pool(&env);
+        update_twap(&env, &mut pool);
+        sub_lp(&env, provider, lp_amount);
+
+        let amount_a = checked_div(checked_mul(lp_amount, pool.reserve_a), pool.total_lp);
+        let amount_b = checked_div(checked_mul(lp_amount, pool.reserve_b), pool.total_lp);
+        if amount_a < min_a || amount_b < min_b {
+            panic!("slippage");
+        }
+
+        pool.reserve_a = checked_sub(pool.reserve_a, amount_a);
+        pool.reserve_b = checked_sub(pool.reserve_b, amount_b);
+        pool.total_lp = checked_sub(pool.total_lp, lp_amount);
+        save_pool(&env, &pool);
+        (amount_a, amount_b)
+    }
+
+    /// Swap an exact amount of token A for token B.
+    pub fn swap_exact_a_for_b(env: Env, trader: Address, amount_in: i128, min_out: i128) -> i128 {
+        trader.require_auth();
+        swap(&env, amount_in, min_out, true)
+    }
+
+    /// Swap an exact amount of token B for token A.
+    pub fn swap_exact_b_for_a(env: Env, trader: Address, amount_in: i128, min_out: i128) -> i128 {
+        trader.require_auth();
+        swap(&env, amount_in, min_out, false)
+    }
+
+    pub fn quote_a_for_b(env: Env, amount_in: i128) -> i128 {
+        let pool = pool(&env);
+        amount_out(amount_in, pool.reserve_a, pool.reserve_b, pool.fee_bps)
+    }
+
+    pub fn quote_b_for_a(env: Env, amount_in: i128) -> i128 {
+        let pool = pool(&env);
+        amount_out(amount_in, pool.reserve_b, pool.reserve_a, pool.fee_bps)
+    }
+
+    pub fn lp_balance(env: Env, account: Address) -> i128 {
+        lp_balance(&env, account)
+    }
+
+    pub fn get_pool(env: Env) -> Pool {
+        pool(&env)
+    }
+}
+
+fn swap(env: &Env, amount_in: i128, min_out: i128, a_for_b: bool) -> i128 {
+    validate_amount(amount_in);
+    let mut pool = pool(env);
+    update_twap(env, &mut pool);
+    if pool.reserve_a <= 0 || pool.reserve_b <= 0 {
+        panic!("empty pool");
+    }
+
+    let output = if a_for_b {
+        amount_out(amount_in, pool.reserve_a, pool.reserve_b, pool.fee_bps)
+    } else {
+        amount_out(amount_in, pool.reserve_b, pool.reserve_a, pool.fee_bps)
+    };
+    if output < min_out || output <= 0 {
+        panic!("slippage");
+    }
+
+    let before_k = checked_mul(pool.reserve_a, pool.reserve_b);
+    if a_for_b {
+        pool.reserve_a = checked_add(pool.reserve_a, amount_in);
+        pool.reserve_b = checked_sub(pool.reserve_b, output);
+    } else {
+        pool.reserve_b = checked_add(pool.reserve_b, amount_in);
+        pool.reserve_a = checked_sub(pool.reserve_a, output);
+    }
+    if checked_mul(pool.reserve_a, pool.reserve_b) < before_k {
+        panic!("invariant");
+    }
+    save_pool(env, &pool);
+    output
+}
+
+fn amount_out(amount_in: i128, reserve_in: i128, reserve_out: i128, fee_bps: i128) -> i128 {
+    validate_amount(amount_in);
+    if reserve_in <= 0 || reserve_out <= 0 {
+        panic!("empty pool");
+    }
+    let amount_in_after_fee = checked_div(
+        checked_mul(amount_in, checked_sub(BASIS_POINTS, fee_bps)),
+        BASIS_POINTS,
+    );
+    checked_div(
+        checked_mul(amount_in_after_fee, reserve_out),
+        checked_add(reserve_in, amount_in_after_fee),
+    )
+}
+
+fn update_twap(env: &Env, pool: &mut Pool) {
+    let now = env.ledger().timestamp();
+    if now <= pool.last_updated {
+        return;
+    }
+    let elapsed = checked_sub(now as i128, pool.last_updated as i128);
+    if pool.reserve_a > 0 && pool.reserve_b > 0 {
+        pool.price_cumulative_a = checked_add(
+            pool.price_cumulative_a,
+            checked_mul(
+                checked_div(checked_mul(pool.reserve_b, BASIS_POINTS), pool.reserve_a),
+                elapsed,
+            ),
+        );
+        pool.price_cumulative_b = checked_add(
+            pool.price_cumulative_b,
+            checked_mul(
+                checked_div(checked_mul(pool.reserve_a, BASIS_POINTS), pool.reserve_b),
+                elapsed,
+            ),
+        );
+pub struct Price {
+    pub price_bps: i128,
     pub updated_at: u64,
 }
 
-/// Recipient data for batch minting operations.
 #[contracttype]
-#[derive(Clone, Debug)]
-pub struct RecipientData {
-    pub address: Address,
-    pub course_symbol: Symbol,
-    pub grade: Option<String>,
-}
-
-#[contracttype]
-#[derive(Clone)]
-pub struct CertKey {
-    pub course_symbol: Symbol,
-    pub student: Address,
-}
-
-#[contracttype]
-#[derive(Clone)]
-pub struct StudentCertificatesKey {
-    pub student: Address,
-}
-
-#[contracttype]
-#[derive(Clone)]
-pub struct MetaTxCallData {
-    pub instructor: Address,
-    pub course_symbol: Symbol,
-    pub student: Address,
-    pub course_name: String,
-    pub nonce: u64,
-}
-
-#[contracttype]
-#[derive(Clone)]
-enum DataKey {
-    GovernanceAdmins,
-    MintCap,
-    MintedThisPeriod,
-    CurrentPeriod,
-    StudentDid(Address),
-    NextProposalId,
-    Proposal(u64),
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DataKey {
+    Config,
+    Price,
     Paused,
-    /// Optional RS-Token contract to mirror pause onto minting.
-    PauseTokenContract,
-    Role(Address),
-    Locked,
-    /// Certificate state tracking (status, revocation, reissuance).
-    CertificateState(u128),
-    /// Revocation records for audit trail (token_id -> Vec<RevocationRecord>).
-    RevocationHistory(u128),
-    /// Next certificate token ID counter for reissuance tracking.
-    NextTokenId,
+    Index,
+    TotalSupply,
+    Shares(Address),
 }
-
-#[contracterror]
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum CertError {
-    AlreadyInitialized = 1,
-    NotInitialized = 2,
-    Unauthorized = 3,
-    CertificateNotFound = 4,
-    MintCapExceeded = 5,
-    InvalidMintCap = 6,
-    InvalidDid = 7,
-    DidNotFound = 8,
-    ContractPaused = 9,
-    NotInstructor = 10,
-    InvalidProposal = 11,
-    AlreadyApproved = 12,
-    InvalidGovernanceSetup = 13,
-    CannotGrantAdminRole = 14,
-    CannotRevokeProtectedInstructor = 15,
-    InvalidSignature = 16,
-    InvalidAmount = 17,
-    StringTooLong = 18,
-    InvalidCharacter = 19,
-    Reentrant = 20,
-    /// Certificate already revoked.
-    AlreadyRevoked = 21,
-    /// Invalid revocation reason provided.
-    InvalidRevocationReason = 22,
-    /// Certificate is no longer valid (revoked or superseded).
-    CertificateInvalid = 23,
-    /// Attempted to reissue a non-existent certificate.
-    CannotReissueNonExistent = 24,
-}
-
-const DEFAULT_MINT_CAP: u32 = 1000;
-const LEDGERS_PER_PERIOD: u32 = 17280;
-const GOVERNANCE_THRESHOLD: u32 = 2;
-const GOVERNANCE_ADMIN_COUNT: u32 = 3;
-/// ~1 year in ledgers (5-second ledger close time).
-const CERT_TTL_LEDGERS: u32 = 6_307_200;
-/// Maximum batch size for minting operations (gas optimization limit).
-const MAX_BATCH_SIZE: u32 = 100;
-/// Maximum gas budget per batch operation (10M gas).
-/// This constant is kept for documentation purposes.
-#[allow(dead_code)]
-const MAX_GAS_PER_BATCH: u64 = 10_000_000;
-
-/// Current event schema version. Bump this when any event topic or payload changes.
-///
-/// ## v1 Event Schema
-///
-/// | Topic (Symbol)                | Data payload                                      |
-/// |-------------------------------|---------------------------------------------------|
-/// | `v1_role_granted`             | `(caller: Address, account: Address, role: Role)` |
-/// | `v1_role_revoked`             | `(caller: Address, account: Address)`             |
-/// | `v1_pause_updated`            | `(caller: Address, paused: bool)`                 |
-/// | `v1_action_proposed`          | `(caller: Address, proposal_id: u64)`             |
-/// | `v1_action_approved`          | `(caller: Address, proposal_id: u64)`             |
-/// | `v1_action_executed`          | `(caller: Address, proposal_id: u64)`             |
-/// | `v1_mint_cap_updated`         | `(old_cap: u32, new_cap: u32)`                    |
-/// | `v1_cert_issued`              | `(student: Address, course_name: String)`         |
-/// | `v1_mint_period_update`       | `(period: u32, count: u32)`                       |
-/// | `v1_batch_cert_issued`        | `(student: Address, course_name: String)`         |
-/// | `v1_batch_issue_completed`    | `(instructor: Address, count: u32, course: String)` |
-/// | `v1_cert_revoked`             | `(caller: Address, student: Address)`             |
-/// | `v1_meta_tx_issued`           | `(instructor: Address, student: Address, course_name: String)` |
-/// | `v1_did_updated`              | `(caller: Address, did: String, timestamp: u64)`  |
-/// | `v1_did_removed`              | `(caller: Address, student: Address)`             |
-/// | `v2_certificate_revoked`      | `(token_id: u128, revoked_by: Address, reason: String)` |
-/// | `v2_certificate_verified`     | `(token_id: u128, is_valid: bool, status: String)` |
-/// | `v2_certificate_reissued`     | `(old_token_id: u128, new_token_id: u128, reason: String)` |
-pub const EVENT_VERSION: u32 = 1;
-
-const NONCE_PREFIX: &str = "nonce";
 
 #[contract]
-pub struct CertificateContract;
+pub struct AlgorithmicStablecoinContract;
 
 #[contractimpl]
-impl CertificateContract {
-    /// Initialize with exactly three governance admin addresses (2-of-3 multisig for sensitive actions).
-    /// Each governance admin is granted the **Instructor** role so they can issue certificates.
-    pub fn init(env: Env, admin_a: Address, admin_b: Address, admin_c: Address) {
-        if env.storage().instance().has(&DataKey::GovernanceAdmins) {
-            panic_with_error!(&env, CertError::AlreadyInitialized);
+impl AlgorithmicStablecoinContract {
+    /// Initialize the protocol around a 1.0 peg represented as 10,000 bps.
+    #[allow(clippy::too_many_arguments)]
+    pub fn initialize(
+        env: Env,
+        admin: Address,
+        oracle: Address,
+        upper_band_bps: i128,
+        lower_band_bps: i128,
+        breaker_bps: i128,
+        max_price_age: u64,
+    ) {
+        if env.storage().instance().has(&DataKey::Config) {
+            panic!("already initialized");
         }
-
-        let mut admins: Vec<Address> = Vec::new(&env);
-        admins.push_back(admin_a.clone());
-        admins.push_back(admin_b.clone());
-        admins.push_back(admin_c.clone());
-
-        if admins.len() != GOVERNANCE_ADMIN_COUNT {
-            panic_with_error!(&env, CertError::InvalidGovernanceSetup);
+        admin.require_auth();
+        if lower_band_bps >= PEG_BPS || upper_band_bps <= PEG_BPS || breaker_bps <= upper_band_bps {
+            panic!("invalid bands");
         }
-
-        env.storage()
-            .instance()
-            .set(&DataKey::GovernanceAdmins, &admins);
-        env.storage()
-            .instance()
-            .set(&DataKey::MintCap, &DEFAULT_MINT_CAP);
-
-        let current_ledger = env.ledger().sequence();
-        env.storage()
-            .instance()
-            .set(&DataKey::MintedThisPeriod, &0u32);
         env.storage().instance().set(
-            &DataKey::CurrentPeriod,
-            &(current_ledger / LEDGERS_PER_PERIOD),
+            &DataKey::Config,
+            &Config {
+                admin,
+                oracle,
+                upper_band_bps,
+                lower_band_bps,
+                breaker_bps,
+                max_price_age,
+            },
         );
         env.storage().instance().set(&DataKey::Paused, &false);
+        env.storage().instance().set(&DataKey::Index, &SCALE);
+        env.storage().instance().set(&DataKey::TotalSupply, &0_i128);
+    }
+
+    /// Oracle-authorized price report. The price uses basis points of $1.
+    pub fn report_price(env: Env, oracle: Address, price_bps: i128) {
+        let config = config(&env);
+        if config.oracle != oracle {
+            panic!("not oracle");
+        }
+        oracle.require_auth();
+        if price_bps <= 0 {
+            panic!("invalid price");
+        }
+        env.storage().instance().set(
+            &DataKey::Price,
+            &Price {
+                price_bps,
+                updated_at: env.ledger().timestamp(),
+            },
+        );
+    }
+
+    /// Mint new stablecoins to an account.
+    ///
+    /// Admin minting is intentionally explicit for the educational protocol;
+    /// public supply changes occur through rebases.
+    pub fn mint(env: Env, admin: Address, to: Address, amount: i128) {
+        require_admin(&env, &admin);
+        require_not_paused(&env);
+        validate_amount(amount);
+        let index = index(&env);
+        let shares = checked_div(checked_mul(amount, SCALE), index);
+        add_shares(&env, to, shares);
+        add_total_supply(&env, amount);
+    }
+
+    /// Burn tokens from an account.
+    pub fn burn(env: Env, from: Address, amount: i128) {
+        from.require_auth();
+        require_not_paused(&env);
+        validate_amount(amount);
+        let index = index(&env);
+        let shares = checked_div_round_up(checked_mul(amount, SCALE), index);
+        sub_shares(&env, from, shares);
+        sub_total_supply(&env, amount);
+    }
+
+    /// Transfer rebasing balances without changing total supply.
+    pub fn transfer(env: Env, from: Address, to: Address, amount: i128) {
+        from.require_auth();
+        require_not_paused(&env);
+        validate_amount(amount);
+        let shares = checked_div_round_up(checked_mul(amount, SCALE), index(&env));
+        sub_shares(&env, from, shares);
+        add_shares(&env, to, shares);
+    }
+
+    /// Rebase supply according to the latest fresh oracle price.
+    ///
+    /// Price above peg expands supply; below peg contracts supply. If the price
+    /// breaches the circuit breaker, the protocol pauses instead of rebasing.
+    pub fn rebase(env: Env) -> i128 {
+        require_not_paused(&env);
+        let config = config(&env);
+        let price = price(&env);
+        if checked_add_u64(price.updated_at, config.max_price_age) < env.ledger().timestamp() {
+            panic!("stale price");
+        }
+
+        if price.price_bps >= config.breaker_bps
+            || price.price_bps <= checked_sub(checked_mul(PEG_BPS, 2), config.breaker_bps)
+        {
+            env.storage().instance().set(&DataKey::Paused, &true);
+            panic!("circuit breaker");
+        }
+
+        if price.price_bps <= config.upper_band_bps && price.price_bps >= config.lower_band_bps {
+            return total_supply(&env);
+        }
+
+        let old_supply = total_supply(&env);
+        if old_supply == 0 {
+            return 0;
+        }
+
+        let new_supply = checked_div(checked_mul(old_supply, price.price_bps), PEG_BPS);
+        let new_index = checked_div(checked_mul(index(&env), new_supply), old_supply);
+        env.storage().instance().set(&DataKey::Index, &new_index);
         env.storage()
             .instance()
-            .set(&DataKey::NextProposalId, &0u64);
+            .set(&DataKey::TotalSupply, &new_supply);
+        new_supply
+    }
 
-        for admin in admins.iter() {
-            env.storage()
-                .instance()
-                .set(&DataKey::Role(admin.clone()), &Role::Instructor);
+    pub fn unpause(env: Env, admin: Address) {
+        require_admin(&env, &admin);
+        env.storage().instance().set(&DataKey::Paused, &false);
+    }
+
+    pub fn balance_of(env: Env, account: Address) -> i128 {
+        checked_div(checked_mul(shares(&env, account), index(&env)), SCALE)
+    }
+
+    pub fn total_supply(env: Env) -> i128 {
+        total_supply(&env)
+pub enum DataKey {
+    NextAuctionId,
+    Auction(u64),
+    Escrowed(u64),
+    Pending(Address),
+}
+
+#[contract]
+pub struct MerkleAirdropContract;
+
+#[contractimpl]
+impl MerkleAirdropContract {
+    /// Initialize the distributor with an admin and the first Merkle root.
+    pub fn initialize(env: Env, admin: Address, root: BytesN<32>) {
+        if env.storage().instance().has(&DataKey::Admin) {
+            panic!("already initialized");
         }
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&DataKey::Phase, &1_u32);
+        env.storage().persistent().set(&DataKey::Root(1), &root);
     }
 
-    /// Returns the current event schema version. Indexers should use this to select the
-    /// correct topic prefix when subscribing to contract events.
-    pub fn get_event_version(_env: Env) -> u32 {
-        EVENT_VERSION
-    }
-
-    fn governance_admins(env: &Env) -> Vec<Address> {
+    /// Start a new airdrop phase with a replacement Merkle root.
+    ///
+    /// Claim bitmaps are keyed by phase, so previous claims cannot block later
+    /// campaign phases while still preventing duplicate claims within a phase.
+    pub fn set_root(env: Env, admin: Address, root: BytesN<32>) -> u32 {
+        require_admin(&env, &admin);
+        let next_phase = checked_add_u32(current_phase(&env), 1);
+        env.storage().instance().set(&DataKey::Phase, &next_phase);
         env.storage()
-            .instance()
-            .get(&DataKey::GovernanceAdmins)
-            .unwrap_or_else(|| panic_with_error!(env, CertError::NotInitialized))
+            .persistent()
+            .set(&DataKey::Root(next_phase), &root);
+        next_phase
     }
 
-    fn governance_admin_index(env: &Env, addr: &Address) -> Option<u32> {
-        let admins = Self::governance_admins(env);
-        (0..admins.len()).find(|&i| admins.get(i).unwrap() == *addr)
-    }
-
-    fn require_governance_admin(env: &Env, caller: &Address) {
-        if Self::governance_admin_index(env, caller).is_none() {
-            panic_with_error!(env, CertError::Unauthorized);
+    /// Claim an allocation proven by the current phase Merkle root.
+    ///
+    /// The verified amount is credited to the caller's pending balance. Token
+    /// transfer adapters can release that balance after this state change.
+    pub fn claim(
+        env: Env,
+        index: u32,
+        account: Address,
+        amount: i128,
+        proof: Vec<BytesN<32>>,
+    ) -> i128 {
+        account.require_auth();
+        if amount <= 0 {
+            panic!("invalid amount");
         }
+
+        let phase = current_phase(&env);
+        if is_claimed_internal(&env, phase, index) {
+            panic!("already claimed");
+        }
+
+        let leaf = leaf_hash(&env, phase, index, account.clone(), amount);
+        let root = root_for_phase(&env, phase);
+        if !verify_proof(&env, leaf, proof, root) {
+            panic!("invalid proof");
+        }
+
+        set_claimed(&env, phase, index);
+        credit(&env, account, amount);
+        amount
     }
 
-    fn require_not_paused(env: &Env) {
-        let paused: bool = env
-            .storage()
+    /// Withdraw and clear the caller's verified claim balance.
+    pub fn withdraw(env: Env, account: Address) -> i128 {
+        account.require_auth();
+        let key = DataKey::Pending(account);
+        let amount = env.storage().persistent().get(&key).unwrap_or(0_i128);
+        env.storage().persistent().set(&key, &0_i128);
+        amount
+    }
+
+    pub fn is_claimed(env: Env, phase: u32, index: u32) -> bool {
+        is_claimed_internal(&env, phase, index)
+    }
+
+    pub fn pending(env: Env, account: Address) -> i128 {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Pending(account))
+            .unwrap_or(0_i128)
+    }
+
+    pub fn current_phase(env: Env) -> u32 {
+        current_phase(&env)
+    }
+    pool.last_updated = now;
+}
+
+fn pool(env: &Env) -> Pool {
+    env.storage()
+        .instance()
+        .get(&DataKey::Pool)
+        .unwrap_or_else(|| panic!("not initialized"))
+}
+
+fn save_pool(env: &Env, pool: &Pool) {
+    env.storage().instance().set(&DataKey::Pool, pool);
+}
+
+fn add_lp(env: &Env, account: Address, amount: i128) {
+    let current = lp_balance(env, account.clone());
+    env.storage()
+        .persistent()
+        .set(&DataKey::Lp(account), &checked_add(current, amount));
+}
+
+fn sub_lp(env: &Env, account: Address, amount: i128) {
+    let current = lp_balance(env, account.clone());
+    if amount > current {
+        panic!("insufficient lp");
+    pub fn root(env: Env, phase: u32) -> BytesN<32> {
+        root_for_phase(&env, phase)
+    }
+    env.storage()
+        .persistent()
+        .set(&DataKey::Lp(account), &checked_sub(current, amount));
+}
+
+fn lp_balance(env: &Env, account: Address) -> i128 {
+    env.storage()
+        .persistent()
+        .get(&DataKey::Lp(account))
+        .unwrap_or(0_i128)
+}
+
+fn validate_amount(amount: i128) {
+    if amount <= 0 {
+        panic!("invalid amount");
+    }
+}
+
+fn min(left: i128, right: i128) -> i128 {
+    if left < right {
+        left
+    } else {
+        right
+    pub fn leaf(env: Env, phase: u32, index: u32, account: Address, amount: i128) -> BytesN<32> {
+        leaf_hash(&env, phase, index, account, amount)
+    }
+}
+
+    pub fn paused(env: Env) -> bool {
+        env.storage()
             .instance()
             .get(&DataKey::Paused)
-            .unwrap_or(false);
-        if paused {
-            panic_with_error!(env, CertError::ContractPaused);
-        }
-    }
-
-    fn require_instructor(env: &Env, caller: &Address) {
-        let role: Option<Role> = env.storage().instance().get(&DataKey::Role(caller.clone()));
-        if role != Some(Role::Instructor) {
-            panic_with_error!(env, CertError::NotInstructor);
-        }
-    }
-
-    /// Acquire the reentrancy lock. Panics with `Reentrant` if already locked.
-    fn acquire_lock(env: &Env) {
-        if env
-            .storage()
-            .instance()
-            .get(&DataKey::Locked)
             .unwrap_or(false)
-        {
-            panic_with_error!(env, CertError::Reentrant);
+    }
+}
+
+fn integer_sqrt(value: i128) -> i128 {
+    if value < 0 {
+        panic!("negative sqrt");
+    }
+    if value < 2 {
+        return value;
+    }
+    let mut low = 1_i128;
+    let mut high = value;
+    let mut answer = 1_i128;
+    while low <= high {
+        let mid = checked_div(checked_add(low, high), 2);
+        let square = checked_mul(mid, mid);
+        if square == value {
+            return mid;
         }
-        env.storage().instance().set(&DataKey::Locked, &true);
+        if square < value {
+            answer = mid;
+            low = checked_add(mid, 1);
+        } else {
+            high = checked_sub(mid, 1);
+        }
     }
+    answer
+}
 
-    /// Release the reentrancy lock.
-    fn release_lock(env: &Env) {
-        env.storage().instance().set(&DataKey::Locked, &false);
+fn checked_add(left: i128, right: i128) -> i128 {
+    match left.checked_add(right) {
+        Some(value) => value,
+        None => panic!("i128 overflow"),
     }
+}
 
-    fn check_and_update_mint_tracking(env: &Env) -> u32 {
-        let current_ledger = env.ledger().sequence();
-        let current_period = current_ledger / LEDGERS_PER_PERIOD;
+fn checked_sub(left: i128, right: i128) -> i128 {
+    match left.checked_sub(right) {
+        Some(value) => value,
+        None => panic!("i128 underflow"),
+    }
+}
 
-        let stored_period: u32 = env
-            .storage()
-            .instance()
-            .get(&DataKey::CurrentPeriod)
-            .unwrap_or(0);
+fn checked_mul(left: i128, right: i128) -> i128 {
+    match left.checked_mul(right) {
+        Some(value) => value,
+        None => panic!("i128 overflow"),
+    }
+}
 
-        if current_period > stored_period {
-            env.storage()
-                .instance()
-                .set(&DataKey::MintedThisPeriod, &0u32);
-            env.storage()
-                .instance()
-                .set(&DataKey::CurrentPeriod, &current_period);
+fn checked_div(left: i128, right: i128) -> i128 {
+    if right == 0 {
+        panic!("division by zero");
+    }
+    left / right
+}
+
+#[cfg(test)]
+mod test {
+    extern crate std;
+
+    use super::*;
+    use soroban_sdk::{testutils::Address as _, Env};
+
+    fn setup(env: &Env) -> (AmmLiquidityPoolContractClient, Address, Address, Address) {
+        env.mock_all_auths();
+        let client = AmmLiquidityPoolContractClient::new(
+            env,
+            &env.register_contract(None, AmmLiquidityPoolContract),
+        );
+        let token_a = Address::generate(env);
+        let token_b = Address::generate(env);
+        let provider = Address::generate(env);
+        client.initialize(&token_a, &token_b, &30);
+        (client, token_a, token_b, provider)
+    pub fn name(_env: Env) -> String {
+        String::from_str(&_env, "Web3 Student Lab Stablecoin")
+    }
+}
+
+fn config(env: &Env) -> Config {
+    env.storage()
+        .instance()
+        .get(&DataKey::Config)
+        .unwrap_or_else(|| panic!("not initialized"))
+}
+
+fn require_admin(env: &Env, admin: &Address) {
+    let cfg = config(env);
+    if cfg.admin != *admin {
+        panic!("not admin");
+    }
+    admin.require_auth();
+}
+
+fn require_not_paused(env: &Env) {
+    if env
+        .storage()
+        .instance()
+        .get(&DataKey::Paused)
+        .unwrap_or(false)
+    {
+        panic!("paused");
+    }
+}
+
+fn price(env: &Env) -> Price {
+    env.storage()
+        .instance()
+        .get(&DataKey::Price)
+        .unwrap_or_else(|| panic!("price missing"))
+}
+
+fn index(env: &Env) -> i128 {
+    env.storage()
+        .instance()
+        .get(&DataKey::Index)
+        .unwrap_or(SCALE)
+}
+
+fn shares(env: &Env, account: Address) -> i128 {
+    env.storage()
+        .persistent()
+        .get(&DataKey::Shares(account))
+        .unwrap_or(0_i128)
+}
+
+fn add_shares(env: &Env, account: Address, amount: i128) {
+    let current = shares(env, account.clone());
+    env.storage()
+        .persistent()
+        .set(&DataKey::Shares(account), &checked_add(current, amount));
+}
+
+fn sub_shares(env: &Env, account: Address, amount: i128) {
+    let current = shares(env, account.clone());
+    if amount > current {
+        panic!("insufficient balance");
+    }
+    env.storage()
+        .persistent()
+        .set(&DataKey::Shares(account), &checked_sub(current, amount));
+}
+
+fn total_supply(env: &Env) -> i128 {
+    env.storage()
+        .instance()
+        .get(&DataKey::TotalSupply)
+        .unwrap_or(0_i128)
+}
+
+fn add_total_supply(env: &Env, amount: i128) {
+    env.storage().instance().set(
+        &DataKey::TotalSupply,
+        &checked_add(total_supply(env), amount),
+    );
+}
+
+fn sub_total_supply(env: &Env, amount: i128) {
+    let supply = total_supply(env);
+    if amount > supply {
+        panic!("supply underflow");
+    }
+    env.storage()
+        .instance()
+        .set(&DataKey::TotalSupply, &checked_sub(supply, amount));
+}
+
+    #[test]
+    fn adds_initial_liquidity_and_mints_lp() {
+        let env = Env::default();
+        let (client, _, _, provider) = setup(&env);
+
+        let minted = client.add_liquidity(&provider, &1_000_000, &1_000_000, &999_000);
+
+        assert_eq!(minted, 999_000);
+        assert_eq!(client.lp_balance(&provider), 999_000);
+        let pool = client.get_pool();
+        assert_eq!(pool.reserve_a, 1_000_000);
+        assert_eq!(pool.reserve_b, 1_000_000);
+        assert_eq!(pool.total_lp, 1_000_000);
+fn validate_amount(amount: i128) {
+    if amount <= 0 {
+        panic!("invalid amount");
+    }
+}
+
+    #[test]
+    fn swaps_with_fee_and_preserves_invariant() {
+        let env = Env::default();
+        let (client, _, _, provider) = setup(&env);
+        let trader = Address::generate(&env);
+        client.add_liquidity(&provider, &1_000_000, &1_000_000, &999_000);
+
+        let out = client.swap_exact_a_for_b(&trader, &10_000, &9_800);
+        assert_eq!(out, 9_871);
+        let pool = client.get_pool();
+        assert_eq!(pool.reserve_a, 1_010_000);
+        assert_eq!(pool.reserve_b, 990_129);
+        assert!(pool.reserve_a * pool.reserve_b >= 1_000_000_i128 * 1_000_000_i128);
+fn checked_add(left: i128, right: i128) -> i128 {
+    match left.checked_add(right) {
+        Some(value) => value,
+        None => panic!("i128 overflow"),
+    }
+}
+
+fn checked_sub(left: i128, right: i128) -> i128 {
+    match left.checked_sub(right) {
+        Some(value) => value,
+        None => panic!("i128 underflow"),
+    }
+}
+
+    #[test]
+    fn removes_liquidity_proportionately() {
+        let env = Env::default();
+        let (client, _, _, provider) = setup(&env);
+        client.add_liquidity(&provider, &1_000_000, &2_000_000, &1_413_000);
+
+        let removed = client.remove_liquidity(&provider, &707_000, &499_000, &999_000);
+
+        assert_eq!(removed, (499_924, 999_848));
+        assert_eq!(client.lp_balance(&provider), 706_213);
+fn checked_mul(left: i128, right: i128) -> i128 {
+    match left.checked_mul(right) {
+        Some(value) => value,
+        None => panic!("i128 overflow"),
+    }
+}
+
+    #[test]
+    fn updates_cumulative_prices_for_twap_consumers() {
+        let env = Env::default();
+        env.ledger().with_mut(|ledger| ledger.timestamp = 10);
+        let (client, _, _, provider) = setup(&env);
+        let trader = Address::generate(&env);
+        client.add_liquidity(&provider, &1_000_000, &2_000_000, &1_413_000);
+
+        env.ledger().with_mut(|ledger| ledger.timestamp = 20);
+        client.swap_exact_b_for_a(&trader, &10_000, &4_900);
+
+        let pool = client.get_pool();
+        assert_eq!(pool.price_cumulative_a, 200_000);
+        assert_eq!(pool.price_cumulative_b, 50_000);
+        assert_eq!(pool.last_updated, 20);
+fn checked_div(left: i128, right: i128) -> i128 {
+    if right == 0 {
+        panic!("division by zero");
+    }
+    left / right
+}
+
+    #[test]
+    #[should_panic(expected = "slippage")]
+    fn rejects_swap_when_minimum_output_is_not_met() {
+        let env = Env::default();
+        let (client, _, _, provider) = setup(&env);
+        let trader = Address::generate(&env);
+        client.add_liquidity(&provider, &1_000_000, &1_000_000, &999_000);
+
+        client.swap_exact_a_for_b(&trader, &10_000, &10_000);
+fn checked_div_round_up(left: i128, right: i128) -> i128 {
+    if right == 0 {
+        panic!("division by zero");
+    }
+    (checked_add(left, checked_sub(right, 1))) / right
+}
+
+    #[test]
+    #[should_panic(expected = "insufficient lp")]
+    fn rejects_removing_unowned_liquidity() {
+        let env = Env::default();
+        let (client, _, _, provider) = setup(&env);
+        let other = Address::generate(&env);
+        client.add_liquidity(&provider, &1_000_000, &1_000_000, &999_000);
+
+        client.remove_liquidity(&other, &1, &0, &0);
+fn checked_add_u64(left: u64, right: u64) -> u64 {
+    match left.checked_add(right) {
+        Some(value) => value,
+        None => panic!("u64 overflow"),
+    }
+}
+
+fn require_admin(env: &Env, admin: &Address) {
+    let stored: Address = env
+        .storage()
+        .instance()
+        .get(&DataKey::Admin)
+        .unwrap_or_else(|| panic!("not initialized"));
+    if stored != *admin {
+        panic!("not admin");
+pub struct MarketplaceEscrowContract;
+
+#[contractimpl]
+impl MarketplaceEscrowContract {
+    /// Create an English auction and mark the NFT as escrowed by this contract.
+    ///
+    /// The NFT transfer itself is expected to be authorized by the marketplace
+    /// adapter that calls this contract; this contract records the escrow state
+    /// and all sale accounting.
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_english(
+        env: Env,
+        seller: Address,
+        nft_contract: Address,
+        token_id: BytesN<32>,
+        reserve_price: i128,
+        buyout_price: i128,
+        duration: u64,
+        royalty_receiver: Address,
+        royalty_bps: u32,
+    ) -> u64 {
+        seller.require_auth();
+        validate_price(reserve_price);
+        validate_price(buyout_price);
+        validate_royalty(royalty_bps);
+        if buyout_price > 0 && buyout_price < reserve_price {
+            panic!("buyout below reserve");
         }
 
-        let minted_this_period: u32 = env
-            .storage()
-            .instance()
-            .get(&DataKey::MintedThisPeriod)
-            .unwrap_or(0);
-
-        let mint_cap: u32 = env
-            .storage()
-            .instance()
-            .get(&DataKey::MintCap)
-            .unwrap_or(DEFAULT_MINT_CAP);
-
-        mint_cap.saturating_sub(minted_this_period)
-    }
-
-    fn record_mint(env: &Env, count: u32) {
-        let minted_this_period: u32 = env
-            .storage()
-            .instance()
-            .get(&DataKey::MintedThisPeriod)
-            .unwrap_or(0);
-
-        let new_minted = minted_this_period.saturating_add(count);
-        let mint_cap: u32 = env
-            .storage()
-            .instance()
-            .get(&DataKey::MintCap)
-            .unwrap_or(DEFAULT_MINT_CAP);
-
-        if new_minted > mint_cap {
-            panic_with_error!(env, CertError::MintCapExceeded);
-        }
-
-        env.storage()
-            .instance()
-            .set(&DataKey::MintedThisPeriod, &new_minted);
-    }
-
-    fn persist_certificate(env: &Env, cert: &Certificate) {
-        let key = CertKey {
-            course_symbol: cert.course_symbol.clone(),
-            student: cert.student.clone(),
+        let now = env.ledger().timestamp();
+        let id = next_id(&env);
+        let auction = Auction {
+            id,
+            seller,
+            nft_contract,
+            token_id,
+            royalty_receiver,
+            royalty_bps,
+            kind: AuctionKind::English,
+            status: AuctionStatus::Open,
+            reserve_price,
+            buyout_price,
+            start_price: reserve_price,
+            end_price: reserve_price,
+            starts_at: now,
+            ends_at: checked_add_u64(now, duration),
+            highest_bidder: None,
+            highest_bid: 0,
         };
-
-        env.storage().persistent().set(&key, cert);
+        save_auction(&env, &auction);
         env.storage()
             .persistent()
-            .extend_ttl(&key, CERT_TTL_LEDGERS, CERT_TTL_LEDGERS);
-
-        Self::index_certificate_for_student(env, &cert.student, &cert.course_symbol);
-    }
-
-    fn load_student_did(env: &Env, student: &Address) -> Option<String> {
-        let current_did: Option<StudentDid> = env
-            .storage()
-            .persistent()
-            .get(&DataKey::StudentDid(student.clone()));
-
-        current_did.map(|entry| entry.did)
-    }
-
-    fn sync_did_to_student_certificates(env: &Env, student: &Address, did: Option<String>) {
-        let index_key = StudentCertificatesKey {
-            student: student.clone(),
-        };
-        let course_symbols: Vec<Symbol> = env
-            .storage()
-            .persistent()
-            .get(&index_key)
-            .unwrap_or_else(|| Vec::new(env));
-
-        for course_symbol in course_symbols.iter() {
-            let key = CertKey {
-                course_symbol: course_symbol.clone(),
-                student: student.clone(),
-            };
-
-            let stored_cert: Option<Certificate> = env.storage().persistent().get(&key);
-            if let Some(mut cert) = stored_cert {
-                cert.did = did.clone();
-                env.storage().persistent().set(&key, &cert);
-                env.storage()
-                    .persistent()
-                    .extend_ttl(&key, CERT_TTL_LEDGERS, CERT_TTL_LEDGERS);
-            }
-        }
-    }
-
-    fn index_certificate_for_student(env: &Env, student: &Address, course_symbol: &Symbol) {
-        let index_key = StudentCertificatesKey {
-            student: student.clone(),
-        };
-        let mut course_symbols: Vec<Symbol> = env
-            .storage()
-            .persistent()
-            .get(&index_key)
-            .unwrap_or_else(|| Vec::new(env));
-
-        let mut already_indexed = false;
-        for indexed_symbol in course_symbols.iter() {
-            if indexed_symbol == *course_symbol {
-                already_indexed = true;
-                break;
-            }
-        }
-
-        if !already_indexed {
-            course_symbols.push_back(course_symbol.clone());
-            env.storage().persistent().set(&index_key, &course_symbols);
-        }
-
-        env.storage()
-            .persistent()
-            .extend_ttl(&index_key, CERT_TTL_LEDGERS, CERT_TTL_LEDGERS);
-    }
-
-    /// Generate a course identifier hash (32 bytes) from a course symbol.
-    fn course_id_from_symbol(env: &Env, course_symbol: &Symbol) -> BytesN<32> {
-        let course_str = course_symbol.to_string();
-        let mut hasher = env.crypto().hasher();
-        hasher.update(course_str.as_bytes());
-        hasher.finalize()
-    }
-
-    /// Returns true if `account` has `role`. `Admin` matches the three governance addresses only.
-    pub fn has_role(env: Env, account: Address, role: Role) -> bool {
-        match role {
-            Role::Admin => Self::governance_admin_index(&env, &account).is_some(),
-            Role::Instructor | Role::Student => env
-                .storage()
-                .instance()
-                .get(&DataKey::Role(account))
-                .map(|r: Role| r == role)
-                .unwrap_or(false),
-        }
-    }
-
-    /// Grant `role` to `account`. Only governance admins may call. The `Admin` role cannot be granted
-    /// (governance membership is fixed at init).
-    pub fn grant_role(env: Env, caller: Address, account: Address, role: Role) {
-        caller.require_auth();
-        Self::require_governance_admin(&env, &caller);
-        if matches!(role, Role::Admin) {
-            panic_with_error!(&env, CertError::CannotGrantAdminRole);
-        }
-        env.storage()
-            .instance()
-            .set(&DataKey::Role(account.clone()), &role);
-
-        // Emit v1 event for backward compatibility
-        env.events().publish(
-            (Symbol::new(&env, "v1_role_granted"),),
-            (caller.clone(), account.clone(), role),
-        );
-
-        // Emit v2 event
-        let recorder = EventRecorder::new(&env, env.current_contract_address());
-        recorder.publisher.publish_role_granted(&caller, &account, role as u32);
-
-        // Record activity
-        let activity_mgr = ActivityLogManager::new(&env);
-        let env_ref = &env;
-        let hash_input = format!("{}:{}:{}", caller.to_xdr(env_ref).to_vec(), account.to_xdr(env_ref).to_vec(), role as u32);
-        let mut hasher = env.crypto().hasher();
-        hasher.update(hash_input.as_bytes());
-        let data_hash = hasher.finalize();
-        activity_mgr.record(
-            LogEventType::RoleGranted,
-            None,
-            &account,
-            data_hash,
-        );
-    }
-
-    /// Revoke the stored role for `account` (removes Instructor/Student assignment).
-    pub fn revoke_role(env: Env, caller: Address, account: Address) {
-        caller.require_auth();
-        Self::require_governance_admin(&env, &caller);
-        if Self::governance_admin_index(&env, &account).is_some() {
-            let r: Option<Role> = env
-                .storage()
-                .instance()
-                .get(&DataKey::Role(account.clone()));
-            if r == Some(Role::Instructor) {
-                panic_with_error!(&env, CertError::CannotRevokeProtectedInstructor);
-            }
-        }
-        env.storage()
-            .instance()
-            .remove(&DataKey::Role(account.clone()));
-
-        // Emit v1 event
-        env.events()
-            .publish((Symbol::new(&env, "v1_role_revoked"),), (caller.clone(), account.clone()));
-
-        // Emit v2 event
-        let recorder = EventRecorder::new(&env, env.current_contract_address());
-        recorder.publisher.publish_role_revoked(&caller, &account);
-
-        // Activity log
-        let activity_mgr = ActivityLogManager::new(&env);
-        let env_ref = &env;
-        let hash_input = format!("{}:{}", caller.to_xdr(env_ref).to_vec(), account.to_xdr(env_ref).to_vec());
-        let mut hasher = env.crypto().hasher();
-        hasher.update(hash_input.as_bytes());
-        let data_hash = hasher.finalize();
-        activity_mgr.record(
-            LogEventType::RoleRevoked,
-            None,
-            &account,
-            data_hash,
-        );
-    }
-
-    /// Circuit breaker: governance admin toggles pause for issuing (and linked token minting).
-    pub fn set_paused(env: Env, caller: Address, paused: bool) {
-        caller.require_auth();
-        Self::require_governance_admin(&env, &caller);
-        Self::acquire_lock(&env);
-        env.storage().instance().set(&DataKey::Paused, &paused);
-
-        let token: Option<Address> = env.storage().instance().get(&DataKey::PauseTokenContract);
-        if let Some(token_addr) = token {
-            let cert = env.current_contract_address();
-            RsTokenContractClient::new(&env, &token_addr).set_mint_pause(&cert, &paused);
-        }
-
-        Self::release_lock(&env);
-
-        // Emit v1 event
-        env.events()
-            .publish((Symbol::new(&env, "v1_pause_updated"),), (caller.clone(), paused));
-
-        // Emit v2 event
-        let recorder = EventRecorder::new(&env, env.current_contract_address());
-        recorder.publisher.publish_pause_updated(&caller, paused);
-
-        // Activity log
-        let activity_mgr = ActivityLogManager::new(&env);
-        let env_ref = &env;
-        let hash_input = format!("{}:{}", caller.to_xdr(env_ref).to_vec(), paused);
-        let mut hasher = env.crypto().hasher();
-        hasher.update(hash_input.as_bytes());
-        let data_hash = hasher.finalize();
-        activity_mgr.record(
-            LogEventType::PauseUpdated,
-            None,
-            &caller,
-            data_hash,
-        );
-    }
-
-    /// Link an RS-Token contract so `set_paused` also pauses token minting (via `set_mint_pause`).
-    pub fn set_pause_token_contract(env: Env, caller: Address, token: Address) {
-        caller.require_auth();
-        Self::require_governance_admin(&env, &caller);
-        env.storage()
-            .instance()
-            .set(&DataKey::PauseTokenContract, &token);
-    }
-
-    /// Propose a sensitive action. Returns the proposal id for `approve_action`.
-    pub fn propose_action(env: Env, caller: Address, action: PendingAdminAction) -> u64 {
-        caller.require_auth();
-        Self::require_governance_admin(&env, &caller);
-
-        let id: u64 = env
-            .storage()
-            .instance()
-            .get(&DataKey::NextProposalId)
-            .unwrap_or(0);
-        env.storage()
-            .instance()
-            .set(&DataKey::NextProposalId, &(id.wrapping_add(1)));
-
-        let idx = Self::governance_admin_index(&env, &caller)
-            .unwrap_or_else(|| panic_with_error!(&env, CertError::Unauthorized));
-        let bit: u32 = 1u32.wrapping_shl(idx);
-        let proposal = AdminProposal {
-            action,
-            approval_mask: bit,
-        };
-        env.storage()
-            .instance()
-            .set(&DataKey::Proposal(id), &proposal);
-
-        // Emit v1 event
-        env.events()
-            .publish((Symbol::new(&env, "v1_action_proposed"),), (caller.clone(), id));
-
-        // Emit v2 event
-        let recorder = EventRecorder::new(&env, env.current_contract_address());
-        recorder.publisher.publish_action_proposed(&caller, id);
-
-        // Activity log
-        let activity_mgr = ActivityLogManager::new(&env);
-        let env_ref = &env;
-        let hash_input = format!("{}:{}", caller.to_xdr(env_ref).to_vec(), id);
-        let mut hasher = env.crypto().hasher();
-        hasher.update(hash_input.as_bytes());
-        let data_hash = hasher.finalize();
-        activity_mgr.record(
-            LogEventType::ActionProposed,
-            None,
-            &caller,
-            data_hash,
-        );
-
+            .set(&DataKey::Escrowed(id), &true);
         id
     }
 
-    /// Second (and third) governance signatures. Executes the action when **2-of-3** mask bits are set.
-    pub fn approve_action(env: Env, caller: Address, proposal_id: u64) {
-        caller.require_auth();
-        Self::require_governance_admin(&env, &caller);
-
-        let key = DataKey::Proposal(proposal_id);
-        let mut proposal: AdminProposal = env
-            .storage()
-            .instance()
-            .get(&key)
-            .unwrap_or_else(|| panic_with_error!(&env, CertError::InvalidProposal));
-
-        let idx = Self::governance_admin_index(&env, &caller)
-            .unwrap_or_else(|| panic_with_error!(&env, CertError::Unauthorized));
-        let bit: u32 = 1u32.wrapping_shl(idx);
-        if proposal.approval_mask & bit != 0 {
-            panic_with_error!(&env, CertError::AlreadyApproved);
-        }
-        proposal.approval_mask |= bit;
-
-        let approvals = proposal.approval_mask.count_ones();
-        if approvals >= GOVERNANCE_THRESHOLD {
-            let action = proposal.action.clone();
-            env.storage().instance().remove(&key);
-            Self::execute_pending_action(env.clone(), action);
-            // v1 event emitted inside execute_pending_action
-        } else {
-            env.storage().instance().set(&key, &proposal);
-
-            // Emit v1 event
-            env.events().publish(
-                (Symbol::new(&env, "v1_action_approved"),),
-                (caller.clone(), proposal_id),
-            );
-
-            // Emit v2 event
-            let recorder = EventRecorder::new(&env, env.current_contract_address());
-            recorder.publisher.publish_action_approved(&caller, proposal_id);
-
-            // Activity log
-            let activity_mgr = ActivityLogManager::new(&env);
-            let env_ref = &env;
-            let hash_input = format!("{}:{}", caller.to_xdr(env_ref).to_vec(), proposal_id);
-            let mut hasher = env.crypto().hasher();
-            hasher.update(hash_input.as_bytes());
-            let data_hash = hasher.finalize();
-            activity_mgr.record(
-                LogEventType::ActionApproved,
-                None,
-                &caller,
-                data_hash,
-            );
-        }
-    }
-
-    /// Replace contract WASM. Requires **two different governance admins** to authorize in the
-    /// same invocation (2-of-3 membership). For async governance, use `propose_action` with
-    /// `PendingAdminAction::Upgrade` and `approve_action` instead.
-    pub fn upgrade(env: Env, signer_a: Address, signer_b: Address, new_wasm_hash: BytesN<32>) {
-        signer_a.require_auth();
-        signer_b.require_auth();
-        if signer_a == signer_b {
-            panic_with_error!(&env, CertError::Unauthorized);
-        }
-        Self::require_governance_admin(&env, &signer_a);
-        Self::require_governance_admin(&env, &signer_b);
-        env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
-
-        // Emit v1 event (repurposed for direct upgrade)
-        env.events().publish(
-            (Symbol::new(&env, "v1_emergency_rollback"),),
-            (signer_a.clone(), signer_b.clone(), 0, new_wasm_hash.clone()),
-        );
-
-        // Emit v2 event as UpgradeExecuted
-        let recorder = EventRecorder::new(&env, env.current_contract_address());
-        recorder.publisher.publish_upgrade_executed(&signer_a, new_wasm_hash.clone());
-
-        // Activity log
-        let activity_mgr = ActivityLogManager::new(&env);
-        let env_ref = &env;
-        let hash_input = format!("{}:{}", signer_a.to_xdr(env_ref).to_vec(), signer_b.to_xdr(env_ref).to_vec());
-        let mut hasher = env.crypto().hasher();
-        hasher.update(hash_input.as_bytes());
-        let data_hash = hasher.finalize();
-        activity_mgr.record(
-            LogEventType::UpgradeExecuted,
-            None,
-            &signer_a,
-            data_hash,
-        );
-    }
-
-    /// Propose an upgrade with time-lock (24-hour delay)
-    /// Returns the proposal ID for tracking
-    pub fn propose_upgrade_with_timelock(
+    /// Create a Dutch auction whose executable price decreases linearly.
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_dutch(
         env: Env,
-        caller: Address,
-        new_wasm_hash: BytesN<32>,
-        changelog: String,
+        seller: Address,
+        nft_contract: Address,
+        token_id: BytesN<32>,
+        start_price: i128,
+        end_price: i128,
+        duration: u64,
+        royalty_receiver: Address,
+        royalty_bps: u32,
     ) -> u64 {
-        caller.require_auth();
-        Self::require_governance_admin(&env, &caller);
-
-        let idx = Self::governance_admin_index(&env, &caller)
-            .unwrap_or_else(|| panic_with_error!(&env, CertError::Unauthorized));
-        let approval_mask = 1u32.wrapping_shl(idx);
-
-        upgrade::propose_upgrade(
-            &env,
-            new_wasm_hash.clone(),
-            caller.clone(),
-            approval_mask,
-            changelog.clone(),
-        );
-
-        // Emit v1 event
-        env.events().publish(
-            (Symbol::new(&env, "v1_upgrade_proposed"),),
-            (caller.clone(), new_wasm_hash.clone(), changelog.clone()),
-        );
-
-        // Emit v2 event
-        let recorder = EventRecorder::new(&env, env.current_contract_address());
-        recorder.publisher.publish_upgrade_proposed(&caller, new_wasm_hash, &changelog);
-
-        // Activity log
-        let activity_mgr = ActivityLogManager::new(&env);
-        let env_ref = &env;
-        let hash_input = format!("{}", caller.to_xdr(env_ref).to_vec().len());
-        let mut hasher = env.crypto().hasher();
-        hasher.update(hash_input.as_bytes());
-        let data_hash = hasher.finalize();
-        activity_mgr.record(
-            LogEventType::UpgradeProposed,
-            None,
-            &caller,
-            data_hash,
-        );
-
-        env.ledger().timestamp()
-    }
-
-    /// Approve a pending upgrade (requires 2-of-3 governance admins)
-    pub fn approve_pending_upgrade(env: Env, caller: Address) {
-        caller.require_auth();
-        Self::require_governance_admin(&env, &caller);
-
-        let mut pending = upgrade::get_pending_upgrade(&env)
-            .unwrap_or_else(|| panic_with_error!(&env, CertError::InvalidProposal));
-
-        let idx = Self::governance_admin_index(&env, &caller)
-            .unwrap_or_else(|| panic_with_error!(&env, CertError::Unauthorized));
-        let bit = 1u32.wrapping_shl(idx);
-
-        if pending.approval_mask & bit != 0 {
-            panic_with_error!(&env, CertError::AlreadyApproved);
+        seller.require_auth();
+        validate_price(start_price);
+        validate_price(end_price);
+        validate_royalty(royalty_bps);
+        if end_price > start_price {
+            panic!("dutch price must decline");
         }
 
-        pending.approval_mask |= bit;
-
+        let now = env.ledger().timestamp();
+        let id = next_id(&env);
+        let auction = Auction {
+            id,
+            seller,
+            nft_contract,
+            token_id,
+            royalty_receiver,
+            royalty_bps,
+            kind: AuctionKind::Dutch,
+            status: AuctionStatus::Open,
+            reserve_price: end_price,
+            buyout_price: start_price,
+            start_price,
+            end_price,
+            starts_at: now,
+            ends_at: checked_add_u64(now, duration),
+            highest_bidder: None,
+            highest_bid: 0,
+        };
+        save_auction(&env, &auction);
         env.storage()
-            .instance()
-            .set(&upgrade::UpgradeDataKey::PendingUpgrade, &pending);
-
-        // Emit v1 event
-        env.events().publish(
-            (Symbol::new(&env, "v1_upgrade_approved"),),
-            (caller.clone(), pending.approval_mask),
-        );
-
-        // Emit v2 event
-        let recorder = EventRecorder::new(&env, env.current_contract_address());
-        recorder.publisher.publish_upgrade_approved(&caller, pending.approval_mask);
-
-        // Activity log
-        let activity_mgr = ActivityLogManager::new(&env);
-        let env_ref = &env;
-        let hash_input = format!("{}:{}", caller.to_xdr(env_ref).to_vec(), pending.approval_mask);
-        let mut hasher = env.crypto().hasher();
-        hasher.update(hash_input.as_bytes());
-        let data_hash = hasher.finalize();
-        activity_mgr.record(
-            LogEventType::UpgradeApproved,
-            None,
-            &caller,
-            data_hash,
-        );
+            .persistent()
+            .set(&DataKey::Escrowed(id), &true);
+        id
     }
 
-    /// Execute a pending upgrade after time-lock expires and 2-of-3 approval
-    pub fn execute_pending_upgrade(env: Env, caller: Address) {
-        caller.require_auth();
-        Self::require_governance_admin(&env, &caller);
+    /// Place a bid. Outbid participants are credited for pull-based refunds.
+    pub fn bid(env: Env, auction_id: u64, bidder: Address, amount: i128) {
+        bidder.require_auth();
+        validate_price(amount);
 
-        let pending = upgrade::get_pending_upgrade(&env)
-            .unwrap_or_else(|| panic_with_error!(&env, CertError::InvalidProposal));
-
-        // Check if time-lock has expired
-        if !upgrade::is_timelock_expired(&env, &pending) {
-            panic!("Time-lock has not expired yet");
+        let mut auction = read_open_auction(&env, auction_id);
+        let now = env.ledger().timestamp();
+        if now < auction.starts_at || now > auction.ends_at {
+            panic!("auction not active");
         }
 
-        // Check if we have 2-of-3 approvals
-        let approvals = pending.approval_mask.count_ones();
-        if approvals < GOVERNANCE_THRESHOLD {
-            panic!("Insufficient approvals");
-        }
-
-        upgrade::execute_upgrade(&env, &pending);
-
-        // Emit v1 event
-        env.events().publish(
-            (Symbol::new(&env, "v1_upgrade_executed"),),
-            (caller.clone(), pending.new_wasm_hash.clone()),
-        );
-
-        // Emit v2 event
-        let recorder = EventRecorder::new(&env, env.current_contract_address());
-        recorder.publisher.publish_upgrade_executed(&caller, pending.new_wasm_hash.clone());
-
-        // Activity log
-        let activity_mgr = ActivityLogManager::new(&env);
-        let env_ref = &env;
-        let hash_input = format!("{}", pending.new_wasm_hash.to_xdr(env_ref).to_vec().len());
-        let mut hasher = env.crypto().hasher();
-        hasher.update(hash_input.as_bytes());
-        let data_hash = hasher.finalize();
-        activity_mgr.record(
-            LogEventType::UpgradeExecuted,
-            None,
-            &caller,
-            data_hash,
-        );
-    }
-
-    /// Cancel a pending upgrade (requires governance admin)
-    pub fn cancel_pending_upgrade(env: Env, caller: Address) {
-        caller.require_auth();
-        Self::require_governance_admin(&env, &caller);
-
-        upgrade::clear_pending_upgrade(&env);
-
-        // Emit v1 event
-        env.events()
-            .publish((Symbol::new(&env, "v1_upgrade_cancelled"),), caller.clone());
-
-        // Emit v2 event
-        let recorder = EventRecorder::new(&env, env.current_contract_address());
-        recorder.publisher.publish_upgrade_cancelled(&caller);
-
-        // Activity log
-        let activity_mgr = ActivityLogManager::new(&env);
-        let env_ref = &env;
-        let hash_input = format!("{}", caller.to_xdr(env_ref).to_vec().len());
-        let mut hasher = env.crypto().hasher();
-        hasher.update(hash_input.as_bytes());
-        let data_hash = hasher.finalize();
-        activity_mgr.record(
-            LogEventType::UpgradeCancelled,
-            None,
-            &caller,
-            data_hash,
-        );
-    }
-
-    /// Get the current contract version
-    pub fn get_current_version(env: Env) -> u32 {
-        upgrade::get_current_version(&env)
-    }
-
-    /// Get the complete version history
-    pub fn get_version_history(env: Env) -> Vec<ContractVersion> {
-        upgrade::get_version_history(&env)
-    }
-
-    /// Get a specific version from history
-    pub fn get_version(env: Env, version: u32) -> Option<ContractVersion> {
-        upgrade::get_version(&env, version)
-    }
-
-    /// Get pending upgrade details
-    pub fn get_pending_upgrade(env: Env) -> Option<PendingUpgrade> {
-        upgrade::get_pending_upgrade(&env)
-    }
-
-    /// Emergency rollback to a previous version (requires 2-of-3 governance admins)
-    pub fn emergency_rollback(env: Env, signer_a: Address, signer_b: Address, target_version: u32) {
-        signer_a.require_auth();
-        signer_b.require_auth();
-        if signer_a == signer_b {
-            panic_with_error!(&env, CertError::Unauthorized);
-        }
-        Self::require_governance_admin(&env, &signer_a);
-        Self::require_governance_admin(&env, &signer_b);
-
-        let wasm_hash = upgrade::rollback_to_version(&env, target_version)
-            .unwrap_or_else(|| panic!("Version not found in history"));
-
-        // Emit v1 event
-        env.events().publish(
-            (Symbol::new(&env, "v1_emergency_rollback"),),
-            (signer_a.clone(), signer_b.clone(), target_version, wasm_hash.clone()),
-        );
-
-        // Emit v2 event
-        let recorder = EventRecorder::new(&env, env.current_contract_address());
-        recorder.publisher.publish_emergency_rollback(
-            &signer_a,
-            &signer_b,
-            target_version,
-            wasm_hash.clone(),
-        );
-
-        // Activity log
-        let activity_mgr = ActivityLogManager::new(&env);
-        let env_ref = &env;
-        let hash_input = format!("{}:{}:{}", signer_a.to_xdr(env_ref).to_vec(), signer_b.to_xdr(env_ref).to_vec(), target_version);
-        let mut hasher = env.crypto().hasher();
-        hasher.update(hash_input.as_bytes());
-        let data_hash = hasher.finalize();
-        activity_mgr.record(
-            LogEventType::EmergencyRollback,
-            None,
-            &signer_a,
-            data_hash,
-        );
-    }
-
-    /// Add an admin with specific role and permissions
-    pub fn add_admin_with_role(env: Env, caller: Address, new_admin: Address, role: AdminRole) {
-        caller.require_auth();
-        Self::require_governance_admin(&env, &caller);
-
-        let permissions = admin::get_default_permissions(&env, role);
-        admin::add_admin(&env, new_admin.clone(), role, permissions);
-
-        // Emit v1 event
-        env.events().publish(
-            (Symbol::new(&env, "v1_admin_added"),),
-            (caller.clone(), new_admin.clone(), role),
-        );
-
-        // Emit v2 event
-        let recorder = EventRecorder::new(&env, env.current_contract_address());
-        recorder.publisher.publish_admin_added(&caller, &new_admin, role as u32);
-
-        // Activity log
-        let activity_mgr = ActivityLogManager::new(&env);
-        let env_ref = &env;
-        let hash_input = format!("{}:{}", caller.to_xdr(env_ref).to_vec(), new_admin.to_xdr(env_ref).to_vec());
-        let mut hasher = env.crypto().hasher();
-        hasher.update(hash_input.as_bytes());
-        let data_hash = hasher.finalize();
-        activity_mgr.record(
-            LogEventType::AdminAdded,
-            None,
-            &new_admin,
-            data_hash,
-        );
-    }
-
-    /// Remove an admin
-    pub fn remove_admin_role(env: Env, caller: Address, admin_to_remove: Address) {
-        caller.require_auth();
-        Self::require_governance_admin(&env, &caller);
-
-        admin::remove_admin(&env, &admin_to_remove);
-
-        // Emit v1 event
-        env.events().publish(
-            (Symbol::new(&env, "v1_admin_removed"),),
-            (caller.clone(), admin_to_remove.clone()),
-        );
-
-        // Emit v2 event
-        let recorder = EventRecorder::new(&env, env.current_contract_address());
-        recorder.publisher.publish_admin_removed(&caller, &admin_to_remove);
-
-        // Activity log
-        let activity_mgr = ActivityLogManager::new(&env);
-        let env_ref = &env;
-        let hash_input = format!("{}", admin_to_remove.to_xdr(env_ref).to_vec().len());
-        let mut hasher = env.crypto().hasher();
-        hasher.update(hash_input.as_bytes());
-        let data_hash = hasher.finalize();
-        activity_mgr.record(
-            LogEventType::AdminRemoved,
-            None,
-            &caller,
-            data_hash,
-        );
-    }
-
-    /// Get admin policy for an address
-    pub fn get_admin_policy(env: Env, address: Address) -> Option<AdminPolicy> {
-        admin::get_admin_policy(&env, &address)
-    }
-
-    /// Check if an address has a specific permission
-    pub fn check_permission(env: Env, address: Address, permission: Permission) -> bool {
-        admin::has_permission(&env, &address, permission)
-    }
-
-    /// Transfer contract ownership
-    pub fn transfer_ownership(env: Env, caller: Address, new_owner: Address) {
-        caller.require_auth();
-        Self::require_governance_admin(&env, &caller);
-
-        admin::transfer_ownership(&env, new_owner.clone());
-
-        // Emit v1 event
-        env.events().publish(
-            (Symbol::new(&env, "v1_ownership_transferred"),),
-            (caller.clone(), new_owner.clone()),
-        );
-
-        // Emit v2 event
-        let recorder = EventRecorder::new(&env, env.current_contract_address());
-        recorder.publisher.publish_ownership_transferred(&caller, &new_owner);
-
-        // Activity log
-        let activity_mgr = ActivityLogManager::new(&env);
-        let env_ref = &env;
-        let hash_input = format!("{}:{}", caller.to_xdr(env_ref).to_vec(), new_owner.to_xdr(env_ref).to_vec());
-        let mut hasher = env.crypto().hasher();
-        hasher.update(hash_input.as_bytes());
-        let data_hash = hasher.finalize();
-        activity_mgr.record(
-            LogEventType::OwnershipTransferred,
-            None,
-            &new_owner,
-            data_hash,
-        );
-    }
-
-    fn execute_pending_action(env: Env, action: PendingAdminAction) {
-        match action {
-            PendingAdminAction::SetMintCap(new_cap) => {
-                if new_cap == 0 {
-                    panic_with_error!(&env, CertError::InvalidMintCap);
+        match auction.kind {
+            AuctionKind::English => {
+                if amount < auction.reserve_price || amount <= auction.highest_bid {
+                    panic!("bid too low");
                 }
-                let old_cap: u32 = env
-                    .storage()
-                    .instance()
-                    .get(&DataKey::MintCap)
-                    .unwrap_or(DEFAULT_MINT_CAP);
-                env.storage().instance().set(&DataKey::MintCap, &new_cap);
-
-                // Emit v1 event
-                env.events().publish(
-                    (Symbol::new(&env, "v1_mint_cap_updated"),),
-                    (old_cap, new_cap),
-                );
-
-                // Emit v2 event
-                let recorder = EventRecorder::new(&env, env.current_contract_address());
-                recorder.publisher.publish_mint_cap_updated(old_cap, new_cap);
-
-                // Activity log
-                let activity_mgr = ActivityLogManager::new(&env);
-                let caller = env.caller();
-                let env_ref = &env;
-                let hash_input = format!("{}:{}", old_cap, new_cap);
-                let mut hasher = env.crypto().hasher();
-                hasher.update(hash_input.as_bytes());
-                let data_hash = hasher.finalize();
-                activity_mgr.record(
-                    LogEventType::MintCapUpdated,
-                    None,
-                    &caller,
-                    data_hash,
-                );
-            }
-            PendingAdminAction::Upgrade(new_wasm_hash) => {
-                env.deployer().update_current_contract_wasm(new_wasm_hash);
-            }
-        }
-    }
-
-    /// Issue certificates. Caller must have the **Instructor** role. Respects mint cap and pause.
-    pub fn issue(
-        env: Env,
-        instructor: Address,
-        course_symbol: Symbol,
-        students: Vec<Address>,
-        course_name: String,
-    ) -> Vec<Certificate> {
-        instructor.require_auth();
-        Self::require_not_paused(&env);
-        Self::require_instructor(&env, &instructor);
-        Self::acquire_lock(&env);
-
-        Self::validate_string(&env, &course_name, 128);
-
-        let student_count = students.len();
-        let available = Self::check_and_update_mint_tracking(&env);
-        if student_count > available {
-            Self::release_lock(&env);
-            panic_with_error!(&env, CertError::MintCapExceeded);
-        }
-
-        Self::record_mint(&env, student_count);
-
-        let issue_date = env.ledger().timestamp();
-        let mut issued: Vec<Certificate> = Vec::new(&env);
-
-        // Statistics and activity log managers
-        let stats_mgr = StatisticsManager::new(&env);
-        let activity_mgr = ActivityLogManager::new(&env);
-        let contract_address = env.current_contract_address();
-
-        for student in students.iter() {
-            // Generate token_id for this certificate
-            let token_id = generate_token_id(&env, &course_symbol, student);
-
-            let cert = Certificate {
-                course_symbol: course_symbol.clone(),
-                student: student.clone(),
-                course_name: course_name.clone(),
-                issue_date,
-                did: Self::load_student_did(&env, &student),
-                revoked: false,
-                grade: None,
-            };
-
-            Self::persist_certificate(&env, &cert);
-
-            // Compute metadata hash
-            let metadata_hash = compute_metadata_hash(&env, &course_name, &None, &cert.did);
-
-            // Emit v2 comprehensive event
-            let recorder = EventRecorder::new(&env, contract_address);
-            recorder.record_minted(
-                token_id,
-                student,
-                Self::course_id_from_symbol(&env, &course_symbol),
-                metadata_hash,
-                &instructor,
-            );
-
-            // Update statistics
-            stats_mgr.increment_minted(token_id, student, &Self::course_id_from_symbol(&env, &course_symbol));
-
-            // Record activity
-            activity_mgr.record(
-                LogEventType::Minted,
-                Some(token_id),
-                student,
-                metadata_hash,
-            );
-
-            // Also emit old v1 event for backward compatibility
-            env.events().publish(
-                (Symbol::new(&env, "v1_cert_issued"), course_symbol.clone()),
-                (student.clone(), course_name.clone()),
-            );
-
-            issued.push_back(cert);
-        }
-
-        env.events().publish(
-            (Symbol::new(&env, "v1_mint_period_update"),),
-            (env.ledger().sequence() / LEDGERS_PER_PERIOD, student_count),
-        );
-
-        Self::release_lock(&env);
-        issued
-    }
-
-    /// Batch issue certificates for multiple course symbols and students in a single transaction.
-    /// Caller must have **Instructor** role. Respects mint cap and pause.
-    /// Optimized for gas efficiency and Soroban compute limits.
-    pub fn batch_issue(
-        env: Env,
-        instructor: Address,
-        symbols: Vec<Symbol>,
-        students: Vec<Address>,
-        course: String,
-    ) -> Vec<Certificate> {
-        instructor.require_auth();
-        Self::require_not_paused(&env);
-        Self::require_instructor(&env, &instructor);
-        Self::acquire_lock(&env);
-
-        Self::validate_string(&env, &course, 128);
-
-        // Validate input lengths match
-        if symbols.len() != students.len() {
-            Self::release_lock(&env);
-            panic_with_error!(&env, CertError::InvalidAmount);
-        }
-
-        let total_certificates = symbols.len();
-
-        // Validate batch size
-        if total_certificates == 0 {
-            Self::release_lock(&env);
-            panic_with_error!(&env, CertError::EmptyBatch);
-        }
-
-        if total_certificates > MAX_BATCH_SIZE {
-            Self::release_lock(&env);
-            panic_with_error!(&env, CertError::BatchTooLarge);
-        }
-
-        let available = Self::check_and_update_mint_tracking(&env);
-        if total_certificates > available {
-            Self::release_lock(&env);
-            panic_with_error!(&env, CertError::MintCapExceeded);
-        }
-
-        Self::record_mint(&env, total_certificates);
-
-        let issue_date = env.ledger().timestamp();
-        let mut issued: Vec<Certificate> = Vec::new(&env);
-
-        // Managers
-        let stats_mgr = StatisticsManager::new(&env);
-        let activity_mgr = ActivityLogManager::new(&env);
-        let contract_address = env.current_contract_address();
-
-        // Optimized loop: minimize storage operations and compute
-        for i in 0..total_certificates {
-            let course_symbol = symbols.get(i).unwrap();
-            let student = students.get(i).unwrap();
-
-            let token_id = generate_token_id(&env, course_symbol, student);
-            token_ids.push_back(token_id);
-
-            let cert = Certificate {
-                course_symbol: course_symbol.clone(),
-                student: student.clone(),
-                course_name: course.clone(),
-                issue_date,
-                did: Self::load_student_did(&env, &student),
-                revoked: false,
-                grade: None,
-            };
-
-            Self::persist_certificate(&env, &cert);
-
-            // Compute metadata hash
-            let metadata_hash = compute_metadata_hash(&env, &course, &None, &cert.did);
-
-            // Emit individual certificate event (v2)
-            let recorder = EventRecorder::new(&env, contract_address);
-            recorder.record_minted(
-                token_id,
-                student,
-                Self::course_id_from_symbol(&env, course_symbol),
-                metadata_hash,
-                &instructor,
-            );
-
-            // Update stats per certificate
-            stats_mgr.increment_minted(token_id, student, &Self::course_id_from_symbol(&env, course_symbol));
-
-            // Record activity for this certificate
-            activity_mgr.record(
-                LogEventType::Minted,
-                Some(token_id),
-                student,
-                metadata_hash,
-            );
-
-            // Batch event emission (emit one event per certificate for transparency)
-            env.events().publish(
-                (
-                    Symbol::new(&env, "v1_batch_cert_issued"),
-                    Symbol::new(&env, "batch_cert_issued"),
-                    course_symbol.clone(),
-                ),
-                (student.clone(), course.clone()),
-            );
-
-            issued.push_back(cert);
-        }
-
-        // Emit summary event for the entire batch operation
-        let batch_recorder = EventRecorder::new(&env, contract_address);
-        batch_recorder.record_batch_minted(
-            token_ids.clone(),
-            Self::course_id_from_symbol(&env, symbols.get(0).unwrap()),
-            total_certificates as u32,
-            &instructor,
-        );
-
-        // Batch completion event (v1)
-        env.events().publish(
-            (Symbol::new(&env, "v1_batch_issue_completed"),),
-            (instructor.clone(), total_certificates, course.clone()),
-        );
-
-        env.events().publish(
-            (Symbol::new(&env, "mint_period_update"),),
-            (
-                env.ledger().sequence() / LEDGERS_PER_PERIOD,
-                total_certificates,
-            ),
-        );
-
-        Self::release_lock(&env);
-        issued
-    }
-
-    /// Enhanced batch minting with individual recipient metadata.
-    /// Supports up to 100 certificates per transaction with optimized gas usage.
-    ///
-    /// # Arguments
-    /// * `recipients` - Vector of recipient data including address, course_symbol, and optional grade
-    /// * `course_name` - Course name shared across all certificates
-    ///
-    /// # Gas Optimization
-    /// - Shared course name and timestamp across batch
-    /// - Optimized storage writes
-    /// - Batched event emission
-    /// - Pre-computed values to minimize redundant operations
-    ///
-    /// # Returns
-    /// Vector of issued certificates or panics on error
-    pub fn mint_batch_certificates(
-        env: Env,
-        instructor: Address,
-        recipients: Vec<RecipientData>,
-        course_name: String,
-    ) -> Vec<Certificate> {
-        instructor.require_auth();
-        Self::require_not_paused(&env);
-        Self::require_instructor(&env, &instructor);
-        Self::acquire_lock(&env);
-
-        // Validate course name
-        Self::validate_string(&env, &course_name, 128);
-
-        let batch_size = recipients.len();
-
-        // Validate batch constraints
-        if batch_size == 0 {
-            Self::release_lock(&env);
-            panic_with_error!(&env, CertError::EmptyBatch);
-        }
-
-        if batch_size > MAX_BATCH_SIZE {
-            Self::release_lock(&env);
-            panic_with_error!(&env, CertError::BatchTooLarge);
-        }
-
-        // Check mint cap
-        let available = Self::check_and_update_mint_tracking(&env);
-        if batch_size > available {
-            Self::release_lock(&env);
-            panic_with_error!(&env, CertError::MintCapExceeded);
-        }
-
-        // Validate all grades before processing
-        for i in 0..batch_size {
-            let recipient = recipients.get(i).unwrap();
-            if let Some(grade) = &recipient.grade {
-                Self::validate_string(&env, grade, 10);
-            }
-        }
-
-        Self::record_mint(&env, batch_size);
-
-        // Shared timestamp for entire batch (gas optimization)
-        let issue_date = env.ledger().timestamp();
-        let mut issued: Vec<Certificate> = Vec::new(&env);
-
-        // Managers
-        let stats_mgr = StatisticsManager::new(&env);
-        let activity_mgr = ActivityLogManager::new(&env);
-        let contract_address = env.current_contract_address();
-
-        // Process each recipient with optimized storage operations
-        for i in 0..batch_size {
-            let recipient = recipients.get(i).unwrap();
-
-            let token_id = generate_token_id(&env, &recipient.course_symbol, &recipient.address);
-            token_ids.push_back(token_id);
-
-            let cert = Certificate {
-                course_symbol: recipient.course_symbol.clone(),
-                student: recipient.address.clone(),
-                course_name: course_name.clone(),
-                issue_date,
-                did: Self::load_student_did(&env, &recipient.address),
-                revoked: false,
-                grade: recipient.grade.clone(),
-            };
-
-            Self::persist_certificate(&env, &cert);
-
-            // Compute metadata hash
-            let metadata_hash = compute_metadata_hash(&env, &course_name, &recipient.grade, &cert.did);
-
-            // Emit individual certificate event (v2)
-            let recorder = EventRecorder::new(&env, contract_address);
-            recorder.record_minted(
-                token_id,
-                &recipient.address,
-                Self::course_id_from_symbol(&env, &recipient.course_symbol),
-                metadata_hash,
-                &instructor,
-            );
-
-            // Update stats
-            stats_mgr.increment_minted(
-                token_id,
-                &recipient.address,
-                &Self::course_id_from_symbol(&env, &recipient.course_symbol),
-            );
-
-            // Record activity
-            activity_mgr.record(
-                LogEventType::Minted,
-                Some(token_id),
-                &recipient.address,
-                metadata_hash,
-            );
-
-            // Also emit old v1 per-certificate event
-            env.events().publish(
-                (
-                    Symbol::new(&env, "v1_batch_cert_issued"),
-                    Symbol::new(&env, "batch_cert_issued"),
-                    recipient.course_symbol.clone(),
-                ),
-                (recipient.address.clone(), course_name.clone()),
-            );
-
-            issued.push_back(cert);
-        }
-
-        // Emit batch completion event (v2) with full token ID list
-        let batch_recorder = EventRecorder::new(&env, contract_address);
-        let first_recipient = recipients.get(0).unwrap();
-        batch_recorder.record_batch_minted(
-            token_ids.clone(),
-            Self::course_id_from_symbol(&env, &first_recipient.course_symbol),
-            batch_size as u32,
-            &instructor,
-        );
-
-        // Batch issue completed event (v1)
-        env.events().publish(
-            (Symbol::new(&env, "v1_batch_mint_completed"),),
-            (instructor.clone(), batch_size, course_name.clone()),
-        );
-
-        env.events().publish(
-            (Symbol::new(&env, "mint_period_update"),),
-            (env.ledger().sequence() / LEDGERS_PER_PERIOD, batch_size),
-        );
-
-        Self::release_lock(&env);
-        issued
-    }
-
-    pub fn revoke(env: Env, caller: Address, course_symbol: Symbol, student: Address) {
-        caller.require_auth();
-        Self::require_governance_admin(&env, &caller);
-
-        let key = CertKey {
-            course_symbol: course_symbol.clone(),
-            student: student.clone(),
-        };
-
-        let mut cert: Certificate = env.storage().persistent().get(&key).unwrap_or_else(|| {
-            panic_with_error!(&env, CertError::CertificateNotFound);
-        });
-
-        cert.revoked = true;
-        env.storage().persistent().set(&key, &cert);
-        env.storage()
-            .persistent()
-            .extend_ttl(&key, CERT_TTL_LEDGERS, CERT_TTL_LEDGERS);
-
-        // Generate token ID for this certificate
-        let token_id = generate_token_id(&env, &course_symbol, &student);
-
-        // Emit v1 event
-        env.events().publish(
-            (Symbol::new(&env, "v1_cert_revoked"), course_symbol.clone()),
-            (caller.clone(), student.clone()),
-        );
-
-        // Emit v2 event (with reason enum - 0 = AdminRevoke)
-        let recorder = EventRecorder::new(&env, env.current_contract_address());
-        recorder.publisher.publish_revoked(token_id, &caller, 0); // 0 = AdminRevoke
-
-        // Update statistics
-        let stats_mgr = StatisticsManager::new(&env);
-        stats_mgr.increment_revoked();
-        stats_mgr.increment_course_revoked(&Self::course_id_from_symbol(&env, &course_symbol));
-
-        // Activity log - address = student (affected party)
-        let activity_mgr = ActivityLogManager::new(&env);
-        let env_ref = &env;
-        let hash_input = format!("{}:{}:0", token_id, caller.to_xdr(env_ref).to_vec());
-        let mut hasher = env.crypto().hasher();
-        hasher.update(hash_input.as_bytes());
-        let data_hash = hasher.finalize();
-        activity_mgr.record(
-            LogEventType::Revoked,
-            Some(token_id),
-            &student,
-            data_hash,
-        );
-    }
-
-    pub fn get_certificate(
-        env: Env,
-        course_symbol: Symbol,
-        student: Address,
-    ) -> Option<Certificate> {
-        let key = CertKey {
-            course_symbol,
-            student,
-        };
-        env.storage().persistent().get(&key)
-    }
-
-    /// Returns every certificate indexed for a student across all course symbols.
-    pub fn get_certificates_by_student(env: Env, student: Address) -> Vec<Certificate> {
-        let index_key = StudentCertificatesKey {
-            student: student.clone(),
-        };
-        let course_symbols: Vec<Symbol> = env
-            .storage()
-            .persistent()
-            .get(&index_key)
-            .unwrap_or_else(|| Vec::new(&env));
-        let mut certificates = Vec::new(&env);
-
-        for course_symbol in course_symbols.iter() {
-            if let Some(cert) =
-                Self::get_certificate(env.clone(), course_symbol.clone(), student.clone())
-            {
-                certificates.push_back(cert);
-            }
-        }
-
-        certificates
-    }
-
-    /// Extend the TTL of a certificate entry in persistent storage.
-    /// The student (or a governance admin) pays for the storage rent extension.
-    pub fn renew_certificate(env: Env, caller: Address, course_symbol: Symbol, student: Address) {
-        caller.require_auth();
-
-        // Only the student themselves or a governance admin may renew.
-        let is_admin = Self::governance_admin_index(&env, &caller).is_some();
-        if caller != student && !is_admin {
-            panic_with_error!(&env, CertError::Unauthorized);
-        }
-
-        let key = CertKey {
-            course_symbol: course_symbol.clone(),
-            student: student.clone(),
-        };
-
-        if !env.storage().persistent().has(&key) {
-            panic_with_error!(&env, CertError::CertificateNotFound);
-        }
-
-        env.storage()
-            .persistent()
-            .extend_ttl(&key, CERT_TTL_LEDGERS, CERT_TTL_LEDGERS);
-
-        // Emit v1 event
-        env.events().publish(
-            (Symbol::new(&env, "cert_renewed"), course_symbol),
-            (caller.clone(), student.clone()),
-        );
-
-        // Emit v2 event
-        let token_id = generate_token_id(&env, &course_symbol, &student);
-        let new_expiry = env.ledger().timestamp().saturating_add(CERT_TTL_LEDGERS as u64 * 5); // 5 seconds per ledger
-        let recorder = EventRecorder::new(&env, env.current_contract_address());
-        recorder.publisher.publish_renewed(token_id, &caller, new_expiry);
-
-        // Update statistics
-        let stats_mgr = StatisticsManager::new(&env);
-        stats_mgr.increment_renewed();
-
-        // Activity log - use student as address (affected party)
-        let activity_mgr = ActivityLogManager::new(&env);
-        let env_ref = &env;
-        let hash_input = format!("{}:{}:{}", token_id, caller.to_xdr(env_ref).to_vec(), new_expiry);
-        let mut hasher = env.crypto().hasher();
-        hasher.update(hash_input.as_bytes());
-        let data_hash = hasher.finalize();
-        activity_mgr.record(
-            LogEventType::Renewed,
-            Some(token_id),
-            &student,
-            data_hash,
-        );
-    }
-
-    pub fn execute_meta_tx(
-        env: Env,
-        signature: BytesN<64>,
-        call_data: MetaTxCallData,
-    ) -> Certificate {
-        // instructor.require_auth(); // No longer needed as we're verifying the signature manually
-        Self::require_not_paused(&env);
-        Self::require_instructor(&env, &call_data.instructor);
-        Self::acquire_lock(&env);
-
-        Self::validate_string(&env, &call_data.course_name, 128);
-
-        // Verify the signature on the call data
-        if signature.len() != 64 {
-            Self::release_lock(&env);
-            panic_with_error!(&env, CertError::InvalidSignature);
-        }
-
-        let nonce_key = (
-            Symbol::new(&env, NONCE_PREFIX),
-            call_data.instructor.clone(),
-        );
-        let stored_nonce: u64 = env.storage().instance().get(&nonce_key).unwrap_or(0u64);
-
-        if call_data.nonce != stored_nonce {
-            Self::release_lock(&env);
-            panic!("invalid nonce");
-        }
-
-        env.storage()
-            .instance()
-            .set(&nonce_key, &(stored_nonce + 1));
-
-        let issue_date = env.ledger().timestamp();
-        let available = Self::check_and_update_mint_tracking(&env);
-        if available < 1 {
-            Self::release_lock(&env);
-            panic_with_error!(&env, CertError::MintCapExceeded);
-        }
-        Self::record_mint(&env, 1);
-
-        let token_id = generate_token_id(&env, &call_data.course_symbol, &call_data.student);
-
-        let cert = Certificate {
-            course_symbol: call_data.course_symbol.clone(),
-            student: call_data.student.clone(),
-            course_name: call_data.course_name.clone(),
-            issue_date,
-            did: Self::load_student_did(&env, &call_data.student),
-            revoked: false,
-            grade: None,
-        };
-
-        Self::persist_certificate(&env, &cert);
-
-        // Compute metadata hash
-        let metadata_hash = compute_metadata_hash(&env, &call_data.course_name, &None, &cert.did);
-
-        // Emit v2 event
-        let recorder = EventRecorder::new(&env, env.current_contract_address());
-        recorder.record_minted(
-            token_id,
-            &call_data.student,
-            Self::course_id_from_symbol(&env, &call_data.course_symbol),
-            metadata_hash,
-            &call_data.instructor,
-        );
-
-        // Update statistics
-        let stats_mgr = StatisticsManager::new(&env);
-        stats_mgr.increment_minted(
-            token_id,
-            &call_data.student,
-            &Self::course_id_from_symbol(&env, &call_data.course_symbol),
-        );
-
-        // Record activity - address is the student (recipient)
-        let activity_mgr = ActivityLogManager::new(&env);
-        activity_mgr.record(
-            LogEventType::Minted,
-            Some(token_id),
-            &call_data.student,
-            metadata_hash,
-        );
-
-        // Emit v1 event for backward compatibility
-        env.events().publish(
-            (
-                Symbol::new(&env, "v1_meta_tx_issued"),
-                call_data.course_symbol.clone(),
-            ),
-            (
-                call_data.instructor.clone(),
-                call_data.student.clone(),
-                call_data.course_name.clone(),
-            ),
-        );
-
-        Self::release_lock(&env);
-        cert
-    }
-
-    pub fn get_nonce(env: Env, instructor: Address) -> u64 {
-        let nonce_key = (Symbol::new(&env, NONCE_PREFIX), instructor);
-        env.storage().instance().get(&nonce_key).unwrap_or(0u64)
-    }
-
-    pub fn get_mint_cap(env: Env, caller: Address) -> u32 {
-        caller.require_auth();
-        Self::require_governance_admin(&env, &caller);
-
-        env.storage()
-            .instance()
-            .get(&DataKey::MintCap)
-            .unwrap_or(DEFAULT_MINT_CAP)
-    }
-
-    pub fn get_mint_stats(env: Env, caller: Address) -> (u32, u32, u32, u32) {
-        caller.require_auth();
-        Self::require_governance_admin(&env, &caller);
-
-        let current_period = env.ledger().sequence() / LEDGERS_PER_PERIOD;
-        let minted_this_period: u32 = env
-            .storage()
-            .instance()
-            .get(&DataKey::MintedThisPeriod)
-            .unwrap_or(0);
-        let mint_cap: u32 = env
-            .storage()
-            .instance()
-            .get(&DataKey::MintCap)
-            .unwrap_or(DEFAULT_MINT_CAP);
-        let remaining = mint_cap.saturating_sub(minted_this_period);
-
-        (current_period, minted_this_period, mint_cap, remaining)
-    }
-
-    pub fn update_did(env: Env, caller: Address, did: String) {
-        caller.require_auth();
-
-        Self::require_valid_did_format(&did);
-
-        let timestamp = env.ledger().timestamp();
-        let did_key = DataKey::StudentDid(caller.clone());
-
-        let student_did = StudentDid {
-            student: caller.clone(),
-            did: did.clone(),
-            updated_at: timestamp,
-        };
-
-        env.storage().persistent().set(&did_key, &student_did);
-        env.storage()
-            .persistent()
-            .extend_ttl(&did_key, CERT_TTL_LEDGERS, CERT_TTL_LEDGERS);
-        Self::sync_did_to_student_certificates(&env, &caller, Some(did.clone()));
-
-        // Emit v1 event
-        env.events().publish(
-            (Symbol::new(&env, "v1_did_updated"),),
-            (caller.clone(), did.clone(), timestamp),
-        );
-
-        // Emit v2 event
-        let recorder = EventRecorder::new(&env, env.current_contract_address());
-        recorder.publisher.publish_did_updated(&caller, &did, timestamp);
-
-        // Activity log
-        let activity_mgr = ActivityLogManager::new(&env);
-        let env_ref = &env;
-        let hash_input = format!("{}:{}", caller.to_xdr(env_ref).to_vec(), did);
-        let mut hasher = env.crypto().hasher();
-        hasher.update(hash_input.as_bytes());
-        let data_hash = hasher.finalize();
-        activity_mgr.record(
-            LogEventType::DidUpdated,
-            None,
-            &caller,
-            data_hash,
-        );
-    }
-
-    pub fn get_did(env: Env, student: Address) -> Option<StudentDid> {
-        env.storage()
-            .persistent()
-            .get(&DataKey::StudentDid(student))
-    }
-
-    pub fn remove_did(env: Env, caller: Address, student: Address) {
-        caller.require_auth();
-        Self::require_governance_admin(&env, &caller);
-
-        let did_key = DataKey::StudentDid(student.clone());
-        let existing_did: Option<StudentDid> = env.storage().persistent().get(&did_key);
-
-        if existing_did.is_none() {
-            panic_with_error!(&env, CertError::DidNotFound);
-        }
-
-        env.storage().persistent().remove(&did_key);
-        Self::sync_did_to_student_certificates(&env, &student, None);
-
-        // Emit v1 event
-        env.events()
-            .publish((Symbol::new(&env, "v1_did_removed"),), (caller.clone(), student.clone()));
-
-        // Emit v2 event
-        let recorder = EventRecorder::new(&env, env.current_contract_address());
-        recorder.publisher.publish_did_removed(&caller, &student);
-
-        // Activity log - address = student (affected)
-        let activity_mgr = ActivityLogManager::new(&env);
-        let env_ref = &env;
-        let hash_input = format!("{}", student.to_xdr(env_ref).to_vec().len());
-        let mut hasher = env.crypto().hasher();
-        hasher.update(hash_input.as_bytes());
-        let data_hash = hasher.finalize();
-        activity_mgr.record(
-            LogEventType::DidRemoved,
-            None,
-            &student,
-            data_hash,
-        );
-    }
-
-    /// Enforce a max byte length and reject non-printable ASCII characters (< 0x20 or == 0x7F).
-    fn validate_string(env: &Env, s: &String, max_len: u32) {
-        if s.len() > max_len {
-            panic_with_error!(env, CertError::StringTooLong);
-        }
-        let n = s.len() as usize;
-        let mut buf = [0u8; 256];
-        // max_len is caller-controlled; we only need to read up to `n` bytes.
-        // buf is 256 bytes — callers must not pass max_len > 256.
-        s.copy_into_slice(&mut buf[..n]);
-        for &byte in &buf[..n] {
-            if byte < 0x20 || byte == 0x7F {
-                panic_with_error!(env, CertError::InvalidCharacter);
-            }
-        }
-    }
-
-    /// Accepts `did:soroban:<network>:<identifier>[#fragment]` and rejects whitespace or control chars.
-    fn require_valid_did_format(did: &String) {
-        const PREFIX: &[u8] = b"did:soroban:";
-        const MAX_LEN: u32 = 256;
-        let n = did.len();
-        if n <= PREFIX.len() as u32 || n > MAX_LEN {
-            panic_with_error!(did.env(), CertError::InvalidDid);
-        }
-        let mut buf = [0u8; 256];
-        did.copy_into_slice(&mut buf[..n as usize]);
-        let bytes = &buf[..n as usize];
-        if !bytes.starts_with(PREFIX) {
-            panic_with_error!(did.env(), CertError::InvalidDid);
-        }
-
-        let suffix = &bytes[PREFIX.len()..];
-        if suffix.is_empty() {
-            panic_with_error!(did.env(), CertError::InvalidDid);
-        }
-
-        for &byte in suffix {
-            let is_allowed = byte.is_ascii_alphanumeric()
-                || matches!(byte, b':' | b'.' | b'-' | b'_' | b'%' | b'#');
-            if !is_allowed {
-                panic_with_error!(did.env(), CertError::InvalidDid);
-            }
-        }
-    }
-
-    // ==================== REVOCATION & VERIFICATION FUNCTIONS ====================
-
-    /// Revoke a certificate with detailed reason tracking and audit trail.
-    ///
-    /// Only governance admins can revoke certificates. Generates comprehensive
-    /// revocation records for compliance and auditing.
-    pub fn revoke_certificate(
-        env: Env,
-        caller: Address,
-        token_id: u128,
-        reason: RevocationReason,
-        notes: String,
-    ) {
-        caller.require_auth();
-        Self::require_governance_admin(&env, &caller);
-
-        // Validate notes string length
-        Self::validate_string(&env, &notes, 512);
-
-        // Get or create certificate state
-        let state_key = DataKey::CertificateState(token_id);
-        let mut state: CertificateState = env
-            .storage()
-            .persistent()
-            .get(&state_key)
-            .unwrap_or_else(|| {
-                panic_with_error!(&env, CertError::CertificateNotFound);
-            });
-
-        // Check if already revoked
-        if !state.is_valid() {
-            panic_with_error!(&env, CertError::AlreadyRevoked);
-        }
-
-        let current_ledger = env.ledger().sequence();
-        let revocation_record = RevocationRecord {
-            token_id,
-            revoked_at: current_ledger,
-            revoked_by: caller.clone(),
-            reason: reason.clone(),
-            notes: notes.clone(),
-            original_mint_date: state.minted_at,
-        };
-
-        // Store revocation record in history
-        let history_key = DataKey::RevocationHistory(token_id);
-        let mut history: Vec<RevocationRecord> = env
-            .storage()
-            .persistent()
-            .get(&history_key)
-            .unwrap_or_else(|| Vec::new(&env));
-        history.push_back(revocation_record);
-        env.storage().persistent().set(&history_key, &history);
-        env.storage()
-            .persistent()
-            .extend_ttl(&history_key, CERT_TTL_LEDGERS, CERT_TTL_LEDGERS);
-
-        // Update certificate state to revoked
-        state.revoke(current_ledger);
-        env.storage().persistent().set(&state_key, &state);
-        env.storage()
-            .persistent()
-            .extend_ttl(&state_key, CERT_TTL_LEDGERS, CERT_TTL_LEDGERS);
-
-        // Emit revocation event
-        let reason_str = match reason {
-            RevocationReason::AcademicDishonesty => String::from_str(&env, "AcademicDishonesty"),
-            RevocationReason::IssuedInError => String::from_str(&env, "IssuedInError"),
-            RevocationReason::StudentRequest => String::from_str(&env, "StudentRequest"),
-            RevocationReason::CourseInvalidated => String::from_str(&env, "CourseInvalidated"),
-            RevocationReason::FraudulentActivity => String::from_str(&env, "FraudulentActivity"),
-            RevocationReason::Other(ref s) => s.clone(),
-        };
-
-        env.events().publish(
-            (Symbol::new(&env, "v2_certificate_revoked"),),
-            (token_id, caller, reason_str),
-        );
-    }
-
-    /// Verify a certificate and return its current status on-chain.
-    ///
-    /// Public function (no authentication required) that returns complete
-    /// verification data including revocation status and history.
-    pub fn verify_certificate(env: Env, token_id: u128) -> Result<VerificationResult, CertError> {
-        let state_key = DataKey::CertificateState(token_id);
-        let state: CertificateState = env
-            .storage()
-            .persistent()
-            .get(&state_key)
-            .ok_or(CertError::CertificateNotFound)?;
-
-        // Load the original certificate for metadata
-        // In a full implementation, we'd need to store a token_id -> Certificate mapping
-        // For now, we'll construct metadata from available data
-        let owner = Address::random(&env);
-        let metadata = CertificateMetadata {
-            student: owner.clone(),
-            course_symbol: String::from_str(&env, ""),
-            course_name: String::from_str(&env, ""),
-            issue_date: state.minted_at,
-            did: None,
-        };
-
-        let current_ledger = env.ledger().sequence();
-
-        // Construct appropriate verification result based on state
-        let result = match &state.status {
-            CertificateStatus::Active => {
-                VerificationResult::active(owner, metadata, current_ledger)
-            }
-            CertificateStatus::Revoked => {
-                // Get revocation details from history
-                let history_key = DataKey::RevocationHistory(token_id);
-                let history: Vec<RevocationRecord> = env
-                    .storage()
-                    .persistent()
-                    .get(&history_key)
-                    .unwrap_or_else(|| Vec::new(&env));
-
-                let revocation_info = if history.len() > 0 {
-                    history.get(history.len() - 1).unwrap().clone()
+                if let Some(previous_bidder) = auction.highest_bidder.clone() {
+                    credit(&env, previous_bidder, auction.highest_bid);
+                }
+                auction.highest_bidder = Some(bidder);
+                auction.highest_bid = amount;
+                if auction.buyout_price > 0 && amount >= auction.buyout_price {
+                    settle_open_auction(&env, &mut auction, amount);
                 } else {
-                    // Fallback revocation record
-                    RevocationRecord {
-                        token_id,
-                        revoked_at: state.revoked_at.unwrap_or(0),
-                        revoked_by: Address::random(&env),
-                        reason: RevocationReason::Other(String::from_str(&env, "Unknown")),
-                        notes: String::from_str(&env, ""),
-                        original_mint_date: state.minted_at,
-                    }
-                };
-
-                VerificationResult::revoked(owner, metadata, revocation_info, current_ledger)
+                    save_auction(&env, &auction);
+                }
             }
-            CertificateStatus::Superseded => VerificationResult::superseded(
-                owner,
-                metadata,
-                state.superseded_by.unwrap_or(0),
-                current_ledger,
-            ),
-            CertificateStatus::Reissued => VerificationResult::reissued(
-                owner,
-                metadata,
-                state.reissued_token_id.unwrap_or(0),
-                current_ledger,
-            ),
-        };
-
-        // Emit verification event
-        let status_str = match state.status {
-            CertificateStatus::Active => String::from_str(&env, "Active"),
-            CertificateStatus::Revoked => String::from_str(&env, "Revoked"),
-            CertificateStatus::Reissued => String::from_str(&env, "Reissued"),
-            CertificateStatus::Superseded => String::from_str(&env, "Superseded"),
-        };
-
-        env.events().publish(
-            (Symbol::new(&env, "v2_certificate_verified"),),
-            (token_id, result.is_valid, status_str),
-        );
-
-        Ok(result)
+            AuctionKind::Dutch => {
+                let price = dutch_price(&auction, now);
+                if amount < price {
+                    panic!("bid below current price");
+                }
+                let refund = checked_sub_i128(amount, price);
+                if refund > 0 {
+                    credit(&env, bidder.clone(), refund);
+                }
+                auction.highest_bidder = Some(bidder);
+                auction.highest_bid = price;
+                settle_open_auction(&env, &mut auction, price);
+            }
+        }
     }
+    admin.require_auth();
+}
 
-    /// Get the revocation history for a certificate (all revocation events).
-    ///
-    /// Returns a vector of all revocation records for audit trail purposes.
-    pub fn get_revocation_history(env: Env, token_id: u128) -> Vec<RevocationRecord> {
-        let history_key = DataKey::RevocationHistory(token_id);
-        env.storage()
-            .persistent()
-            .get(&history_key)
-            .unwrap_or_else(|| Vec::new(&env))
-    }
+fn current_phase(env: &Env) -> u32 {
+    env.storage()
+        .instance()
+        .get(&DataKey::Phase)
+        .unwrap_or_else(|| panic!("not initialized"))
+}
 
-    /// Get the current state of a certificate (for internal operations).
-    pub fn get_certificate_state(env: Env, token_id: u128) -> Option<CertificateState> {
-        let state_key = DataKey::CertificateState(token_id);
-        env.storage().persistent().get(&state_key)
-    }
+fn root_for_phase(env: &Env, phase: u32) -> BytesN<32> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::Root(phase))
+        .unwrap_or_else(|| panic!("root missing"))
+}
 
-    /// Reissue a certificate (revoke old, create new with link).
-    ///
-    /// Admin function that revokes an old certificate and creates a new one,
-    /// maintaining the link between them for record purposes.
-    pub fn reissue_certificate(
-        env: Env,
-        caller: Address,
-        old_token_id: u128,
-        new_recipient: Address,
-        reason: String,
-    ) -> u128 {
-        caller.require_auth();
-        Self::require_governance_admin(&env, &caller);
-        Self::require_not_paused(&env);
-
-        // Validate reason string
-        Self::validate_string(&env, &reason, 256);
-
-        // Get the old certificate state
-        let old_state_key = DataKey::CertificateState(old_token_id);
-        let mut old_state: CertificateState = env
-            .storage()
-            .persistent()
-            .get(&old_state_key)
-            .ok_or_else(|| {
-                panic_with_error!(&env, CertError::CannotReissueNonExistent);
-                CertError::CannotReissueNonExistent
-            })
-            .unwrap();
-
-        // Generate new token ID
-        let next_id_key = DataKey::NextTokenId;
-        let new_token_id: u128 = env.storage().instance().get(&next_id_key).unwrap_or(1);
-        env.storage()
-            .instance()
-            .set(&next_id_key, &(new_token_id + 1));
-
-        let current_ledger = env.ledger().sequence();
-
-        // Mark old certificate as reissued
-        old_state.mark_reissued(new_token_id, current_ledger);
-        env.storage().persistent().set(&old_state_key, &old_state);
-        env.storage()
-            .persistent()
-            .extend_ttl(&old_state_key, CERT_TTL_LEDGERS, CERT_TTL_LEDGERS);
-
-        // Create new certificate state
-        let new_state_key = DataKey::CertificateState(new_token_id);
-        let new_state = CertificateState::new_active(current_ledger);
-        env.storage().persistent().set(&new_state_key, &new_state);
-        env.storage()
-            .persistent()
-            .extend_ttl(&new_state_key, CERT_TTL_LEDGERS, CERT_TTL_LEDGERS);
-
-        // Emit reissuance event
-        env.events().publish(
-            (Symbol::new(&env, "v2_certificate_reissued"),),
-            (old_token_id, new_token_id, reason),
-        );
-
-        new_token_id
+fn checked_add_u32(left: u32, right: u32) -> u32 {
+    match left.checked_add(right) {
+        Some(value) => value,
+        None => panic!("u32 overflow"),
     }
 }
 
-#[cfg(test)]
-mod tests;
-#[cfg(test)]
-mod prop_tests;
-
-/// Helper function to compute metadata hash for certificate.
-fn compute_metadata_hash(
-    env: &Env,
-    course_name: &String,
-    grade: &Option<String>,
-    did: &Option<String>,
-) -> BytesN<32> {
-    use soroban_sdk::crypto::HasHasher;
-
-    let mut hasher = env.crypto().hasher();
-
-    hasher.update(course_name.as_bytes());
-    if let Some(grade) = grade {
-        hasher.update(grade.as_bytes());
+fn checked_add_i128(left: i128, right: i128) -> i128 {
+    match left.checked_add(right) {
+        Some(value) => value,
+        None => panic!("i128 overflow"),
+    /// Settle a completed English auction after its end time.
+    pub fn settle(env: Env, auction_id: u64) {
+        let mut auction = read_open_auction(&env, auction_id);
+        if auction.kind != AuctionKind::English {
+            panic!("dutch auction settles on bid");
+        }
+        if env.ledger().timestamp() <= auction.ends_at {
+            panic!("auction still active");
+        }
+        if auction.highest_bidder.is_none() {
+            auction.status = AuctionStatus::Cancelled;
+            env.storage()
+                .persistent()
+                .set(&DataKey::Escrowed(auction.id), &false);
+            save_auction(&env, &auction);
+            return;
+        }
+        let sale_price = auction.highest_bid;
+        settle_open_auction(&env, &mut auction, sale_price);
     }
-    if let Some(did) = did {
-        hasher.update(did.as_bytes());
-    }
-
-    hasher.finalize()
 }
 
+fn leaf_hash(env: &Env, phase: u32, index: u32, account: Address, amount: i128) -> BytesN<32> {
+    let mut data = Bytes::new(env);
+    data.append(&phase.to_xdr(env));
+    data.append(&index.to_xdr(env));
+    data.append(&account.to_xdr(env));
+    data.append(&amount.to_xdr(env));
+    env.crypto().sha256(&data)
+}
+
+fn verify_proof(env: &Env, leaf: BytesN<32>, proof: Vec<BytesN<32>>, root: BytesN<32>) -> bool {
+    let mut computed = leaf;
+    for sibling in proof.iter() {
+        computed = hash_pair(env, computed, sibling);
+    /// Withdraw pending refunds, sale proceeds, or royalty proceeds.
+    ///
+    /// The returned amount is the transfer amount an outer token adapter should
+    /// release to the caller. State is cleared before returning to preserve the
+    /// checks-effects-interactions order when adapters perform real transfers.
+    pub fn withdraw(env: Env, account: Address) -> i128 {
+        account.require_auth();
+        let key = DataKey::Pending(account);
+        let amount = env.storage().persistent().get(&key).unwrap_or(0_i128);
+        env.storage().persistent().set(&key, &0_i128);
+        amount
+    }
+    computed == root
+}
+
+fn hash_pair(env: &Env, left: BytesN<32>, right: BytesN<32>) -> BytesN<32> {
+    let mut data = Bytes::new(env);
+    if bytes_le(&left, &right) {
+        data.append(&Bytes::from_array(env, &left.to_array()));
+        data.append(&Bytes::from_array(env, &right.to_array()));
+    } else {
+        data.append(&Bytes::from_array(env, &right.to_array()));
+        data.append(&Bytes::from_array(env, &left.to_array()));
+    /// Return the current executable Dutch price.
+    pub fn current_price(env: Env, auction_id: u64) -> i128 {
+        let auction = read_auction(&env, auction_id);
+        match auction.kind {
+            AuctionKind::English => auction.highest_bid,
+            AuctionKind::Dutch => dutch_price(&auction, env.ledger().timestamp()),
+        }
+    }
+    env.crypto().sha256(&data)
+}
+
+fn bytes_le(left: &BytesN<32>, right: &BytesN<32>) -> bool {
+    let left_bytes = left.to_array();
+    let right_bytes = right.to_array();
+    let mut i = 0;
+    while i < 32 {
+        if left_bytes[i] < right_bytes[i] {
+            return true;
+        }
+        if left_bytes[i] > right_bytes[i] {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
+fn is_claimed_internal(env: &Env, phase: u32, index: u32) -> bool {
+    let word_index = index / 64;
+    let bit_index = index % 64;
+    let word = env
+        .storage()
+        .persistent()
+        .get(&DataKey::ClaimedWord(phase, word_index))
+        .unwrap_or(0_u64);
+    (word & (1_u64 << bit_index)) != 0
+}
+
+fn set_claimed(env: &Env, phase: u32, index: u32) {
+    let word_index = index / 64;
+    let bit_index = index % 64;
+    let key = DataKey::ClaimedWord(phase, word_index);
+    let word = env.storage().persistent().get(&key).unwrap_or(0_u64);
+    env.storage()
+        .persistent()
+        .set(&key, &(word | (1_u64 << bit_index)));
+}
+
+fn credit(env: &Env, account: Address, amount: i128) {
+    let key = DataKey::Pending(account);
+    let current = env.storage().persistent().get(&key).unwrap_or(0_i128);
+    env.storage()
+        .persistent()
+        .set(&key, &checked_add_i128(current, amount));
+}
+
+#[cfg(test)]
+mod test {
+    extern crate std;
+
+    use super::*;
+    use soroban_sdk::{testutils::Address as _, Env};
+
+    fn setup(env: &Env) -> (AlgorithmicStablecoinContractClient, Address, Address) {
+        env.mock_all_auths();
+        let client = AlgorithmicStablecoinContractClient::new(
+            env,
+            &env.register_contract(None, AlgorithmicStablecoinContract),
+        );
+        let admin = Address::generate(env);
+        let oracle = Address::generate(env);
+        client.initialize(&admin, &oracle, &10_100, &9_900, &12_000, &60);
+        (client, admin, oracle)
+    }
+
+    #[test]
+    fn expands_all_holder_balances_proportionately() {
+        let env = Env::default();
+        env.ledger().with_mut(|ledger| ledger.timestamp = 100);
+        let (client, admin, oracle) = setup(&env);
+        let alice = Address::generate(&env);
+        let bob = Address::generate(&env);
+
+        client.mint(&admin, &alice, &1_000);
+        client.mint(&admin, &bob, &500);
+        client.report_price(&oracle, &11_000);
+        assert_eq!(client.rebase(), 1_650);
+
+        assert_eq!(client.balance_of(&alice), 1_100);
+        assert_eq!(client.balance_of(&bob), 550);
+        assert_eq!(client.total_supply(), 1_650);
+    }
+
+    #[test]
+    fn contracts_supply_below_peg() {
+        let env = Env::default();
+        env.ledger().with_mut(|ledger| ledger.timestamp = 100);
+        let (client, admin, oracle) = setup(&env);
+        let alice = Address::generate(&env);
+
+        client.mint(&admin, &alice, &1_000);
+        client.report_price(&oracle, &9_500);
+        assert_eq!(client.rebase(), 950);
+        assert_eq!(client.balance_of(&alice), 950);
+    }
+
+    #[test]
+    fn ignores_prices_inside_deadband() {
+        let env = Env::default();
+        env.ledger().with_mut(|ledger| ledger.timestamp = 100);
+        let (client, admin, oracle) = setup(&env);
+        let alice = Address::generate(&env);
+
+        client.mint(&admin, &alice, &1_000);
+        client.report_price(&oracle, &10_050);
+        assert_eq!(client.rebase(), 1_000);
+        assert_eq!(client.balance_of(&alice), 1_000);
+    }
+
+    #[test]
+    #[should_panic(expected = "stale price")]
+    fn rejects_stale_oracle_prices() {
+        let env = Env::default();
+        env.ledger().with_mut(|ledger| ledger.timestamp = 100);
+        let (client, admin, oracle) = setup(&env);
+        let alice = Address::generate(&env);
+
+        client.mint(&admin, &alice, &1_000);
+        client.report_price(&oracle, &11_000);
+        env.ledger().with_mut(|ledger| ledger.timestamp = 200);
+        client.rebase();
+    }
+
+    #[test]
+    #[should_panic(expected = "circuit breaker")]
+    fn circuit_breaker_pauses_extreme_deviation() {
+        let env = Env::default();
+        env.ledger().with_mut(|ledger| ledger.timestamp = 100);
+        let (client, admin, oracle) = setup(&env);
+        let alice = Address::generate(&env);
+
+        client.mint(&admin, &alice, &1_000);
+        client.report_price(&oracle, &12_500);
+        client.rebase();
+    }
+
+    #[test]
+    fn transfers_and_burns_use_rebased_balance() {
+        let env = Env::default();
+        env.ledger().with_mut(|ledger| ledger.timestamp = 100);
+        let (client, admin, oracle) = setup(&env);
+        let alice = Address::generate(&env);
+        let bob = Address::generate(&env);
+
+        client.mint(&admin, &alice, &1_000);
+        client.report_price(&oracle, &11_000);
+        client.rebase();
+        client.transfer(&alice, &bob, &110);
+        client.burn(&bob, &55);
+
+        assert_eq!(client.balance_of(&alice), 990);
+        assert_eq!(client.balance_of(&bob), 55);
+        assert_eq!(client.total_supply(), 1_045);
+    fn pair(env: &Env, left: BytesN<32>, right: BytesN<32>) -> BytesN<32> {
+        hash_pair(env, left, right)
+    pub fn get_auction(env: Env, auction_id: u64) -> Auction {
+        read_auction(&env, auction_id)
+    }
+
+    pub fn pending(env: Env, account: Address) -> i128 {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Pending(account))
+            .unwrap_or(0_i128)
+    }
+}
+
+fn next_id(env: &Env) -> u64 {
+    let id = env
+        .storage()
+        .instance()
+        .get(&DataKey::NextAuctionId)
+        .unwrap_or(1_u64);
+    env.storage()
+        .instance()
+        .set(&DataKey::NextAuctionId, &checked_add_u64(id, 1));
+    id
+}
+
+fn validate_price(amount: i128) {
+    if amount < 0 {
+        panic!("negative amount");
+    }
+}
+
+fn validate_royalty(royalty_bps: u32) {
+    if royalty_bps > BASIS_POINTS {
+        panic!("royalty too high");
+    }
+}
+
+fn checked_add_u64(left: u64, right: u64) -> u64 {
+    match left.checked_add(right) {
+        Some(value) => value,
+        None => panic!("u64 overflow"),
+    }
+}
+
+fn checked_add_i128(left: i128, right: i128) -> i128 {
+    match left.checked_add(right) {
+        Some(value) => value,
+        None => panic!("i128 overflow"),
+    }
+}
+
+fn checked_sub_i128(left: i128, right: i128) -> i128 {
+    match left.checked_sub(right) {
+        Some(value) => value,
+        None => panic!("i128 underflow"),
+    }
+}
+
+fn checked_mul_i128(left: i128, right: i128) -> i128 {
+    match left.checked_mul(right) {
+        Some(value) => value,
+        None => panic!("i128 overflow"),
+    }
+}
+
+fn read_auction(env: &Env, auction_id: u64) -> Auction {
+    env.storage()
+        .persistent()
+        .get(&DataKey::Auction(auction_id))
+        .unwrap_or_else(|| panic!("auction missing"))
+}
+
+fn read_open_auction(env: &Env, auction_id: u64) -> Auction {
+    let auction = read_auction(env, auction_id);
+    if auction.status != AuctionStatus::Open {
+        panic!("auction closed");
+    }
+    auction
+}
+
+    #[test]
+    fn claims_valid_merkle_proof_once_and_uses_bitmap() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = MerkleAirdropContractClient::new(
+            &env,
+            &env.register_contract(None, MerkleAirdropContract),
+        );
+        let admin = Address::generate(&env);
+        let alice = Address::generate(&env);
+        let bob = Address::generate(&env);
+        let alice_leaf = MerkleAirdropContract::leaf(env.clone(), 1, 3, alice.clone(), 500);
+        let bob_leaf = MerkleAirdropContract::leaf(env.clone(), 1, 4, bob, 700);
+        let root = pair(&env, alice_leaf.clone(), bob_leaf.clone());
+
+        client.initialize(&admin, &root);
+        let mut proof = Vec::new(&env);
+        proof.push_back(bob_leaf);
+
+        assert_eq!(client.claim(&3, &alice, &500, &proof), 500);
+        assert!(client.is_claimed(&1, &3));
+        assert_eq!(client.pending(&alice), 500);
+        assert_eq!(client.withdraw(&alice), 500);
+        assert_eq!(client.withdraw(&alice), 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "already claimed")]
+    fn rejects_double_claim() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = MerkleAirdropContractClient::new(
+            &env,
+            &env.register_contract(None, MerkleAirdropContract),
+        );
+        let admin = Address::generate(&env);
+        let alice = Address::generate(&env);
+        let leaf = MerkleAirdropContract::leaf(env.clone(), 1, 1, alice.clone(), 100);
+        client.initialize(&admin, &leaf);
+        let proof = Vec::new(&env);
+
+        client.claim(&1, &alice, &100, &proof);
+        client.claim(&1, &alice, &100, &proof);
+    }
+
+    #[test]
+    fn admin_can_rotate_roots_for_new_phases() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = MerkleAirdropContractClient::new(
+            &env,
+            &env.register_contract(None, MerkleAirdropContract),
+        );
+        let admin = Address::generate(&env);
+        let alice = Address::generate(&env);
+        let root_one = MerkleAirdropContract::leaf(env.clone(), 1, 1, alice.clone(), 100);
+        let root_two = MerkleAirdropContract::leaf(env.clone(), 2, 1, alice.clone(), 200);
+        client.initialize(&admin, &root_one);
+
+        assert_eq!(client.set_root(&admin, &root_two), 2);
+        assert_eq!(client.current_phase(), 2);
+        assert_eq!(client.root(&2), root_two);
+    }
+
+    #[test]
+    #[should_panic(expected = "invalid proof")]
+    fn rejects_invalid_proof() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = MerkleAirdropContractClient::new(
+            &env,
+            &env.register_contract(None, MerkleAirdropContract),
+        );
+        let admin = Address::generate(&env);
+        let alice = Address::generate(&env);
+        let root = BytesN::from_array(&env, &[1; 32]);
+        client.initialize(&admin, &root);
+        let proof = Vec::new(&env);
+
+        client.claim(&1, &alice, &100, &proof);
+fn save_auction(env: &Env, auction: &Auction) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::Auction(auction.id), auction);
+}
+
+fn credit(env: &Env, account: Address, amount: i128) {
+    if amount <= 0 {
+        return;
+    }
+    let key = DataKey::Pending(account);
+    let current = env.storage().persistent().get(&key).unwrap_or(0_i128);
+    env.storage()
+        .persistent()
+        .set(&key, &checked_add_i128(current, amount));
+}
+
+fn dutch_price(auction: &Auction, now: u64) -> i128 {
+    if now <= auction.starts_at {
+        return auction.start_price;
+    }
+    if now >= auction.ends_at || auction.ends_at == auction.starts_at {
+        return auction.end_price;
+    }
+
+    let elapsed = checked_sub_i128(now as i128, auction.starts_at as i128);
+    let duration = checked_sub_i128(auction.ends_at as i128, auction.starts_at as i128);
+    let spread = checked_sub_i128(auction.start_price, auction.end_price);
+    checked_sub_i128(
+        auction.start_price,
+        checked_mul_i128(spread, elapsed) / duration,
+    )
+}
+
+fn settle_open_auction(env: &Env, auction: &mut Auction, sale_price: i128) {
+    let royalty = checked_mul_i128(sale_price, auction.royalty_bps as i128) / BASIS_POINTS as i128;
+    let seller_proceeds = checked_sub_i128(sale_price, royalty);
+    credit(env, auction.royalty_receiver.clone(), royalty);
+    credit(env, auction.seller.clone(), seller_proceeds);
+    auction.status = AuctionStatus::Settled;
+    env.storage()
+        .persistent()
+        .set(&DataKey::Escrowed(auction.id), &false);
+    save_auction(env, auction);
+}
+
+#[cfg(test)]
+mod test {
+    extern crate std;
+
+    use super::*;
+    use soroban_sdk::{testutils::Address as _, Env};
+
+    fn token_id(env: &Env, byte: u8) -> BytesN<32> {
+        BytesN::from_array(env, &[byte; 32])
+    }
+
+    #[test]
+    fn english_auction_refunds_outbidder_and_distributes_royalties() {
+        let env = Env::default();
+        env.mock_all_auths();
+        env.ledger().with_mut(|ledger| ledger.timestamp = 100);
+        let client = MarketplaceEscrowContractClient::new(
+            &env,
+            &env.register_contract(None, MarketplaceEscrowContract),
+        );
+        let seller = Address::generate(&env);
+        let bidder_one = Address::generate(&env);
+        let bidder_two = Address::generate(&env);
+        let nft = Address::generate(&env);
+        let royalty = Address::generate(&env);
+
+        let auction_id = client.create_english(
+            &seller,
+            &nft,
+            &token_id(&env, 7),
+            &100,
+            &500,
+            &50,
+            &royalty,
+            &500,
+        );
+
+        client.bid(&auction_id, &bidder_one, &125);
+        client.bid(&auction_id, &bidder_two, &200);
+        assert_eq!(client.pending(&bidder_one), 125);
+
+        env.ledger().with_mut(|ledger| ledger.timestamp = 151);
+        client.settle(&auction_id);
+
+        assert_eq!(client.pending(&seller), 190);
+        assert_eq!(client.pending(&royalty), 10);
+        assert_eq!(client.withdraw(&bidder_one), 125);
+        assert_eq!(client.withdraw(&bidder_one), 0);
+
+        let auction = client.get_auction(&auction_id);
+        assert_eq!(auction.status, AuctionStatus::Settled);
+        assert_eq!(auction.highest_bidder, Some(bidder_two));
+    }
+
+    #[test]
+    fn english_buyout_settles_immediately() {
+        let env = Env::default();
+        env.mock_all_auths();
+        env.ledger().with_mut(|ledger| ledger.timestamp = 100);
+        let client = MarketplaceEscrowContractClient::new(
+            &env,
+            &env.register_contract(None, MarketplaceEscrowContract),
+        );
+        let seller = Address::generate(&env);
+        let bidder = Address::generate(&env);
+        let nft = Address::generate(&env);
+        let royalty = Address::generate(&env);
+
+        let auction_id = client.create_english(
+            &seller,
+            &nft,
+            &token_id(&env, 1),
+            &100,
+            &150,
+            &50,
+            &royalty,
+            &1_000,
+        );
+
+        client.bid(&auction_id, &bidder, &150);
+
+        let auction = client.get_auction(&auction_id);
+        assert_eq!(auction.status, AuctionStatus::Settled);
+        assert_eq!(client.pending(&seller), 135);
+        assert_eq!(client.pending(&royalty), 15);
+    }
+
+    #[test]
+    fn dutch_auction_prices_down_and_refunds_overpayment() {
+        let env = Env::default();
+        env.mock_all_auths();
+        env.ledger().with_mut(|ledger| ledger.timestamp = 10);
+        let client = MarketplaceEscrowContractClient::new(
+            &env,
+            &env.register_contract(None, MarketplaceEscrowContract),
+        );
+        let seller = Address::generate(&env);
+        let bidder = Address::generate(&env);
+        let nft = Address::generate(&env);
+        let royalty = Address::generate(&env);
+
+        let auction_id = client.create_dutch(
+            &seller,
+            &nft,
+            &token_id(&env, 9),
+            &1_000,
+            &100,
+            &90,
+            &royalty,
+            &250,
+        );
+
+        env.ledger().with_mut(|ledger| ledger.timestamp = 55);
+        assert_eq!(client.current_price(&auction_id), 550);
+        client.bid(&auction_id, &bidder, &600);
+
+        assert_eq!(client.pending(&bidder), 50);
+        assert_eq!(client.pending(&seller), 537);
+        assert_eq!(client.pending(&royalty), 13);
+        assert_eq!(
+            client.get_auction(&auction_id).status,
+            AuctionStatus::Settled
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "bid too low")]
+    fn rejects_low_english_bid() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = MarketplaceEscrowContractClient::new(
+            &env,
+            &env.register_contract(None, MarketplaceEscrowContract),
+        );
+        let seller = Address::generate(&env);
+        let bidder = Address::generate(&env);
+        let nft = Address::generate(&env);
+        let royalty = Address::generate(&env);
+
+        let auction_id = client.create_english(
+            &seller,
+            &nft,
+            &token_id(&env, 2),
+            &100,
+            &0,
+            &10,
+            &royalty,
+            &0,
+        );
+        client.bid(&auction_id, &bidder, &99);
+    }
+    env.crypto().sha256(&buffer).into()
+}
+pub mod amm_pool;
