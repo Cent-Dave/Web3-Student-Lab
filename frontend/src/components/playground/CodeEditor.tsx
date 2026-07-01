@@ -31,6 +31,7 @@ interface CodeEditorProps {
   collaborationProvider?: CollaborationProvider;
   settings?: MonacoEditorSettings;
   value?: string;
+  /** Optional callback fired whenever the editor content changes */
   onCodeChange?: (value: string) => void;
 }
 

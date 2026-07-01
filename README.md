@@ -18,11 +18,17 @@ The application is fully deployed and accessible online:
 
 ## 🚀 Core Modules
 
-1. **Blockchain Learning Simulator**: Visually learn how blockchains work (create transactions, mine blocks, view hashes, and see how blocks connect).
-2. **Smart Contract Playground**: Write, run, and test smart contracts directly in your browser. Focuses on Soroban contracts written in Rust.
-3. **Web3 Learning Roadmap**: A guided path spanning programming fundamentals, cryptography, blockchain architecture, smart contracts, and full Web3 applications.
-4. **Hackathon Project Idea Generator**: Overcome coder's block by generating ideas based on technology and sector preferences.
-5. **Open Source Contribution Trainer**: Get hands-on with Git, simulated GitHub issues, and PR exercises to confidently contribute to open source.
+1. **Blockchain Learning Simulator**: Visually learn how blockchains work (create transactions, mine
+   blocks, view hashes, and see how blocks connect).
+2. **Smart Contract Playground**: Write, run, and test smart contracts directly in your browser.
+   Focuses on Soroban contracts written in Rust.
+3. **Web3 Learning Roadmap**: A guided path spanning programming fundamentals, cryptography,
+   blockchain architecture, smart contracts, and full Web3 applications.
+4. **Hackathon Project Idea Generator**: Overcome coder's block by generating ideas based on
+   technology and sector preferences.
+5. **Open Source Contribution Trainer**: Get hands-on with Git, simulated GitHub issues, PR
+   exercises, and decentralized identity verification that attaches DID-backed contributor proof to
+   saved training submissions.
 
 ## 🛠 Technology Stack
 
@@ -62,29 +68,27 @@ web3-student-lab/
 └── docs/                 # Documentation and learning materials
 ```
 
-# [Frontend] Build WebAssembly Rust Compiler for Browser Sandbox
-## Feature Overview
-Run the Rust compiler in WebAssembly directly in the student's browser to compile playground code without hitting backend sandboxes.
+## 👥 Local Development
 
-This is an essential, MVP-critical feature designed to take Web3 Student Lab's curriculum layer to a dynamic, production-ready level.
+### Prerequisites
 
-## 🛠️ Implementation Requirements
+- Node.js (v18+)
+- Docker and Docker Compose (for PostgreSQL/Redis)
+- Rust toolchain (for smart contracts)
+- Stellar CLI
 
-- Fetch and compile lightweight Rust/Wasm toolchains.
-- Execute code compilation client-side inside a web worker thread.
+## 🔐 MVP Update: Decentralized Identity Verification
 
-## 🔧 Technical Specifications
+The Open Source Contribution Trainer now includes decentralized identity verification for contributor
+workflows in `frontend/src/app/version-control/page.tsx`.
 
-- Rust compiled to WASM, Next.js, Web Workers.
-
-## ✅ Acceptance Criteria
-
-- Editor compiles Rust code into WebAssembly in-browser in <3 seconds.
-
----
-
-## 🎓 Difficulty Level
-Advanced - Requires understanding of frontend development.
+- Contributors link a DID, Stellar wallet address, and GitHub handle before saving a verified
+  trainer version.
+- Verified saves persist proof metadata in the version history engine at
+  `frontend/src/lib/version-control/engine.ts`.
+- Core attestation creation and verification logic lives in
+  `frontend/src/lib/open-source-trainer/identity.ts`.
+>>>>>>> origin/main
 
 ## 🤝 Contributing
 

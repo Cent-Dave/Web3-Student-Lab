@@ -1,6 +1,9 @@
 'use client';
 
 import { VirtualizedFileTree, type FileTreeNode } from '@/components/explorer/VirtualizedFileTree';
+const PrSimulationPanel = dynamic(() => import('@/components/playground/PrSimulationPanel').then((mod) => mod.PrSimulationPanel), {
+  ssr: false,
+});
 import { OfflineIndicator } from '@/components/storage/OfflineIndicator';
 import {
     CompileOutputTerminal,
@@ -16,11 +19,33 @@ import { FilePresenceManager } from '@/lib/explorer/FilePresence';
 import { DatabaseManager } from '@/lib/storage/DatabaseManager';
 import { SyncManager } from '@/lib/storage/SyncManager';
 import { Settings, X } from 'lucide-react';
+import { DependencyUpdatePanel } from '@/components/playground/DependencyUpdatePanel';
+import { AccessibilityAuditPanel } from '@/components/playground/AccessibilityAuditPanel';
+import { ContractSearch } from '@/components/playground/ContractSearch';
+import { useAccessibilityAudit } from '@/hooks/useAccessibilityAudit';
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
 const CodeEditor = dynamic(() => import('@/components/playground/CodeEditor').then((mod) => mod.CodeEditor), {
   ssr: false,
 });
+
+const DEFAULT_CARGO_TOML = `[package]
+name = "soroban-contract"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+soroban-sdk = "21.7.6"
+soroban-auth = "21.0.0"
+stellar-xdr = "21.2.0"
+num-integer = "0.1.44"
+num-traits = "0.2.17"
+`;
+>>>>>>> origin/main
 
 const INITIAL_TREE: FileTreeNode[] = [
   {
@@ -110,6 +135,9 @@ impl HelloContract {
     }
 }`);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [autoComplete, setAutoComplete] = useState(true);
+  const [vimMode, setVimMode] = useState(false);
+  const [selectedContract, setSelectedContract] = useState<any>(null);
   const [editorSettings, setEditorSettings] = useState({
     fontSize: 14,
     tabSize: 2,
@@ -125,8 +153,12 @@ impl HelloContract {
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'offline' | 'error'>('idle');
   const [isOnline, setIsOnline] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
-  const [activeTab, setActiveTab] = useState<'editor' | 'output'>('editor');
+  const [activeTab, setActiveTab] = useState<'editor' | 'output' | 'prsim'>('editor');
   const workerRef = useRef<Worker | null>(null);
+
+  const { result: auditResult, isPending: auditPending, runAudit } = useAccessibilityAudit(sourceCode, {
+    debounceMs: 500,
+  });
 
   useEffect(() => {
     const compileWorker = new Worker(new URL('../../lib/compiler/compile.worker.ts', import.meta.url), {
@@ -328,6 +360,30 @@ impl HelloContract {
           </div>
         </div>
 
+        {/* Desktop PR Sim Tab */}
+        <div className="hidden lg:flex mb-6 gap-1 rounded-xl border border-white/10 bg-zinc-950 p-1">
+          <button
+            onClick={() => setActiveTab('editor')}
+            className={`flex-1 py-3 text-xs font-bold tracking-widest uppercase rounded-lg transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'editor'
+                ? 'bg-red-600 text-white'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            Editor & Terminal
+          </button>
+          <button
+            onClick={() => setActiveTab('prsim')}
+            className={`flex-1 py-3 text-xs font-bold tracking-widest uppercase rounded-lg transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'prsim'
+                ? 'bg-red-600 text-white'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            PR Simulation
+          </button>
+        </div>
+
         {/* Mobile Tab Switcher */}
         <div className="flex lg:hidden mb-6 border border-white/10 rounded-xl p-1 bg-zinc-950">
           <button
@@ -350,9 +406,26 @@ impl HelloContract {
           >
             Output & Terminal
           </button>
+          <button
+            onClick={() => setActiveTab('prsim')}
+            className={`flex-1 py-3 text-xs font-bold tracking-widest uppercase rounded-lg transition-all min-h-[44px] flex items-center justify-center ${
+              activeTab === 'prsim'
+                ? 'bg-red-600 text-white'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            PR Sim
+          </button>
         </div>
 
-        <div className="grid flex-grow grid-cols-1 gap-12 lg:grid-cols-2">
+        {/* PR Simulation Panel — standalone view */}
+        {activeTab === 'prsim' && (
+          <div className="lg:hidden flex-grow">
+            <PrSimulationPanel className="h-full" />
+          </div>
+        )}
+
+        <div className={`grid flex-grow grid-cols-1 gap-12 lg:grid-cols-2 ${activeTab === 'prsim' ? 'hidden lg:grid' : ''}`}>
           {/* Editor Placeholder */}
           <div className="relative flex min-h-[600px] flex-col rounded-3xl border border-white/10 bg-zinc-950 p-8 shadow-2xl" data-tour-step="playground-editor">
             <div className="mb-6 flex items-center justify-between gap-2 border-b border-white/5 pb-4">
@@ -429,23 +502,37 @@ impl HelloContract {
             </button>
           </div>
 
-          {/* Terminal Output */}
+          {/* Terminal Output or PR Simulation */}
           <div className="flex flex-col gap-6" data-tour-step="playground-output">
-            <CompileOutputTerminal logs={compileLogs} isCompiling={isCompiling} />
+            {activeTab === 'prsim' ? (
+              <PrSimulationPanel />
+            ) : (
+              <>
+                <CompileOutputTerminal logs={compileLogs} isCompiling={isCompiling} />
 
-            <TerminalPanel />
+                <TerminalPanel />
 
-            <div className="rounded-3xl border border-white/5 bg-zinc-950 p-4 sm:p-8">
-              <h4 className="mb-4 text-[10px] font-black tracking-widest text-white uppercase">
-                Laboratory Notes
-              </h4>
-              <p className="text-[11px] leading-relaxed font-light text-gray-500">
-                This playground now includes the educational notarization and payment gateway modules.
-                Learners can inspect hash timestamping, escrowed payment processing, refunds, and
-                dispute resolution before deploying validated Soroban logic with the integrated CLI
-                tools in the <span className="text-red-500">Builder Tier</span> modules.
-              </p>
-            </div>
+                <DependencyUpdatePanel cargoToml={DEFAULT_CARGO_TOML} />
+                <AccessibilityAuditPanel
+                  result={auditResult}
+                  isPending={auditPending}
+                  onRunAudit={runAudit}
+                />
+
+                <div className="rounded-3xl border border-white/5 bg-zinc-950 p-4 sm:p-8">
+                  <h4 className="mb-4 text-[10px] font-black tracking-widest text-white uppercase">
+                    Laboratory Notes
+                  </h4>
+                  <ContractSearch onSelect={setSelectedContract} />
+                  <p className="text-[11px] leading-relaxed font-light text-gray-500">
+                    This playground now includes the educational notarization and payment gateway modules.
+                    Learners can inspect hash timestamping, escrowed payment processing, refunds, and
+                    dispute resolution before deploying validated Soroban logic with the integrated CLI
+                    tools in the <span className="text-red-500">Builder Tier</span> modules.
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

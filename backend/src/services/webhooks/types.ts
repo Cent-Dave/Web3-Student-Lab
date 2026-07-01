@@ -3,6 +3,15 @@ export type WebhookEventName =
   | 'contract.deployed'
   | 'certificate.minted'
   | 'onchain.event'
+  // Blockchain Learning Simulator events
+  | 'simulator.block_mined'
+  | 'simulator.transaction_created'
+  | 'simulator.chain_reset'
+  // Open Source Contribution Trainer events
+  | 'opensource.pr_submitted'
+  | 'opensource.pr_merged'
+  | 'opensource.issue_resolved'
+  | 'opensource.contribution_milestone'
   | (string & {});
 
 export interface WebhookEventPayload {
