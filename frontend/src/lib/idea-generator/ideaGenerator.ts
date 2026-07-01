@@ -30,8 +30,58 @@ export const DOMAINS = [
   'Infrastructure',
   'Identity',
   'Sustainability',
+  'MultiSigWallet',
 ] as const;
 export type Domain = (typeof DOMAINS)[number];
+
+/** Multi-sig wallet signature policy types. */
+export const MULTISIG_POLICIES = ['m-of-n', 'weighted', 'time-locked', 'social-recovery'] as const;
+export type MultiSigPolicy = (typeof MULTISIG_POLICIES)[number];
+
+/** A single signer entry in the multi-sig wallet simulator. */
+export interface MultiSigSigner {
+  address: string;
+  weight: number;
+  signed: boolean;
+}
+
+/** State for the multi-sig wallet simulator panel. */
+export interface MultiSigState {
+  signers: MultiSigSigner[];
+  /** Minimum number of signers required (m in m-of-n). */
+  threshold: number;
+  policy: MultiSigPolicy;
+  /** True once enough signers have signed to meet the threshold. */
+  approved: boolean;
+}
+
+/** Create an initial multi-sig state for the simulator. */
+export function createMultiSigState(
+  numSigners: number = 3,
+  threshold: number = 2,
+  policy: MultiSigPolicy = 'm-of-n',
+): MultiSigState {
+  const signers: MultiSigSigner[] = Array.from({ length: numSigners }, (_, i) => ({
+    address: `G${String(i + 1).padStart(4, '0')}...STELLAR`,
+    weight: 1,
+    signed: false,
+  }));
+  return { signers, threshold, policy, approved: false };
+}
+
+/** Toggle a signer's signed status and recompute approval. */
+export function toggleSigner(state: MultiSigState, signerIndex: number): MultiSigState {
+  const signers = state.signers.map((s, i) =>
+    i === signerIndex ? { ...s, signed: !s.signed } : s,
+  );
+  const signedWeight = signers.filter((s) => s.signed).reduce((acc, s) => acc + s.weight, 0);
+  const totalWeight = signers.reduce((acc, s) => acc + s.weight, 0);
+  const approved =
+    state.policy === 'weighted'
+      ? signedWeight / totalWeight >= state.threshold / state.signers.length
+      : signers.filter((s) => s.signed).length >= state.threshold;
+  return { ...state, signers, approved };
+}
 
 /** Technology-stack options the student can filter by. */
 export const TECH_STACK_OPTIONS = [
@@ -134,6 +184,14 @@ export const DOMAIN_TEMPLATES: Record<
       'A funding pool that streams capital to measurable climate outcomes.',
     ],
     features: ['Impact Verification', 'Credit Retirement', 'Transparent Reporting'],
+  },
+  MultiSigWallet: {
+    titles: ['Multi-Party Treasury', 'Threshold Signature Vault', 'Social Recovery Wallet'],
+    descriptions: [
+      'A Soroban-native m-of-n multi-sig wallet where transactions execute only after a configurable quorum of signers approve on-chain.',
+      'A threshold-signature vault with time-locked and social-recovery policies for secure team asset management on Stellar.',
+    ],
+    features: ['m-of-n Signing', 'Threshold Configuration', 'On-Chain Approval', 'Social Recovery'],
   },
 };
 

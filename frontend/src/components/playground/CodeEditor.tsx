@@ -1,17 +1,17 @@
 'use client';
 
-import dynamic from 'next/dynamic';
-import type { OnMount } from '@monaco-editor/react';
-import type { editor } from 'monaco-editor';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronRight, FileText } from 'lucide-react';
 import type { CollaborationProvider } from '@/lib/collaboration/YjsProvider';
-import { extendRustLanguage } from '@/lib/editor/SorobanLanguage';
 import { registerSorobanCompletion } from '@/lib/editor/SorobanCompletion';
 import { registerSorobanHover } from '@/lib/editor/SorobanHover';
-import { createSorobanLinter } from '@/lib/editor/SorobanLinter';
+import { extendRustLanguage } from '@/lib/editor/SorobanLanguage';
 import type { SorobanLinterInstance } from '@/lib/editor/SorobanLinter';
+import { createSorobanLinter } from '@/lib/editor/SorobanLinter';
 import { THEME_COLORS } from '@/lib/theme/themeColors';
+import type { OnMount } from '@monaco-editor/react';
+import { ChevronRight, FileText } from 'lucide-react';
+import type { editor } from 'monaco-editor';
+import dynamic from 'next/dynamic';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const Editor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
@@ -30,6 +30,8 @@ interface CodeEditorProps {
   mobileMode?: boolean;
   collaborationProvider?: CollaborationProvider;
   settings?: MonacoEditorSettings;
+  /** Optional callback fired whenever the editor content changes */
+  onCodeChange?: (code: string) => void;
 }
 
 export interface MonacoEditorSettings {
@@ -115,6 +117,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   mobileMode = false,
   collaborationProvider,
   settings = { fontSize: 14, tabSize: 2, vimBindings: false },
+  onCodeChange,
 }) => {
   const [editorInstance, setEditorInstance] = useState<editor.IStandaloneCodeEditor | null>(null);
   const [code, setCode] = useState(DEFAULT_CODE);
@@ -131,8 +134,10 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   }, [collaborationProvider, roomName]);
 
   const handleCodeChange = useCallback((value: string | undefined) => {
-    setCode(value ?? '');
-  }, []);
+    const newCode = value ?? '';
+    setCode(newCode);
+    onCodeChange?.(newCode);
+  }, [onCodeChange]);
 
   const handleMonacoError = useCallback(() => {
     setMonacoError(true);
