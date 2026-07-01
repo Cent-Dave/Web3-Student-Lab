@@ -21,11 +21,13 @@ import { requestLogger } from './middleware/requestLogger.js';
 import { requireWorkspaceMiddleware } from './middleware/WorkspaceContext.js';
 import freelanceRoute from './routes/freelance.js';
 import routes from './routes/index.js';
-import { startWebhookWorker, stopWebhookWorker } from './services/webhooks/index.js';
+import startWebhookWorker, { stopWebhookWorker } from './services/webhooks/index.js';
+import { startBackupWorker, stopBackupWorker, scheduleBackupCron } from './jobs/backup.worker.js';
 import logger from './utils/logger.js';
 import { pubClient, redisConnection, subClient } from './utils/redis.js';
 import { getSentryErrorHandler, getSentryRequestHandler, initializeSentry } from './utils/sentry.js';
 import { initializeWebSocket } from './websocket/WebSocketServer.js';
+import { createGraphQLServer } from './graphql/server.js';
 
 // Load environment variables
 // dotenv.config(); // Skip in Docker Compose - use environment variables instead
@@ -56,6 +58,11 @@ if (config.app.env !== 'test') {
   });
 
   startWebhookWorker();
+
+  startBackupWorker();
+  scheduleBackupCron().catch((err) => {
+    logger.warn('Failed to schedule backup cron:', err);
+  });
 
   logger.info('Distributed caching layer initialized');
 }
@@ -150,6 +157,30 @@ app.use('/api/v1/cache', cacheMetrics);
 app.use('/api/rpc', rpcCacheHeadersMiddleware);
 app.use('/api/rpc', rpcCacheMiddleware);
 
+// GraphQL API endpoint
+let graphqlServer: Awaited<ReturnType<typeof createGraphQLServer>> | null = null;
+
+async function setupGraphQL() {
+  try {
+    graphqlServer = await createGraphQLServer();
+    const { expressMiddleware } = await import('@apollo/server/express4');
+    
+    app.use(
+      '/graphql',
+      express.json(),
+      cors<cors.CorsRequest>({ origin: true }),
+      expressMiddleware(graphqlServer, {
+        context: async () => ({ prisma, redis: redisConnection }),
+      })
+    );
+    logger.info('GraphQL server initialized at /graphql');
+  } catch (error) {
+    logger.warn('GraphQL server initialization failed:', error);
+  }
+}
+
+setupGraphQL().catch(() => {});
+
 // API Routes - with workspace isolation
 app.use('/api/v1', requireWorkspaceMiddleware, routes);
 
@@ -178,6 +209,7 @@ if (config.app.env !== 'test') {
     blockHeaderListener.stop();
     cacheWarmer.stop();
     await stopWebhookWorker();
+    await stopBackupWorker();
     await distributedCacheManager.gracefulShutdown();
 
     // Clean up connections
@@ -198,6 +230,7 @@ if (config.app.env !== 'test') {
     blockHeaderListener.stop();
     cacheWarmer.stop();
     await stopWebhookWorker();
+    await stopBackupWorker();
     await distributedCacheManager.gracefulShutdown();
 
     // Clean up connections
