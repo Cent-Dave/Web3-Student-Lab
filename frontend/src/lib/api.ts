@@ -151,6 +151,34 @@ export const authAPI = {
       { ttlMs: DEFAULT_CACHE_TTL_MS }
     );
   },
+
+  /**
+   * Get the GitHub OAuth authorization URL to redirect the user
+   */
+  getGitHubOAuthUrl: (): string => {
+    return `${API_BASE_URL}/oauth/github`;
+  },
+
+  /**
+   * Check if the current user has a linked GitHub account
+   */
+  getGitHubStatus: async (): Promise<{
+    linked: boolean;
+    githubId?: number;
+    githubUsername?: string;
+    githubAvatarUrl?: string | null;
+  }> => {
+    const response = await apiClient.get('/oauth/github/status');
+    return response.data;
+  },
+
+  /**
+   * Link a GitHub account to the current user
+   */
+  linkGitHubAccount: async (code: string): Promise<AuthResponse> => {
+    const response = await apiClient.post('/oauth/github/link', { code });
+    return response.data;
+  },
 };
 
 // Courses APIs

@@ -1,22 +1,22 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "build": "prisma generate && tsc",
+    "build": "tsc",
     "start": "node dist/src/index.js",
     "start:prod": "node dist/src/index.js",
     "dev": "tsx watch src/index.ts",
     "test": "jest --runInBand --forceExit",
     "test:coverage": "jest --coverage --runInBand --forceExit",
+    "bench": "tsx benchmarks/runBenchmarks.ts",
     "collaboration": "tsx src/collaborationServer.ts"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "@apollo/server": "^5.5.1",
+    "@aws-sdk/client-s3": "^3.1076.0",
+    "@aws-sdk/lib-storage": "^3.1076.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@prisma/config": "^7.8.0",
@@ -62,10 +62,12 @@
     "@types/node": "^25.5.0",
     "@types/qrcode": "^1.5.5",
     "@types/sanitize-html": "^2.16.1",
+    "@types/autocannon": "^7.12.7",
     "@types/supertest": "^7.2.0",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
     "@types/ws": "^8.18.1",
+    "autocannon": "^8.0.0",
     "ioredis-mock": "^8.13.1",
     "jest": "^30.4.2",
     "supertest": "^7.2.2",
@@ -73,9 +75,5 @@
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
-  },
-  "type": "module",
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
   }
 }

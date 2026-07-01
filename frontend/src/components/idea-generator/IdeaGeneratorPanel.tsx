@@ -13,6 +13,7 @@ import {
   type IdeaFilters,
 } from '@/lib/idea-generator/ideaGenerator';
 import VestingDashboard from './VestingDashboard';
+import MultiSigWalletPanel from './MultiSigWalletPanel';
 
 /**
  * IdeaGeneratorPanel — the interactive Hackathon Idea Generator.
@@ -210,6 +211,13 @@ export default function IdeaGeneratorPanel() {
             projectId={idea.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}
             projectTitle={idea.title}
           />
+        </div>
+      )}
+
+      {/* Multi-sig Wallet Simulator — shown when the MultiSigWallet domain is selected */}
+      {filters.domain === 'MultiSigWallet' && (
+        <div className="lg:col-span-2">
+          <MultiSigWalletPanel />
         </div>
       )}
     </div>
