@@ -8,9 +8,10 @@
     "start": "node dist/src/index.js",
     "start:prod": "node dist/src/index.js",
     "dev": "tsx watch src/index.ts",
-    "test": "jest --passWithNoTests",
-    "backup:restore": "tsx src/jobs/backup.restore.ts",
-    "backup:manual": "tsx -e \"import { backupQueue } from './src/jobs/backup.queue.js'; await backupQueue.add('manual-backup', { type: 'manual', description: 'Manual trigger' }); console.log('Manual backup job queued'); process.exit(0);\""
+    "test": "jest --runInBand --forceExit",
+    "test:coverage": "jest --coverage --runInBand --forceExit",
+    "bench": "tsx benchmarks/runBenchmarks.ts",
+    "collaboration": "tsx src/collaborationServer.ts"
   },
   "dependencies": {
     "@apollo/server": "^5.5.1",
@@ -61,10 +62,12 @@
     "@types/node": "^25.5.0",
     "@types/qrcode": "^1.5.5",
     "@types/sanitize-html": "^2.16.1",
+    "@types/autocannon": "^7.12.7",
     "@types/supertest": "^7.2.0",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
     "@types/ws": "^8.18.1",
+    "autocannon": "^8.0.0",
     "ioredis-mock": "^8.13.1",
     "jest": "^30.4.2",
     "supertest": "^7.2.2",
