@@ -55,6 +55,11 @@ jobs:
         run: |
           npx prisma generate
           npx prisma migrate deploy || true
+      - name: Test Migration Rollbacks
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test_db
+        run: npm run test:migrations
       - name: Run tests
         working-directory: ./backend
         env:

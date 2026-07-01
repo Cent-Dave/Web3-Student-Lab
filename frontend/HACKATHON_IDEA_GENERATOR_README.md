@@ -10,6 +10,8 @@ Built with **React 19 + TypeScript**, styled to match the existing app.
 
 Route: `/hackathon-ideas`
 
+Block Explorer sub-route: `/hackathon-ideas/explorer`
+
 ## Architecture
 
 Follows the project's **data → derive → render** separation so each layer is

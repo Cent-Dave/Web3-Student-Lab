@@ -12,6 +12,7 @@ import {
   type Domain,
   type IdeaFilters,
 } from '@/lib/idea-generator/ideaGenerator';
+import MultiSigWalletPanel from './MultiSigWalletPanel';
 
 /**
  * IdeaGeneratorPanel — the interactive Hackathon Idea Generator.
@@ -188,6 +189,13 @@ export default function IdeaGeneratorPanel() {
           </p>
         )}
       </div>
+
+      {/* Multi-sig Wallet Simulator — shown when the MultiSigWallet domain is selected */}
+      {filters.domain === 'MultiSigWallet' && (
+        <div className="lg:col-span-2">
+          <MultiSigWalletPanel />
+        </div>
+      )}
     </div>
   );
 }
