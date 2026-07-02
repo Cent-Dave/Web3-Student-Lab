@@ -10,6 +10,8 @@
     "dev": "tsx watch src/index.ts",
     "test": "jest --runInBand --forceExit",
     "test:coverage": "jest --coverage --runInBand --forceExit",
+    "test:migrations": "echo 'No migrations tests'",
+
     "bench": "tsx benchmarks/runBenchmarks.ts",
     "collaboration": "tsx src/collaborationServer.ts"
   },

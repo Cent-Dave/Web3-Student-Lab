@@ -233,7 +233,10 @@ impl RBACContract {
         Self::revoke_all_delegations_by_user(&env, &user);
 
         // Publish event
-        env.events().publish((soroban_sdk::symbol_short!("role_rev"), user.clone()), (user_role.role, revoker.clone()));
+        env.events().publish(
+            (soroban_sdk::symbol_short!("role_rev"), user.clone()),
+            (user_role.role, revoker.clone()),
+        );
     }
 
     /// Delegate permission to another user
@@ -248,11 +251,17 @@ impl RBACContract {
 
         // Check if delegator has the permission to delegate
         Self::require_permission(env.clone(), delegator.clone(), permission.clone());
-        Self::require_permission(env.clone(), delegator.clone(), Permission::DelegatePermission);
+        Self::require_permission(
+            env.clone(),
+            delegator.clone(),
+            Permission::DelegatePermission,
+        );
 
         // Check if delegator's role allows delegation
-        let delegator_role_def =
-            Self::get_role_definition(env.clone(), Self::get_user_role(env.clone(), delegator.clone()).role);
+        let delegator_role_def = Self::get_role_definition(
+            env.clone(),
+            Self::get_user_role(env.clone(), delegator.clone()).role,
+        );
         if !delegator_role_def.can_delegate {
             panic!("Role does not allow delegation");
         }
@@ -351,7 +360,11 @@ impl RBACContract {
 
     /// Get user's current role
     pub fn get_user_role(env: Env, user: Address) -> UserRole {
-        match env.storage().persistent().get(&DataKey::UserRole(user.clone())) {
+        match env
+            .storage()
+            .persistent()
+            .get(&DataKey::UserRole(user.clone()))
+        {
             Some(role) => {
                 let user_role: UserRole = role;
                 // Check if role is expired
@@ -407,7 +420,10 @@ impl RBACContract {
             .persistent()
             .set(&DataKey::RoleDefinition(role.clone()), &role_def);
 
-        env.events().publish((soroban_sdk::symbol_short!("perm_upd"), role.clone()), admin.clone());
+        env.events().publish(
+            (soroban_sdk::symbol_short!("perm_upd"), role.clone()),
+            admin.clone(),
+        );
     }
 
     /// Clean up expired permissions and delegations

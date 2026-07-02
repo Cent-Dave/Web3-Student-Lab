@@ -1,10 +1,10 @@
 #![no_std]
 
+use soroban_sdk::xdr::ToXdr;
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, log, panic_with_error, Address, BytesN,
     Env, IntoVal, Map, String, Symbol, Val, Vec,
 };
-use soroban_sdk::xdr::ToXdr;
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -169,7 +169,10 @@ impl SubscriptionService {
         let mut plan_id_bytes = [0u8; 32];
         let nonce_bytes = nonce.to_be_bytes();
         plan_id_bytes[..8].copy_from_slice(&nonce_bytes);
-        let merchant_bytes = env.crypto().sha256(&merchant.clone().to_xdr(&env)).to_array();
+        let merchant_bytes = env
+            .crypto()
+            .sha256(&merchant.clone().to_xdr(&env))
+            .to_array();
         for (i, &byte) in merchant_bytes.iter().take(24).enumerate() {
             plan_id_bytes[8 + i] = byte;
         }
@@ -252,7 +255,10 @@ impl SubscriptionService {
         let mut sub_id_bytes = [0u8; 32];
         let nonce_bytes = nonce.to_be_bytes();
         sub_id_bytes[..8].copy_from_slice(&nonce_bytes);
-        let sub_bytes = env.crypto().sha256(&subscriber.clone().to_xdr(&env)).to_array();
+        let sub_bytes = env
+            .crypto()
+            .sha256(&subscriber.clone().to_xdr(&env))
+            .to_array();
         for (i, &byte) in sub_bytes.iter().take(24).enumerate() {
             sub_id_bytes[8 + i] = byte;
         }
@@ -350,7 +356,6 @@ impl SubscriptionService {
 
         refund
     }
-
 
     pub fn pause_subscription(env: Env, subscriber: Address, subscription_id: BytesN<32>) {
         subscriber.require_auth();

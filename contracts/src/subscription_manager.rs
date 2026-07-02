@@ -327,13 +327,16 @@ impl SubscriptionManager {
             .set(&USER_SUBSCRIPTIONS, &user_subscriptions);
 
         // Emit event
-        env.events().publish((soroban_sdk::symbol_short!("sub_cre"), subscription_id), SubscriptionCreated {
-            subscription_id,
-            user: user.clone(),
-            tier,
-            start_date: current_time,
-            end_date,
-        });
+        env.events().publish(
+            (soroban_sdk::symbol_short!("sub_cre"), subscription_id),
+            SubscriptionCreated {
+                subscription_id,
+                user: user.clone(),
+                tier,
+                start_date: current_time,
+                end_date,
+            },
+        );
 
         Ok(subscription_id)
     }
@@ -380,19 +383,25 @@ impl SubscriptionManager {
         env.storage().instance().set(&SUBSCRIPTIONS, &subscriptions);
 
         // Emit event
-        env.events().publish((soroban_sdk::symbol_short!("sub_cnc"), subscription_id), SubscriptionCancelled {
-            subscription_id,
-            user: subscription.user.clone(),
-            cancellation_date: env.ledger().timestamp(),
-            refund_amount,
-        });
+        env.events().publish(
+            (soroban_sdk::symbol_short!("sub_cnc"), subscription_id),
+            SubscriptionCancelled {
+                subscription_id,
+                user: subscription.user.clone(),
+                cancellation_date: env.ledger().timestamp(),
+                refund_amount,
+            },
+        );
 
-        env.events().publish((soroban_sdk::symbol_short!("sub_upd"), subscription_id), SubscriptionUpdated {
-            subscription_id,
-            user: subscription.user.clone(),
-            old_status,
-            new_status: SubscriptionStatus::Cancelled,
-        });
+        env.events().publish(
+            (soroban_sdk::symbol_short!("sub_upd"), subscription_id),
+            SubscriptionUpdated {
+                subscription_id,
+                user: subscription.user.clone(),
+                old_status,
+                new_status: SubscriptionStatus::Cancelled,
+            },
+        );
 
         Ok(())
     }
@@ -411,11 +420,14 @@ impl SubscriptionManager {
         config.paused = true;
         env.storage().instance().set(&CONFIG, &config);
 
-        env.events().publish((soroban_sdk::symbol_short!("pause"), admin.clone()), EmergencyPause {
-            paused_by: admin,
-            pause_date: env.ledger().timestamp(),
-            reason,
-        });
+        env.events().publish(
+            (soroban_sdk::symbol_short!("pause"), admin.clone()),
+            EmergencyPause {
+                paused_by: admin,
+                pause_date: env.ledger().timestamp(),
+                reason,
+            },
+        );
 
         Ok(())
     }
@@ -447,11 +459,14 @@ impl SubscriptionManager {
         config.emergency_pause = true;
         env.storage().instance().set(&CONFIG, &config);
 
-        env.events().publish((soroban_sdk::symbol_short!("pause"), admin.clone()), EmergencyPause {
-            paused_by: admin,
-            pause_date: env.ledger().timestamp(),
-            reason,
-        });
+        env.events().publish(
+            (soroban_sdk::symbol_short!("pause"), admin.clone()),
+            EmergencyPause {
+                paused_by: admin,
+                pause_date: env.ledger().timestamp(),
+                reason,
+            },
+        );
 
         Ok(())
     }
@@ -550,11 +565,14 @@ impl SubscriptionManager {
         plans.set(tier.clone(), plan.clone());
         env.storage().instance().set(&SUBSCRIPTION_PLANS, &plans);
 
-        env.events().publish((soroban_sdk::symbol_short!("plan_upd"), tier.clone()), PlanUpdated {
-            tier,
-            updated_by: admin,
-            update_date: env.ledger().timestamp(),
-        });
+        env.events().publish(
+            (soroban_sdk::symbol_short!("plan_upd"), tier.clone()),
+            PlanUpdated {
+                tier,
+                updated_by: admin,
+                update_date: env.ledger().timestamp(),
+            },
+        );
 
         Ok(())
     }

@@ -1,10 +1,10 @@
 #![no_std]
 
+use soroban_sdk::xdr::ToXdr;
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, log, panic_with_error, Address, BytesN,
-    Env, Map, String, Symbol, Vec, IntoVal, Val,
+    Env, IntoVal, Map, String, Symbol, Val, Vec,
 };
-use soroban_sdk::xdr::ToXdr;
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -359,7 +359,10 @@ impl RecurringPayments {
         let timestamp = env.ledger().timestamp();
         let ts_bytes = timestamp.to_be_bytes();
         tx_bytes[..8].copy_from_slice(&ts_bytes);
-        let sub_bytes = env.crypto().sha256(&subscription.subscriber.clone().to_xdr(&env)).to_array();
+        let sub_bytes = env
+            .crypto()
+            .sha256(&subscription.subscriber.clone().to_xdr(&env))
+            .to_array();
         for (i, &byte) in sub_bytes.iter().take(24).enumerate() {
             tx_bytes[8 + i] = byte;
         }
@@ -463,7 +466,10 @@ impl RecurringPayments {
         let timestamp = env.ledger().timestamp();
         let ts_bytes = timestamp.to_be_bytes();
         id_bytes[..8].copy_from_slice(&ts_bytes);
-        let sub_bytes = env.crypto().sha256(&subscription.subscriber.clone().to_xdr(env)).to_array();
+        let sub_bytes = env
+            .crypto()
+            .sha256(&subscription.subscriber.clone().to_xdr(env))
+            .to_array();
         for (i, &byte) in sub_bytes.iter().take(24).enumerate() {
             id_bytes[8 + i] = byte;
         }

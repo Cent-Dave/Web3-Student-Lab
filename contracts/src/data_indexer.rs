@@ -205,9 +205,10 @@ impl DataIndexerContract {
             .persistent()
             .get(&IndexerKey::EventTypeCount(event_type.clone()))
             .unwrap_or(0);
-        env.storage()
-            .persistent()
-            .set(&IndexerKey::EventTypeCount(event_type.clone()), &(type_count + 1));
+        env.storage().persistent().set(
+            &IndexerKey::EventTypeCount(event_type.clone()),
+            &(type_count + 1),
+        );
 
         // Address counter disabled
 
