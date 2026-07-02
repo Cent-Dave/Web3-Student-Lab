@@ -25,6 +25,7 @@ pub struct PointsBatch {
     pub expires_at: u64,
 }
 
+#[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PointsHistoryEntry {
     pub delta: i64,
@@ -76,12 +77,7 @@ impl RewardPointsContract {
             expires_at,
         });
 
-        Self::append_history(
-            &env,
-            &user,
-            amount as i64,
-            reason.clone(),
-        );
+        Self::append_history(&env, &user, amount as i64, reason.clone());
 
         env.storage()
             .persistent()
@@ -139,10 +135,8 @@ impl RewardPointsContract {
             .persistent()
             .set(&RewardKey::Batches(user.clone()), &live);
 
-        env.events().publish(
-            (soroban_sdk::symbol_short!("pts_exp"), user),
-            deduct,
-        );
+        env.events()
+            .publish((soroban_sdk::symbol_short!("pts_exp"), user), deduct);
     }
 
     /// Extend expiry of all active batches by `extra_ledgers`. Only admin.
@@ -183,10 +177,8 @@ impl RewardPointsContract {
             .persistent()
             .set(&RewardKey::Balance(user.clone()), &balance);
 
-        env.events().publish(
-            (soroban_sdk::Symbol::new(&env, "pts_deduct"), user),
-            amount,
-        );
+        env.events()
+            .publish((soroban_sdk::Symbol::new(&env, "pts_deduct"), user), amount);
     }
 
     // ── Views ──────────────────────────────────────────────────────────────

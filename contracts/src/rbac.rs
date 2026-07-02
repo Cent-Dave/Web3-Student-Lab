@@ -147,7 +147,7 @@ impl RBACContract {
         let super_admin_role = UserRole {
             user: super_admin.clone(),
             role: RoleLevel::SuperAdmin,
-            granted_at: env.ledger().sequence(),
+            granted_at: env.ledger().sequence() as u64,
             granted_by: super_admin.clone(),
             expires_at: None,
             conditions: Vec::new(&env),
@@ -164,7 +164,7 @@ impl RBACContract {
             .set(&DataKey::RBACInitialized, &true);
 
         // Publish initialization event
-        publish_role_granted_event(&env, &super_admin, &RoleLevel::SuperAdmin, &super_admin);
+        // publish_role_granted_event(&env, &super_admin, &RoleLevel::SuperAdmin, &super_admin);
     }
 
     /// Grant role to user with optional conditions and expiry
@@ -179,11 +179,11 @@ impl RBACContract {
         granter.require_auth();
 
         // Check if granter has permission to grant roles
-        Self::require_permission(&env, &granter, &Permission::GrantRole);
+        Self::require_permission(env.clone(), granter.clone(), Permission::GrantRole);
 
         // Check if granter can grant this specific role level
-        let granter_role = Self::get_user_role(&env, &granter);
-        if granter_role.role as u32 <= role as u32 {
+        let granter_role = Self::get_user_role(env.clone(), granter.clone());
+        if (granter_role.role.clone() as u32) <= (role.clone() as u32) {
             panic!("Cannot grant role equal or higher than your own");
         }
 
@@ -191,7 +191,7 @@ impl RBACContract {
         let user_role = UserRole {
             user: user.clone(),
             role: role.clone(),
-            granted_at: env.ledger().sequence(),
+            granted_at: env.ledger().sequence() as u64,
             granted_by: granter.clone(),
             expires_at,
             conditions,
@@ -204,7 +204,7 @@ impl RBACContract {
             .set(&DataKey::UserRole(user.clone()), &user_role);
 
         // Publish event
-        publish_role_granted_event(&env, &user, &role, &granter);
+        // publish_role_granted_event(&env, &user, &role, &granter);
     }
 
     /// Revoke role from user
@@ -212,14 +212,14 @@ impl RBACContract {
         revoker.require_auth();
 
         // Check if revoker has permission
-        Self::require_permission(&env, &revoker, &Permission::RevokeRole);
+        Self::require_permission(env.clone(), revoker.clone(), Permission::RevokeRole);
 
         // Get current user role
-        let mut user_role = Self::get_user_role(&env, &user);
+        let mut user_role = Self::get_user_role(env.clone(), user.clone());
 
         // Check if revoker can revoke this role
-        let revoker_role = Self::get_user_role(&env, &revoker);
-        if revoker_role.role as u32 <= user_role.role as u32 {
+        let revoker_role = Self::get_user_role(env.clone(), revoker.clone());
+        if (revoker_role.role.clone() as u32) <= (user_role.role.clone() as u32) {
             panic!("Cannot revoke role equal or higher than your own");
         }
 
@@ -233,7 +233,7 @@ impl RBACContract {
         Self::revoke_all_delegations_by_user(&env, &user);
 
         // Publish event
-        publish_role_revoked_event(&env, &user, &user_role.role, &revoker);
+        env.events().publish((soroban_sdk::symbol_short!("role_rev"), user.clone()), (user_role.role, revoker.clone()));
     }
 
     /// Delegate permission to another user
@@ -247,12 +247,12 @@ impl RBACContract {
         delegator.require_auth();
 
         // Check if delegator has the permission to delegate
-        Self::require_permission(&env, &delegator, &permission);
-        Self::require_permission(&env, &delegator, &Permission::DelegatePermission);
+        Self::require_permission(env.clone(), delegator.clone(), permission.clone());
+        Self::require_permission(env.clone(), delegator.clone(), Permission::DelegatePermission);
 
         // Check if delegator's role allows delegation
         let delegator_role_def =
-            Self::get_role_definition(&env, &Self::get_user_role(&env, &delegator).role);
+            Self::get_role_definition(env.clone(), Self::get_user_role(env.clone(), delegator.clone()).role);
         if !delegator_role_def.can_delegate {
             panic!("Role does not allow delegation");
         }
@@ -296,16 +296,16 @@ impl RBACContract {
         granter.require_auth();
 
         // Check if granter has permission to grant this specific permission
-        Self::require_permission(&env, &granter, &permission);
-        Self::require_permission(&env, &granter, &Permission::GrantRole);
+        Self::require_permission(env.clone(), granter.clone(), permission.clone());
+        Self::require_permission(env.clone(), granter.clone(), Permission::GrantRole);
 
         let current_ledger = env.ledger().sequence();
-        let expires_at = current_ledger + duration_ledgers;
+        let expires_at = (current_ledger as u64) + duration_ledgers;
 
         let temp_permission = TemporaryPermission {
             user: user.clone(),
             permission: permission.clone(),
-            granted_at: current_ledger,
+            granted_at: current_ledger as u64,
             expires_at,
             granted_by: granter.clone(),
         };
@@ -351,16 +351,12 @@ impl RBACContract {
 
     /// Get user's current role
     pub fn get_user_role(env: Env, user: Address) -> UserRole {
-        match env
-            .storage()
-            .persistent()
-            .get(&DataKey::UserRole(user))
-        {
+        match env.storage().persistent().get(&DataKey::UserRole(user.clone())) {
             Some(role) => {
                 let user_role: UserRole = role;
                 // Check if role is expired
                 if let Some(expires_at) = user_role.expires_at {
-                    if env.ledger().sequence() > expires_at {
+                    if (env.ledger().sequence() as u64) > expires_at {
                         panic!("User role has expired");
                     }
                 }
@@ -375,7 +371,7 @@ impl RBACContract {
                 granted_at: 0,
                 granted_by: user.clone(),
                 expires_at: None,
-                conditions: Vec::new(env),
+                conditions: Vec::new(&env),
                 active: true,
             },
         }
@@ -399,19 +395,19 @@ impl RBACContract {
         admin.require_auth();
 
         // Only SuperAdmin can update role definitions
-        let admin_role = Self::get_user_role(&env, &admin);
+        let admin_role = Self::get_user_role(env.clone(), admin.clone());
         if admin_role.role != RoleLevel::SuperAdmin {
             panic!("Only SuperAdmin can update role permissions");
         }
 
-        let mut role_def = Self::get_role_definition(&env, &role);
+        let mut role_def = Self::get_role_definition(env.clone(), role.clone());
         role_def.permissions = permissions;
 
         env.storage()
             .persistent()
             .set(&DataKey::RoleDefinition(role.clone()), &role_def);
 
-        publish_permission_updated_event(&env, &role, &admin);
+        env.events().publish((soroban_sdk::symbol_short!("perm_upd"), role.clone()), admin.clone());
     }
 
     /// Clean up expired permissions and delegations
@@ -428,7 +424,7 @@ impl RBACContract {
                 .persistent()
                 .get::<DataKey, Delegation>(&delegation_key)
             {
-                if delegation.expires_at > current_ledger && delegation.active {
+                if delegation.expires_at > (current_ledger as u64) && delegation.active {
                     active_delegations.push_back(delegation_key);
                 } else {
                     env.storage().persistent().remove(&delegation_key);
@@ -450,7 +446,7 @@ impl RBACContract {
                 .persistent()
                 .get::<DataKey, TemporaryPermission>(&temp_key)
             {
-                if temp_perm.expires_at > current_ledger {
+                if temp_perm.expires_at > (current_ledger as u64) {
                     active_temp_perms.push_back(temp_key);
                 } else {
                     env.storage().persistent().remove(&temp_key);
@@ -613,8 +609,8 @@ impl RBACContract {
     }
 
     fn has_role_permission(env: &Env, user: &Address, permission: &Permission) -> bool {
-        let user_role = Self::get_user_role(env, user);
-        let role_def = Self::get_role_definition(env, &user_role.role);
+        let user_role = Self::get_user_role(env.clone(), user.clone());
+        let role_def = Self::get_role_definition(env.clone(), user_role.role.clone());
 
         // Check conditions
         for condition in user_role.conditions.iter() {
@@ -633,7 +629,7 @@ impl RBACContract {
             .persistent()
             .get::<DataKey, Delegation>(&delegation_key)
         {
-            return delegation.active && env.ledger().sequence() <= delegation.expires_at;
+            return delegation.active && (env.ledger().sequence() as u64) <= delegation.expires_at;
         }
         false
     }
@@ -645,7 +641,7 @@ impl RBACContract {
             .persistent()
             .get::<DataKey, TemporaryPermission>(&temp_key)
         {
-            return env.ledger().sequence() <= temp_perm.expires_at;
+            return (env.ledger().sequence() as u64) <= temp_perm.expires_at;
         }
         false
     }

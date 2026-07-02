@@ -70,9 +70,9 @@ pub enum DataKey {
     NextTeamId,
     Developer(Address),
     Team(u64),
-    JoinRequests(u64),      // Vec<Address>
-    Invitations(Address),   // Vec<u64>
-    AllDevelopers,          // Vec<Address>
+    JoinRequests(u64),    // Vec<Address>
+    Invitations(Address), // Vec<u64>
+    AllDevelopers,        // Vec<Address>
 }
 
 #[contract]
@@ -86,9 +86,13 @@ impl HackathonTeamMatching {
             panic_with_error!(&env, MatchingError::AlreadyInitialized);
         }
         env.storage().instance().set(&DataKey::Admin, &admin);
-        env.storage().instance().set(&DataKey::SkillVerifier, &skill_verifier);
+        env.storage()
+            .instance()
+            .set(&DataKey::SkillVerifier, &skill_verifier);
         env.storage().instance().set(&DataKey::NextTeamId, &1u64);
-        env.storage().persistent().set(&DataKey::AllDevelopers, &Vec::<Address>::new(&env));
+        env.storage()
+            .persistent()
+            .set(&DataKey::AllDevelopers, &Vec::<Address>::new(&env));
     }
 
     /// Register a developer profile
@@ -99,7 +103,11 @@ impl HackathonTeamMatching {
         preferred_role: Symbol,
     ) {
         developer.require_auth();
-        if env.storage().persistent().has(&DataKey::Developer(developer.clone())) {
+        if env
+            .storage()
+            .persistent()
+            .has(&DataKey::Developer(developer.clone()))
+        {
             panic_with_error!(&env, MatchingError::AlreadyRegistered);
         }
 
@@ -109,7 +117,9 @@ impl HackathonTeamMatching {
             preferred_role,
             team_id: 0,
         };
-        env.storage().persistent().set(&DataKey::Developer(developer.clone()), &dev);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Developer(developer.clone()), &dev);
 
         let mut all_devs: Vec<Address> = env
             .storage()
@@ -117,14 +127,19 @@ impl HackathonTeamMatching {
             .get(&DataKey::AllDevelopers)
             .unwrap_or(Vec::new(&env));
         all_devs.push_back(developer.clone());
-        env.storage().persistent().set(&DataKey::AllDevelopers, &all_devs);
+        env.storage()
+            .persistent()
+            .set(&DataKey::AllDevelopers, &all_devs);
 
-        env.events().publish((symbol_short!("dev_reg"), developer), ());
+        env.events()
+            .publish((symbol_short!("dev_reg"), developer), ());
     }
 
     /// Retrieve a developer profile
     pub fn get_developer(env: Env, developer: Address) -> Option<Developer> {
-        env.storage().persistent().get(&DataKey::Developer(developer))
+        env.storage()
+            .persistent()
+            .get(&DataKey::Developer(developer))
     }
 
     /// Create a team
@@ -153,8 +168,14 @@ impl HackathonTeamMatching {
             panic_with_error!(&env, MatchingError::AlreadyInTeam);
         }
 
-        let team_id: u64 = env.storage().instance().get(&DataKey::NextTeamId).unwrap_or(1);
-        env.storage().instance().set(&DataKey::NextTeamId, &(team_id + 1));
+        let team_id: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::NextTeamId)
+            .unwrap_or(1);
+        env.storage()
+            .instance()
+            .set(&DataKey::NextTeamId, &(team_id + 1));
 
         let mut members = Vec::new(&env);
         members.push_back(creator.clone());
@@ -170,12 +191,17 @@ impl HackathonTeamMatching {
             closed: false,
         };
 
-        env.storage().persistent().set(&DataKey::Team(team_id), &team);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Team(team_id), &team);
 
         creator_dev.team_id = team_id;
-        env.storage().persistent().set(&DataKey::Developer(creator.clone()), &creator_dev);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Developer(creator.clone()), &creator_dev);
 
-        env.events().publish((symbol_short!("team_new"), creator), (team_id, name));
+        env.events()
+            .publish((symbol_short!("team_new"), creator), (team_id, name));
         team_id
     }
 
@@ -228,10 +254,13 @@ impl HackathonTeamMatching {
         }
         if !exists {
             requests.push_back(developer.clone());
-            env.storage().persistent().set(&DataKey::JoinRequests(team_id), &requests);
+            env.storage()
+                .persistent()
+                .set(&DataKey::JoinRequests(team_id), &requests);
         }
 
-        env.events().publish((symbol_short!("join_req"), developer), team_id);
+        env.events()
+            .publish((symbol_short!("join_req"), developer), team_id);
     }
 
     /// Accept a developer's join request (team creator only)
@@ -274,7 +303,9 @@ impl HackathonTeamMatching {
             .ok_or_else(|| panic_with_error!(&env, MatchingError::NoActiveRequest))
             .unwrap();
         requests.remove(idx);
-        env.storage().persistent().set(&DataKey::JoinRequests(team_id), &requests);
+        env.storage()
+            .persistent()
+            .set(&DataKey::JoinRequests(team_id), &requests);
 
         let mut dev = env
             .storage()
@@ -290,10 +321,15 @@ impl HackathonTeamMatching {
         dev.team_id = team_id;
         team.members.push_back(developer.clone());
 
-        env.storage().persistent().set(&DataKey::Developer(developer.clone()), &dev);
-        env.storage().persistent().set(&DataKey::Team(team_id), &team);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Developer(developer.clone()), &dev);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Team(team_id), &team);
 
-        env.events().publish((symbol_short!("join_acc"), creator), (developer, team_id));
+        env.events()
+            .publish((symbol_short!("join_acc"), creator), (developer, team_id));
     }
 
     /// Invite a developer to join the team (team creator only)
@@ -343,10 +379,13 @@ impl HackathonTeamMatching {
         }
         if !exists {
             invites.push_back(team_id);
-            env.storage().persistent().set(&DataKey::Invitations(developer.clone()), &invites);
+            env.storage()
+                .persistent()
+                .set(&DataKey::Invitations(developer.clone()), &invites);
         }
 
-        env.events().publish((symbol_short!("invite_d"), creator), (developer, team_id));
+        env.events()
+            .publish((symbol_short!("invite_d"), creator), (developer, team_id));
     }
 
     /// Accept a team's invitation (developer only)
@@ -397,15 +436,22 @@ impl HackathonTeamMatching {
             .ok_or_else(|| panic_with_error!(&env, MatchingError::NoActiveInvitation))
             .unwrap();
         invites.remove(idx);
-        env.storage().persistent().set(&DataKey::Invitations(developer.clone()), &invites);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Invitations(developer.clone()), &invites);
 
         dev.team_id = team_id;
         team.members.push_back(developer.clone());
 
-        env.storage().persistent().set(&DataKey::Developer(developer.clone()), &dev);
-        env.storage().persistent().set(&DataKey::Team(team_id), &team);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Developer(developer.clone()), &dev);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Team(team_id), &team);
 
-        env.events().publish((symbol_short!("invite_a"), developer), team_id);
+        env.events()
+            .publish((symbol_short!("invite_a"), developer), team_id);
     }
 
     /// Leave the current team (non-creator member only)
@@ -451,10 +497,15 @@ impl HackathonTeamMatching {
         team.members.remove(idx);
         dev.team_id = 0;
 
-        env.storage().persistent().set(&DataKey::Developer(developer.clone()), &dev);
-        env.storage().persistent().set(&DataKey::Team(team_id), &team);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Developer(developer.clone()), &dev);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Team(team_id), &team);
 
-        env.events().publish((symbol_short!("team_lv"), developer), team_id);
+        env.events()
+            .publish((symbol_short!("team_lv"), developer), team_id);
     }
 
     /// Remove a member from the team (team creator only)
@@ -500,12 +551,17 @@ impl HackathonTeamMatching {
 
         if dev.team_id == team_id {
             dev.team_id = 0;
-            env.storage().persistent().set(&DataKey::Developer(developer.clone()), &dev);
+            env.storage()
+                .persistent()
+                .set(&DataKey::Developer(developer.clone()), &dev);
         }
 
-        env.storage().persistent().set(&DataKey::Team(team_id), &team);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Team(team_id), &team);
 
-        env.events().publish((symbol_short!("team_rm"), creator), (developer, team_id));
+        env.events()
+            .publish((symbol_short!("team_rm"), creator), (developer, team_id));
     }
 
     /// Close the team, finalizing members (team creator only)
@@ -524,9 +580,12 @@ impl HackathonTeamMatching {
         }
 
         team.closed = true;
-        env.storage().persistent().set(&DataKey::Team(team_id), &team);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Team(team_id), &team);
 
-        env.events().publish((symbol_short!("team_cls"), creator), team_id);
+        env.events()
+            .publish((symbol_short!("team_cls"), creator), team_id);
     }
 
     /// Find matching teams for a developer
@@ -540,11 +599,19 @@ impl HackathonTeamMatching {
             None => return Vec::new(&env),
         };
 
-        let next_id: u64 = env.storage().instance().get(&DataKey::NextTeamId).unwrap_or(1);
+        let next_id: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::NextTeamId)
+            .unwrap_or(1);
         let mut matched_teams = Vec::new(&env);
 
         for id in 1..next_id {
-            if let Some(team) = env.storage().persistent().get::<_, Team>(&DataKey::Team(id)) {
+            if let Some(team) = env
+                .storage()
+                .persistent()
+                .get::<_, Team>(&DataKey::Team(id))
+            {
                 if team.closed || team.members.len() >= team.max_members {
                     continue;
                 }

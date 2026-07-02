@@ -15,7 +15,10 @@ fn create_test_env() -> Env {
     env
 }
 
-fn create_token_contract<'a>(env: &Env, admin: &Address) -> (Address, token::Client<'a>, token::StellarAssetClient<'a>) {
+fn create_token_contract<'a>(
+    env: &Env,
+    admin: &Address,
+) -> (Address, token::Client<'a>, token::StellarAssetClient<'a>) {
     let token_address = env.register_stellar_asset_contract(admin.clone());
     let token = token::Client::new(env, &token_address);
     let token_admin = token::StellarAssetClient::new(env, &token_address);

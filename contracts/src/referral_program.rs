@@ -39,9 +39,7 @@ impl ReferralProgramContract {
 
     /// Returns the referrer of `referee`, if any.
     pub fn get_referrer(env: Env, referee: Address) -> Option<Address> {
-        env.storage()
-            .instance()
-            .get(&DataKey::Referrer(referee))
+        env.storage().instance().get(&DataKey::Referrer(referee))
     }
 }
 

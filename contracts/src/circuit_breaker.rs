@@ -136,7 +136,9 @@ impl CircuitBreakerContract {
         Self::assert_admin(&env, &caller);
 
         env.storage().instance().set(&CBKey::Paused, &true);
-        env.storage().instance().set(&CBKey::PausedAt, &env.ledger().timestamp());
+        env.storage()
+            .instance()
+            .set(&CBKey::PausedAt, &env.ledger().timestamp());
         env.storage().instance().set(&CBKey::PausedBy, &caller);
 
         // Bump nonce to invalidate any prior approval set.
@@ -144,9 +146,14 @@ impl CircuitBreakerContract {
         let new_nonce = nonce.checked_add(1).unwrap_or(0);
         env.storage().instance().set(&CBKey::Nonce, &new_nonce);
         // Clear approvals for the new nonce (they start empty by default).
-        env.storage().instance().remove(&CBKey::Approvals(new_nonce));
+        env.storage()
+            .instance()
+            .remove(&CBKey::Approvals(new_nonce));
 
-        env.events().publish((symbol_short!("cb_paused"),), (caller, env.ledger().timestamp()));
+        env.events().publish(
+            (symbol_short!("cb_paused"),),
+            (caller, env.ledger().timestamp()),
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -170,9 +177,14 @@ impl CircuitBreakerContract {
             panic_with_error!(&env, CBError::AlreadyApproved);
         }
         approvals.push_back(guardian.clone());
-        env.storage().instance().set(&CBKey::Approvals(nonce), &approvals);
+        env.storage()
+            .instance()
+            .set(&CBKey::Approvals(nonce), &approvals);
 
-        env.events().publish((symbol_short!("cb_approv"),), (guardian, nonce, approvals.len()));
+        env.events().publish(
+            (symbol_short!("cb_approv"),),
+            (guardian, nonce, approvals.len()),
+        );
     }
 
     /// Execute the unpause once the threshold of approvals has been reached.
@@ -194,7 +206,8 @@ impl CircuitBreakerContract {
         // Clear approvals for this nonce after use.
         env.storage().instance().remove(&CBKey::Approvals(nonce));
 
-        env.events().publish((symbol_short!("cb_resume"),), (nonce, approvals.len()));
+        env.events()
+            .publish((symbol_short!("cb_resume"),), (nonce, approvals.len()));
     }
 
     // -----------------------------------------------------------------------
@@ -205,36 +218,51 @@ impl CircuitBreakerContract {
     pub fn add_admin(env: Env, caller: Address, new_admin: Address) {
         caller.require_auth();
         Self::assert_admin(&env, &caller);
-        let mut admins: Vec<Address> = env.storage().instance().get(&CBKey::Admins).unwrap_or_else(|| Vec::new(&env));
+        let mut admins: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&CBKey::Admins)
+            .unwrap_or_else(|| Vec::new(&env));
         if !admins.contains(&new_admin) {
             admins.push_back(new_admin.clone());
             env.storage().instance().set(&CBKey::Admins, &admins);
         }
-        env.events().publish((Symbol::new(&env, "cb_adm_add"),), new_admin);
+        env.events()
+            .publish((Symbol::new(&env, "cb_adm_add"),), new_admin);
     }
 
     /// Add a new guardian. Requires an existing admin's authorisation.
     pub fn add_guardian(env: Env, caller: Address, new_guardian: Address) {
         caller.require_auth();
         Self::assert_admin(&env, &caller);
-        let mut guardians: Vec<Address> = env.storage().instance().get(&CBKey::Guardians).unwrap_or_else(|| Vec::new(&env));
+        let mut guardians: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&CBKey::Guardians)
+            .unwrap_or_else(|| Vec::new(&env));
         if !guardians.contains(&new_guardian) {
             guardians.push_back(new_guardian.clone());
             env.storage().instance().set(&CBKey::Guardians, &guardians);
         }
-        env.events().publish((Symbol::new(&env, "cb_grd_add"),), new_guardian);
+        env.events()
+            .publish((Symbol::new(&env, "cb_grd_add"),), new_guardian);
     }
 
     /// Update the unpause threshold. Requires admin auth.
     pub fn set_threshold(env: Env, caller: Address, threshold: u32) {
         caller.require_auth();
         Self::assert_admin(&env, &caller);
-        let guardians: Vec<Address> = env.storage().instance().get(&CBKey::Guardians).unwrap_or_else(|| Vec::new(&env));
+        let guardians: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&CBKey::Guardians)
+            .unwrap_or_else(|| Vec::new(&env));
         if threshold == 0 || threshold > guardians.len() {
             panic_with_error!(&env, CBError::InvalidThreshold);
         }
         env.storage().instance().set(&CBKey::Threshold, &threshold);
-        env.events().publish((symbol_short!("cb_thresh"),), threshold);
+        env.events()
+            .publish((symbol_short!("cb_thresh"),), threshold);
     }
 
     // -----------------------------------------------------------------------
@@ -243,7 +271,10 @@ impl CircuitBreakerContract {
 
     /// Returns `true` if the protocol is currently paused.
     pub fn is_paused(env: Env) -> bool {
-        env.storage().instance().get(&CBKey::Paused).unwrap_or(false)
+        env.storage()
+            .instance()
+            .get(&CBKey::Paused)
+            .unwrap_or(false)
     }
 
     /// Returns the current unpause nonce.
@@ -273,21 +304,33 @@ impl CircuitBreakerContract {
     }
 
     fn assert_admin(env: &Env, caller: &Address) {
-        let admins: Vec<Address> = env.storage().instance().get(&CBKey::Admins).unwrap_or_else(|| Vec::new(env));
+        let admins: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&CBKey::Admins)
+            .unwrap_or_else(|| Vec::new(env));
         if !admins.contains(caller) {
             panic_with_error!(env, CBError::Unauthorized);
         }
     }
 
     fn assert_guardian(env: &Env, caller: &Address) {
-        let guardians: Vec<Address> = env.storage().instance().get(&CBKey::Guardians).unwrap_or_else(|| Vec::new(env));
+        let guardians: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&CBKey::Guardians)
+            .unwrap_or_else(|| Vec::new(env));
         if !guardians.contains(caller) {
             panic_with_error!(env, CBError::Unauthorized);
         }
     }
 
     fn assert_paused(env: &Env) {
-        let paused: bool = env.storage().instance().get(&CBKey::Paused).unwrap_or(false);
+        let paused: bool = env
+            .storage()
+            .instance()
+            .get(&CBKey::Paused)
+            .unwrap_or(false);
         if !paused {
             panic_with_error!(env, CBError::NotPaused);
         }
@@ -312,7 +355,11 @@ impl CircuitBreakerContract {
 /// }
 /// ```
 pub fn assert_not_paused(env: &Env) {
-    let paused: bool = env.storage().instance().get(&CBKey::Paused).unwrap_or(false);
+    let paused: bool = env
+        .storage()
+        .instance()
+        .get(&CBKey::Paused)
+        .unwrap_or(false);
     if paused {
         panic_with_error!(env, CBError::ContractPaused);
     }

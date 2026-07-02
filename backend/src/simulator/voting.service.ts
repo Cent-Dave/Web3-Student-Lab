@@ -1,4 +1,4 @@
-import prisma from '../db/prisma.js';
+import prisma from '../db/index.js';
 
 export class VotingService {
   static async createIdea(workspaceId: string, studentId: string, title: string, description: string) {

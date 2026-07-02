@@ -1,6 +1,6 @@
-use soroban_sdk::{Address, Env, String};
-use crate::types::{ContentItem, StorageKey};
 use crate::errors::Error;
+use crate::types::{ContentItem, StorageKey};
+use soroban_sdk::{Address, Env, String};
 
 const DAY_IN_LEDGERS: u32 = 17280;
 const INSTANCE_BUMP_AMOUNT: u32 = 7 * DAY_IN_LEDGERS;
@@ -16,7 +16,9 @@ pub fn has_admin(env: &Env) -> bool {
 
 pub fn set_admin(env: &Env, admin: &Address) {
     env.storage().instance().set(&StorageKey::Admin, admin);
-    env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+    env.storage()
+        .instance()
+        .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 }
 
 pub fn get_admin(env: &Env) -> Result<Address, Error> {
@@ -36,7 +38,9 @@ pub fn increment_content_id(env: &Env) {
     let key = StorageKey::ContentIdCounter;
     let current = get_next_content_id(env);
     env.storage().instance().set(&key, &(current + 1));
-    env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+    env.storage()
+        .instance()
+        .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 }
 
 // Instructor registry (persistent)
@@ -48,14 +52,22 @@ pub fn is_instructor(env: &Env, address: &Address) -> bool {
 pub fn set_instructor(env: &Env, address: &Address, is_instructor: bool) {
     let key = StorageKey::Instructor(address.clone());
     env.storage().persistent().set(&key, &is_instructor);
-    env.storage().persistent().extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 // Content storage (persistent)
 pub fn save_content(env: &Env, content_id: u64, content: &ContentItem) {
     let key = StorageKey::Content(content_id);
     env.storage().persistent().set(&key, content);
-    env.storage().persistent().extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 pub fn get_content(env: &Env, content_id: u64) -> Result<ContentItem, Error> {
@@ -70,7 +82,11 @@ pub fn get_content(env: &Env, content_id: u64) -> Result<ContentItem, Error> {
 pub fn save_content_version(env: &Env, content_id: u64, version: u32, content_hash: &String) {
     let key = StorageKey::ContentVersion(content_id, version);
     env.storage().persistent().set(&key, content_hash);
-    env.storage().persistent().extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 pub fn get_content_version(env: &Env, content_id: u64, version: u32) -> Result<String, Error> {
@@ -90,5 +106,9 @@ pub fn is_enrolled(env: &Env, content_id: u64, student: &Address) -> bool {
 pub fn set_enrollment(env: &Env, content_id: u64, student: &Address, enrolled: bool) {
     let key = StorageKey::Enrollment(content_id, student.clone());
     env.storage().persistent().set(&key, &enrolled);
-    env.storage().persistent().extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }

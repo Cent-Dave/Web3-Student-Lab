@@ -1,4 +1,4 @@
-import prisma from '../db/prisma.js';
+import prisma from '../db/index.js';
 
 export class P2PService {
   static async addNode(workspaceId: string, nodeName: string, ipAddress?: string, port?: number) {

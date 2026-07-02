@@ -149,8 +149,7 @@ impl CrossChainMessagingContract {
         env.storage()
             .persistent()
             .set(&MsgKey::Relayer(pubkey.clone()), &info);
-        env.events()
-            .publish((symbol_short!("rly_reg"),), pubkey);
+        env.events().publish((symbol_short!("rly_reg"),), pubkey);
     }
 
     /// Deactivate a relayer. Messages signed by it will be rejected.
@@ -167,8 +166,7 @@ impl CrossChainMessagingContract {
         env.storage()
             .persistent()
             .set(&MsgKey::Relayer(pubkey.clone()), &info);
-        env.events()
-            .publish((symbol_short!("rly_drg"),), pubkey);
+        env.events().publish((symbol_short!("rly_drg"),), pubkey);
     }
 
     /// Query whether a public key is an active relayer.
@@ -274,8 +272,10 @@ impl CrossChainMessagingContract {
 
         nonreentrant_release(&env, symbol_short!("msg_lock"));
 
-        env.events()
-            .publish((symbol_short!("msg_rcvd"), source_chain), (nonce, message_id.clone()));
+        env.events().publish(
+            (symbol_short!("msg_rcvd"), source_chain),
+            (nonce, message_id.clone()),
+        );
 
         message_id
     }

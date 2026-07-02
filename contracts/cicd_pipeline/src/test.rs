@@ -297,9 +297,21 @@ fn test_list_pipeline_stages() {
         &String::from_str(&env, "main"),
     );
 
-    client.add_stage(&pipeline_id, &StageType::Build, &String::from_str(&env, "Build"));
-    client.add_stage(&pipeline_id, &StageType::Test, &String::from_str(&env, "Test"));
-    client.add_stage(&pipeline_id, &StageType::Deploy, &String::from_str(&env, "Deploy"));
+    client.add_stage(
+        &pipeline_id,
+        &StageType::Build,
+        &String::from_str(&env, "Build"),
+    );
+    client.add_stage(
+        &pipeline_id,
+        &StageType::Test,
+        &String::from_str(&env, "Test"),
+    );
+    client.add_stage(
+        &pipeline_id,
+        &StageType::Deploy,
+        &String::from_str(&env, "Deploy"),
+    );
 
     let stages = client.list_pipeline_stages(&pipeline_id);
     assert_eq!(stages.len(), 3);
@@ -325,10 +337,26 @@ fn test_get_success_rate() {
     );
 
     // Create 4 pipelines
-    let p1 = client.create_pipeline(&repo_id, &String::from_str(&env, "c1"), &String::from_str(&env, "main"));
-    let p2 = client.create_pipeline(&repo_id, &String::from_str(&env, "c2"), &String::from_str(&env, "main"));
-    let p3 = client.create_pipeline(&repo_id, &String::from_str(&env, "c3"), &String::from_str(&env, "main"));
-    let p4 = client.create_pipeline(&repo_id, &String::from_str(&env, "c4"), &String::from_str(&env, "main"));
+    let p1 = client.create_pipeline(
+        &repo_id,
+        &String::from_str(&env, "c1"),
+        &String::from_str(&env, "main"),
+    );
+    let p2 = client.create_pipeline(
+        &repo_id,
+        &String::from_str(&env, "c2"),
+        &String::from_str(&env, "main"),
+    );
+    let p3 = client.create_pipeline(
+        &repo_id,
+        &String::from_str(&env, "c3"),
+        &String::from_str(&env, "main"),
+    );
+    let p4 = client.create_pipeline(
+        &repo_id,
+        &String::from_str(&env, "c4"),
+        &String::from_str(&env, "main"),
+    );
 
     // 3 succeed, 1 fails
     client.update_pipeline(&p1, &PipelineStatus::Success);

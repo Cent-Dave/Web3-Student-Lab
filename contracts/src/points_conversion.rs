@@ -91,7 +91,10 @@ impl PointsConversionContract {
             .expect("not initialized");
 
         assert!(token_amount > 0, "amount must be > 0");
-        assert!(token_amount <= config.max_per_call, "exceeds per-call limit");
+        assert!(
+            token_amount <= config.max_per_call,
+            "exceeds per-call limit"
+        );
 
         // Enforce daily cap
         let current_ledger = env.ledger().sequence() as u64;

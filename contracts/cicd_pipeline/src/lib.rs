@@ -93,18 +93,17 @@ impl CiCdPipeline {
 
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::RepoCounter, &0u64);
-        env.storage().instance().set(&DataKey::PipelineCounter, &0u64);
+        env.storage()
+            .instance()
+            .set(&DataKey::PipelineCounter, &0u64);
         env.storage().instance().set(&DataKey::StageCounter, &0u64);
-        env.storage().instance().set(&DataKey::ContributionCounter, &0u64);
+        env.storage()
+            .instance()
+            .set(&DataKey::ContributionCounter, &0u64);
     }
 
     /// Register a repository
-    pub fn register_repo(
-        env: Env,
-        owner: Address,
-        name: String,
-        url: String,
-    ) -> u64 {
+    pub fn register_repo(env: Env, owner: Address, name: String, url: String) -> u64 {
         owner.require_auth();
 
         let repo_id: u64 = env.storage().instance().get(&DataKey::RepoCounter).unwrap();
@@ -117,8 +116,12 @@ impl CiCdPipeline {
             created_at: env.ledger().timestamp(),
         };
 
-        env.storage().persistent().set(&DataKey::Repository(repo_id), &repo);
-        env.storage().instance().set(&DataKey::RepoCounter, &(repo_id + 1));
+        env.storage()
+            .persistent()
+            .set(&DataKey::Repository(repo_id), &repo);
+        env.storage()
+            .instance()
+            .set(&DataKey::RepoCounter, &(repo_id + 1));
 
         env.events().publish(
             (String::from_str(&env, "repo_registered"),),
@@ -129,12 +132,7 @@ impl CiCdPipeline {
     }
 
     /// Create a CI/CD pipeline run
-    pub fn create_pipeline(
-        env: Env,
-        repo_id: u64,
-        commit_hash: String,
-        branch: String,
-    ) -> u64 {
+    pub fn create_pipeline(env: Env, repo_id: u64, commit_hash: String, branch: String) -> u64 {
         // Verify repo exists
         let _repo: Repository = env
             .storage()
@@ -142,7 +140,11 @@ impl CiCdPipeline {
             .get(&DataKey::Repository(repo_id))
             .unwrap();
 
-        let pipeline_id: u64 = env.storage().instance().get(&DataKey::PipelineCounter).unwrap();
+        let pipeline_id: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::PipelineCounter)
+            .unwrap();
 
         let pipeline = Pipeline {
             id: pipeline_id,
@@ -154,8 +156,12 @@ impl CiCdPipeline {
             completed_at: 0,
         };
 
-        env.storage().persistent().set(&DataKey::Pipeline(pipeline_id), &pipeline);
-        env.storage().instance().set(&DataKey::PipelineCounter, &(pipeline_id + 1));
+        env.storage()
+            .persistent()
+            .set(&DataKey::Pipeline(pipeline_id), &pipeline);
+        env.storage()
+            .instance()
+            .set(&DataKey::PipelineCounter, &(pipeline_id + 1));
 
         // Track pipelines by repo
         let repo_pipelines_key = DataKey::RepoPipelines(repo_id);
@@ -165,7 +171,9 @@ impl CiCdPipeline {
             .get(&repo_pipelines_key)
             .unwrap_or(Vec::new(&env));
         repo_pipelines.push_back(pipeline_id);
-        env.storage().persistent().set(&repo_pipelines_key, &repo_pipelines);
+        env.storage()
+            .persistent()
+            .set(&repo_pipelines_key, &repo_pipelines);
 
         env.events().publish(
             (String::from_str(&env, "pipeline_created"),),
@@ -176,12 +184,7 @@ impl CiCdPipeline {
     }
 
     /// Add a stage to a pipeline
-    pub fn add_stage(
-        env: Env,
-        pipeline_id: u64,
-        stage_type: StageType,
-        name: String,
-    ) -> u64 {
+    pub fn add_stage(env: Env, pipeline_id: u64, stage_type: StageType, name: String) -> u64 {
         // Verify pipeline exists
         let _pipeline: Pipeline = env
             .storage()
@@ -189,7 +192,11 @@ impl CiCdPipeline {
             .get(&DataKey::Pipeline(pipeline_id))
             .unwrap();
 
-        let stage_id: u64 = env.storage().instance().get(&DataKey::StageCounter).unwrap();
+        let stage_id: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::StageCounter)
+            .unwrap();
 
         let stage = PipelineStage {
             id: stage_id,
@@ -201,8 +208,12 @@ impl CiCdPipeline {
             logs: String::from_str(&env, ""),
         };
 
-        env.storage().persistent().set(&DataKey::PipelineStage(stage_id), &stage);
-        env.storage().instance().set(&DataKey::StageCounter, &(stage_id + 1));
+        env.storage()
+            .persistent()
+            .set(&DataKey::PipelineStage(stage_id), &stage);
+        env.storage()
+            .instance()
+            .set(&DataKey::StageCounter, &(stage_id + 1));
 
         // Track stages by pipeline
         let pipeline_stages_key = DataKey::PipelineStages(pipeline_id);
@@ -212,7 +223,9 @@ impl CiCdPipeline {
             .get(&pipeline_stages_key)
             .unwrap_or(Vec::new(&env));
         pipeline_stages.push_back(stage_id);
-        env.storage().persistent().set(&pipeline_stages_key, &pipeline_stages);
+        env.storage()
+            .persistent()
+            .set(&pipeline_stages_key, &pipeline_stages);
 
         stage_id
     }
@@ -235,7 +248,9 @@ impl CiCdPipeline {
         stage.duration = duration;
         stage.logs = logs;
 
-        env.storage().persistent().set(&DataKey::PipelineStage(stage_id), &stage);
+        env.storage()
+            .persistent()
+            .set(&DataKey::PipelineStage(stage_id), &stage);
 
         env.events().publish(
             (String::from_str(&env, "stage_updated"),),
@@ -244,11 +259,7 @@ impl CiCdPipeline {
     }
 
     /// Update pipeline status
-    pub fn update_pipeline(
-        env: Env,
-        pipeline_id: u64,
-        status: PipelineStatus,
-    ) {
+    pub fn update_pipeline(env: Env, pipeline_id: u64, status: PipelineStatus) {
         let mut pipeline: Pipeline = env
             .storage()
             .persistent()
@@ -257,11 +268,16 @@ impl CiCdPipeline {
 
         pipeline.status = status;
 
-        if matches!(pipeline.status, PipelineStatus::Success | PipelineStatus::Failed | PipelineStatus::Cancelled) {
+        if matches!(
+            pipeline.status,
+            PipelineStatus::Success | PipelineStatus::Failed | PipelineStatus::Cancelled
+        ) {
             pipeline.completed_at = env.ledger().timestamp();
         }
 
-        env.storage().persistent().set(&DataKey::Pipeline(pipeline_id), &pipeline);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Pipeline(pipeline_id), &pipeline);
 
         env.events().publish(
             (String::from_str(&env, "pipeline_updated"),),
@@ -311,17 +327,23 @@ impl CiCdPipeline {
 
     /// Get repository details
     pub fn get_repository(env: Env, repo_id: u64) -> Option<Repository> {
-        env.storage().persistent().get(&DataKey::Repository(repo_id))
+        env.storage()
+            .persistent()
+            .get(&DataKey::Repository(repo_id))
     }
 
     /// Get pipeline details
     pub fn get_pipeline(env: Env, pipeline_id: u64) -> Option<Pipeline> {
-        env.storage().persistent().get(&DataKey::Pipeline(pipeline_id))
+        env.storage()
+            .persistent()
+            .get(&DataKey::Pipeline(pipeline_id))
     }
 
     /// Get stage details
     pub fn get_stage(env: Env, stage_id: u64) -> Option<PipelineStage> {
-        env.storage().persistent().get(&DataKey::PipelineStage(stage_id))
+        env.storage()
+            .persistent()
+            .get(&DataKey::PipelineStage(stage_id))
     }
 
     /// Get contribution details

@@ -170,9 +170,12 @@ impl BountyEscrowContract {
         admin.require_auth();
         env.storage().instance().set(&BountyKey::Admin, &admin);
         env.storage().instance().set(&BountyKey::Oracle, &oracle);
-        env.storage().instance().set(&BountyKey::Arbiters, &arbiters);
+        env.storage()
+            .instance()
+            .set(&BountyKey::Arbiters, &arbiters);
         env.storage().instance().set(&BountyKey::NextId, &1_u32);
-        env.events().publish((symbol_short!("bty_init"),), (admin, arbiter_threshold));
+        env.events()
+            .publish((symbol_short!("bty_init"),), (admin, arbiter_threshold));
     }
 
     // -----------------------------------------------------------------------
@@ -201,7 +204,11 @@ impl BountyEscrowContract {
             panic_with_error!(&env, BountyError::DeadlinePassed);
         }
 
-        let id: u32 = env.storage().instance().get(&BountyKey::NextId).unwrap_or(1);
+        let id: u32 = env
+            .storage()
+            .instance()
+            .get(&BountyKey::NextId)
+            .unwrap_or(1);
         env.storage().instance().set(&BountyKey::NextId, &(id + 1));
 
         let bounty = Bounty {
@@ -216,10 +223,15 @@ impl BountyEscrowContract {
             votes_against: 0,
             arbiter_threshold,
         };
-        env.storage().persistent().set(&BountyKey::Bounty(id), &bounty);
-        env.storage().persistent().set(&BountyKey::Funders(id), &Vec::<Address>::new(&env));
+        env.storage()
+            .persistent()
+            .set(&BountyKey::Bounty(id), &bounty);
+        env.storage()
+            .persistent()
+            .set(&BountyKey::Funders(id), &Vec::<Address>::new(&env));
 
-        env.events().publish((symbol_short!("bty_new"),), (creator, id));
+        env.events()
+            .publish((symbol_short!("bty_new"),), (creator, id));
         id
     }
 
@@ -255,22 +267,31 @@ impl BountyEscrowContract {
         // Record per-funder contribution.
         let ck = BountyKey::Contribution(id, funder.clone());
         let prev: i128 = env.storage().persistent().get(&ck).unwrap_or(0);
-        env.storage().persistent().set(&ck, &safe_add(&env, prev, amount));
+        env.storage()
+            .persistent()
+            .set(&ck, &safe_add(&env, prev, amount));
 
         // Track funder in list (deduplicated).
-        let mut funders: Vec<Address> = env.storage().persistent()
+        let mut funders: Vec<Address> = env
+            .storage()
+            .persistent()
             .get(&BountyKey::Funders(id))
             .unwrap_or_else(|| Vec::new(&env));
         if !funders.contains(&funder) {
             funders.push_back(funder.clone());
-            env.storage().persistent().set(&BountyKey::Funders(id), &funders);
+            env.storage()
+                .persistent()
+                .set(&BountyKey::Funders(id), &funders);
         }
 
         bounty.total_reward = safe_add(&env, bounty.total_reward, amount);
-        env.storage().persistent().set(&BountyKey::Bounty(id), &bounty);
+        env.storage()
+            .persistent()
+            .set(&BountyKey::Bounty(id), &bounty);
 
         nonreentrant_release(&env, LOCK);
-        env.events().publish((symbol_short!("bty_fund"),), (funder, id, amount));
+        env.events()
+            .publish((symbol_short!("bty_fund"),), (funder, id, amount));
     }
 
     // -----------------------------------------------------------------------
@@ -287,8 +308,11 @@ impl BountyEscrowContract {
         }
         bounty.status = BountyStatus::UnderReview;
         bounty.solver = Some(solver.clone());
-        env.storage().persistent().set(&BountyKey::Bounty(id), &bounty);
-        env.events().publish((symbol_short!("bty_sub"),), (solver, id));
+        env.storage()
+            .persistent()
+            .set(&BountyKey::Bounty(id), &bounty);
+        env.events()
+            .publish((symbol_short!("bty_sub"),), (solver, id));
     }
 
     // -----------------------------------------------------------------------
@@ -303,7 +327,9 @@ impl BountyEscrowContract {
     pub fn oracle_verify(env: Env, oracle: Address, id: u32, approved: bool) {
         oracle.require_auth();
         // Verify caller is the registered oracle (oracle manipulation guard).
-        let registered: Address = env.storage().instance()
+        let registered: Address = env
+            .storage()
+            .instance()
             .get(&BountyKey::Oracle)
             .unwrap_or_else(|| panic_with_error!(&env, BountyError::NotInitialized));
         if oracle != registered {
@@ -320,7 +346,8 @@ impl BountyEscrowContract {
         } else {
             Self::do_refund(&env, id, bounty);
         }
-        env.events().publish((symbol_short!("bty_orc"),), (id, approved));
+        env.events()
+            .publish((symbol_short!("bty_orc"),), (id, approved));
     }
 
     // -----------------------------------------------------------------------
@@ -337,15 +364,20 @@ impl BountyEscrowContract {
         }
         // Only the creator or a funder may dispute.
         let is_creator = caller == bounty.creator;
-        let contribution: i128 = env.storage().persistent()
+        let contribution: i128 = env
+            .storage()
+            .persistent()
             .get(&BountyKey::Contribution(id, caller.clone()))
             .unwrap_or(0);
         if !is_creator && contribution == 0 {
             panic_with_error!(&env, BountyError::Unauthorized);
         }
         bounty.status = BountyStatus::Disputed;
-        env.storage().persistent().set(&BountyKey::Bounty(id), &bounty);
-        env.events().publish((symbol_short!("bty_disp"),), (caller, id));
+        env.storage()
+            .persistent()
+            .set(&BountyKey::Bounty(id), &bounty);
+        env.events()
+            .publish((symbol_short!("bty_disp"),), (caller, id));
     }
 
     /// An arbiter casts a vote on a disputed bounty.
@@ -366,7 +398,12 @@ impl BountyEscrowContract {
 
         // Each arbiter may vote only once per bounty.
         let voted_key = BountyKey::ArbiterVoted(id, arbiter.clone());
-        if env.storage().persistent().get::<BountyKey, bool>(&voted_key).unwrap_or(false) {
+        if env
+            .storage()
+            .persistent()
+            .get::<BountyKey, bool>(&voted_key)
+            .unwrap_or(false)
+        {
             panic_with_error!(&env, BountyError::AlreadyVoted);
         }
         env.storage().persistent().set(&voted_key, &true);
@@ -380,16 +417,23 @@ impl BountyEscrowContract {
         let threshold = bounty.arbiter_threshold;
 
         if bounty.votes_for >= threshold {
-            env.storage().persistent().set(&BountyKey::Bounty(id), &bounty);
+            env.storage()
+                .persistent()
+                .set(&BountyKey::Bounty(id), &bounty);
             Self::pay_solver(&env, id, bounty);
         } else if bounty.votes_against >= threshold {
-            env.storage().persistent().set(&BountyKey::Bounty(id), &bounty);
+            env.storage()
+                .persistent()
+                .set(&BountyKey::Bounty(id), &bounty);
             Self::do_refund(&env, id, bounty);
         } else {
-            env.storage().persistent().set(&BountyKey::Bounty(id), &bounty);
+            env.storage()
+                .persistent()
+                .set(&BountyKey::Bounty(id), &bounty);
         }
 
-        env.events().publish((symbol_short!("bty_vote"),), (arbiter, id, approve));
+        env.events()
+            .publish((symbol_short!("bty_vote"),), (arbiter, id, approve));
     }
 
     // -----------------------------------------------------------------------
@@ -424,7 +468,8 @@ impl BountyEscrowContract {
         }
 
         nonreentrant_release(&env, LOCK);
-        env.events().publish((symbol_short!("bty_recl"),), (funder, id, amount));
+        env.events()
+            .publish((symbol_short!("bty_recl"),), (funder, id, amount));
     }
 
     // -----------------------------------------------------------------------
@@ -438,7 +483,8 @@ impl BountyEscrowContract {
 
     /// Returns the contribution of `funder` to bounty `id`.
     pub fn contribution_of(env: Env, id: u32, funder: Address) -> i128 {
-        env.storage().persistent()
+        env.storage()
+            .persistent()
             .get(&BountyKey::Contribution(id, funder))
             .unwrap_or(0)
     }
@@ -450,12 +496,16 @@ impl BountyEscrowContract {
     /// Transfer the full reward pool to the solver and mark bounty Completed.
     fn pay_solver(env: &Env, id: u32, mut bounty: Bounty) {
         nonreentrant_acquire(env, LOCK);
-        let solver = bounty.solver.clone()
+        let solver = bounty
+            .solver
+            .clone()
             .unwrap_or_else(|| panic_with_error!(env, BountyError::NotFound));
         let amount = bounty.total_reward;
         bounty.status = BountyStatus::Completed;
         bounty.total_reward = 0;
-        env.storage().persistent().set(&BountyKey::Bounty(id), &bounty);
+        env.storage()
+            .persistent()
+            .set(&BountyKey::Bounty(id), &bounty);
         if amount > 0 {
             token::Client::new(env, &bounty.token).transfer(
                 &env.current_contract_address(),
@@ -464,13 +514,16 @@ impl BountyEscrowContract {
             );
         }
         nonreentrant_release(env, LOCK);
-        env.events().publish((symbol_short!("bty_paid"),), (id, solver, amount));
+        env.events()
+            .publish((symbol_short!("bty_paid"),), (id, solver, amount));
     }
 
     /// Refund each funder their pro-rata contribution and mark bounty Refunded.
     fn do_refund(env: &Env, id: u32, mut bounty: Bounty) {
         nonreentrant_acquire(env, LOCK);
-        let funders: Vec<Address> = env.storage().persistent()
+        let funders: Vec<Address> = env
+            .storage()
+            .persistent()
             .get(&BountyKey::Funders(id))
             .unwrap_or_else(|| Vec::new(env));
 
@@ -489,19 +542,24 @@ impl BountyEscrowContract {
 
         bounty.status = BountyStatus::Refunded;
         bounty.total_reward = 0;
-        env.storage().persistent().set(&BountyKey::Bounty(id), &bounty);
+        env.storage()
+            .persistent()
+            .set(&BountyKey::Bounty(id), &bounty);
         nonreentrant_release(env, LOCK);
         env.events().publish((symbol_short!("bty_rfnd"),), id);
     }
 
     fn load_bounty(env: &Env, id: u32) -> Bounty {
-        env.storage().persistent()
+        env.storage()
+            .persistent()
             .get(&BountyKey::Bounty(id))
             .unwrap_or_else(|| panic_with_error!(env, BountyError::NotFound))
     }
 
     fn assert_arbiter(env: &Env, caller: &Address) {
-        let arbiters: Vec<Address> = env.storage().instance()
+        let arbiters: Vec<Address> = env
+            .storage()
+            .instance()
             .get(&BountyKey::Arbiters)
             .unwrap_or_else(|| Vec::new(env));
         if !arbiters.contains(caller) {

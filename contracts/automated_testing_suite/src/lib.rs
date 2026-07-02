@@ -1,6 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, contracttype, contracterror, Address, Env, String, Vec};
+use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, Env, String, Vec};
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -91,15 +91,14 @@ impl AutomatedTestingSuite {
     }
 
     /// Create a learning module
-    pub fn create_module(
-        env: Env,
-        creator: Address,
-        title: String,
-        description: String,
-    ) -> u64 {
+    pub fn create_module(env: Env, creator: Address, title: String, description: String) -> u64 {
         creator.require_auth();
 
-        let module_id: u64 = env.storage().instance().get(&DataKey::ModuleCounter).unwrap();
+        let module_id: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::ModuleCounter)
+            .unwrap();
 
         let module = LearningModule {
             id: module_id,
@@ -109,8 +108,12 @@ impl AutomatedTestingSuite {
             created_at: env.ledger().timestamp(),
         };
 
-        env.storage().persistent().set(&DataKey::Module(module_id), &module);
-        env.storage().instance().set(&DataKey::ModuleCounter, &(module_id + 1));
+        env.storage()
+            .persistent()
+            .set(&DataKey::Module(module_id), &module);
+        env.storage()
+            .instance()
+            .set(&DataKey::ModuleCounter, &(module_id + 1));
 
         env.events().publish(
             (String::from_str(&env, "module_created"),),
@@ -152,12 +155,18 @@ impl AutomatedTestingSuite {
             created_at: env.ledger().timestamp(),
         };
 
-        env.storage().persistent().set(&DataKey::TestCase(test_id), &test);
-        env.storage().instance().set(&DataKey::TestCounter, &(test_id + 1));
+        env.storage()
+            .persistent()
+            .set(&DataKey::TestCase(test_id), &test);
+        env.storage()
+            .instance()
+            .set(&DataKey::TestCounter, &(test_id + 1));
 
         // Update module test count
         module.test_count += 1;
-        env.storage().persistent().set(&DataKey::Module(module_id), &module);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Module(module_id), &module);
 
         // Track tests by module
         let module_tests_key = DataKey::ModuleTests(module_id);
@@ -167,7 +176,9 @@ impl AutomatedTestingSuite {
             .get(&module_tests_key)
             .unwrap_or(Vec::new(&env));
         module_tests.push_back(test_id);
-        env.storage().persistent().set(&module_tests_key, &module_tests);
+        env.storage()
+            .persistent()
+            .set(&module_tests_key, &module_tests);
 
         env.events().publish(
             (String::from_str(&env, "test_added"),),
@@ -198,7 +209,11 @@ impl AutomatedTestingSuite {
         let score_earned = if passed { test.score } else { 0 };
 
         // Record result
-        let result_id: u64 = env.storage().instance().get(&DataKey::ResultCounter).unwrap();
+        let result_id: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::ResultCounter)
+            .unwrap();
         let result = TestResult {
             test_id,
             user: user.clone(),
@@ -208,22 +223,26 @@ impl AutomatedTestingSuite {
             timestamp: env.ledger().timestamp(),
         };
 
-        env.storage().persistent().set(&DataKey::TestResult(result_id), &result);
-        env.storage().instance().set(&DataKey::ResultCounter, &(result_id + 1));
+        env.storage()
+            .persistent()
+            .set(&DataKey::TestResult(result_id), &result);
+        env.storage()
+            .instance()
+            .set(&DataKey::ResultCounter, &(result_id + 1));
 
         // Update user progress
         let progress_key = DataKey::UserProgress(user.clone(), test.module_id);
-        let mut progress: UserProgress = env
-            .storage()
-            .persistent()
-            .get(&progress_key)
-            .unwrap_or(UserProgress {
-                user: user.clone(),
-                module_id: test.module_id,
-                tests_passed: 0,
-                total_score: 0,
-                last_test_at: 0,
-            });
+        let mut progress: UserProgress =
+            env.storage()
+                .persistent()
+                .get(&progress_key)
+                .unwrap_or(UserProgress {
+                    user: user.clone(),
+                    module_id: test.module_id,
+                    tests_passed: 0,
+                    total_score: 0,
+                    last_test_at: 0,
+                });
 
         if passed {
             progress.tests_passed += 1;
@@ -253,7 +272,9 @@ impl AutomatedTestingSuite {
 
     /// Get test result
     pub fn get_result(env: Env, result_id: u64) -> Option<TestResult> {
-        env.storage().persistent().get(&DataKey::TestResult(result_id))
+        env.storage()
+            .persistent()
+            .get(&DataKey::TestResult(result_id))
     }
 
     /// Get user progress for a module
@@ -265,7 +286,11 @@ impl AutomatedTestingSuite {
 
     /// List all modules
     pub fn list_modules(env: Env) -> Vec<u64> {
-        let count: u64 = env.storage().instance().get(&DataKey::ModuleCounter).unwrap_or(0);
+        let count: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::ModuleCounter)
+            .unwrap_or(0);
         let mut modules = Vec::new(&env);
 
         for i in 0..count {
@@ -303,10 +328,11 @@ impl AutomatedTestingSuite {
 
     /// Get module completion percentage
     pub fn get_completion(env: Env, user: Address, module_id: u64) -> u32 {
-        let module: LearningModule = match env.storage().persistent().get(&DataKey::Module(module_id)) {
-            Some(m) => m,
-            None => return 0,
-        };
+        let module: LearningModule =
+            match env.storage().persistent().get(&DataKey::Module(module_id)) {
+                Some(m) => m,
+                None => return 0,
+            };
 
         let progress: UserProgress = match env
             .storage()

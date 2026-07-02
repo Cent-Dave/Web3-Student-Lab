@@ -17,7 +17,10 @@
 
 #![no_std]
 
-use soroban_sdk::{contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, Address, Env, Symbol};
+use soroban_sdk::{
+    contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, Address,
+    Env, Symbol,
+};
 
 // ── Storage keys ────────────────────────────────────────────────────────────
 const ADMIN: Symbol = symbol_short!("ADMIN");
@@ -101,8 +104,7 @@ impl PaymentGateway {
             .instance()
             .set(&PLATFORM_FEE_BPS, &DEFAULT_PLATFORM_FEE_BPS);
         env.storage().instance().set(&PAUSED, &false);
-        env.events()
-            .publish((symbol_short!("init"),), admin);
+        env.events().publish((symbol_short!("init"),), admin);
     }
 
     // ── Deposit ─────────────────────────────────────────────────────────────
@@ -189,7 +191,9 @@ impl PaymentGateway {
 
         assert!(payer_balance >= total_debit, Error::InsufficientBalance);
 
-        payer_balance = payer_balance.checked_sub(total_debit).expect("payer underflow");
+        payer_balance = payer_balance
+            .checked_sub(total_debit)
+            .expect("payer underflow");
         env.storage()
             .persistent()
             .set(&DataKey::Balance(payer.clone()), &payer_balance);
@@ -224,8 +228,10 @@ impl PaymentGateway {
             .persistent()
             .set(&DataKey::Payment(payment_id), &record);
 
-        env.events()
-            .publish((symbol_short!("payment"), payer.clone(), payee.clone()), amount);
+        env.events().publish(
+            (symbol_short!("payment"), payer.clone(), payee.clone()),
+            amount,
+        );
 
         record
     }
@@ -299,8 +305,7 @@ impl PaymentGateway {
 
         env.storage().persistent().set(&key, &refunded);
 
-        env.events()
-            .publish((symbol_short!("refund"),), payment_id);
+        env.events().publish((symbol_short!("refund"),), payment_id);
 
         refunded
     }
@@ -492,8 +497,7 @@ mod tests {
         client.deposit(&payer, &10_000);
         client.process_payment(&payer, &payee, &3000, &symbol_short!("test!"), &1);
 
-        env.ledger()
-            .with_mut(|l| l.sequence_number += 10);
+        env.ledger().with_mut(|l| l.sequence_number += 10);
 
         let refunded = client.refund(&payer, &1);
         assert_eq!(refunded.status, PaymentStatus::Refunded);

@@ -124,11 +124,7 @@ impl SwapRouterContract {
             };
 
             // Transfer token_in from sender → pool.
-            token::Client::new(&env, &hop.token_in).transfer(
-                &sender,
-                &hop.pool,
-                &current_amount,
-            );
+            token::Client::new(&env, &hop.token_in).transfer(&sender, &hop.pool, &current_amount);
 
             // Call the pool's swap function; it must return the output amount.
             let mut args: Vec<Val> = Vec::new(&env);
@@ -171,11 +167,7 @@ impl SwapRouterContract {
     ///
     /// Calls each pool's `get_amount_out(token_in, token_out, amount_in) -> i128`
     /// view function. No transfers occur.
-    pub fn get_expected_output(
-        env: Env,
-        route: Vec<SwapHop>,
-        amount_in: i128,
-    ) -> i128 {
+    pub fn get_expected_output(env: Env, route: Vec<SwapHop>, amount_in: i128) -> i128 {
         let hop_count = route.len();
         if hop_count == 0 {
             panic_with_error!(&env, RouterError::EmptyRoute);
@@ -192,7 +184,8 @@ impl SwapRouterContract {
             args.push_back(hop.token_in.into_val(&env));
             args.push_back(hop.token_out.into_val(&env));
             args.push_back(current_amount.into_val(&env));
-            let out: i128 = env.invoke_contract(&hop.pool, &Symbol::new(&env, "get_amount_out"), args);
+            let out: i128 =
+                env.invoke_contract(&hop.pool, &Symbol::new(&env, "get_amount_out"), args);
             if out <= 0 {
                 panic_with_error!(&env, RouterError::ZeroOutput);
             }
@@ -253,7 +246,9 @@ mod tests {
     // -----------------------------------------------------------------------
 
     fn create_token(env: &Env, admin: &Address) -> Address {
-        let addr = env.register_stellar_asset_contract_v2(admin.clone()).address();
+        let addr = env
+            .register_stellar_asset_contract_v2(admin.clone())
+            .address();
         addr
     }
 

@@ -31,7 +31,9 @@ use soroban_sdk::{
     Address, Env, IntoVal, Symbol, Val, Vec,
 };
 
-use crate::security_primitives::{nonreentrant_acquire, nonreentrant_release, safe_add, safe_mul, safe_sub};
+use crate::security_primitives::{
+    nonreentrant_acquire, nonreentrant_release, safe_add, safe_mul, safe_sub,
+};
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -133,9 +135,14 @@ impl LendingContract {
         admin.require_auth();
         env.storage().instance().set(&LendingKey::Admin, &admin);
         env.storage().instance().set(&LendingKey::Oracle, &oracle);
-        env.storage().instance().set(&LendingKey::MinCollRatio, &min_coll_ratio);
-        env.storage().instance().set(&LendingKey::LiqBonus, &liq_bonus);
-        env.events().publish((symbol_short!("lend_init"),), (admin, oracle));
+        env.storage()
+            .instance()
+            .set(&LendingKey::MinCollRatio, &min_coll_ratio);
+        env.storage()
+            .instance()
+            .set(&LendingKey::LiqBonus, &liq_bonus);
+        env.events()
+            .publish((symbol_short!("lend_init"),), (admin, oracle));
     }
 
     /// Register a token as a supported collateral/borrow asset.
@@ -144,20 +151,31 @@ impl LendingContract {
     /// * `token`            – Token contract address.
     /// * `collateral_factor`– Max LTV in BPS (e.g. 7500 = 75 %).
     /// * `borrow_rate_bps`  – Annual interest rate in BPS (e.g. 500 = 5 %).
-    pub fn add_asset(
-        env: Env,
-        token: Address,
-        collateral_factor: i128,
-        borrow_rate_bps: i128,
-    ) {
+    pub fn add_asset(env: Env, token: Address, collateral_factor: i128, borrow_rate_bps: i128) {
         Self::require_admin(&env);
-        env.storage().persistent().set(&LendingKey::CollateralFactor(token.clone()), &collateral_factor);
-        env.storage().persistent().set(&LendingKey::BorrowRate(token.clone()), &borrow_rate_bps);
+        env.storage().persistent().set(
+            &LendingKey::CollateralFactor(token.clone()),
+            &collateral_factor,
+        );
+        env.storage()
+            .persistent()
+            .set(&LendingKey::BorrowRate(token.clone()), &borrow_rate_bps);
         // Initialise global index at SCALE (= 1.0) if not already set.
-        if !env.storage().persistent().has(&LendingKey::GlobalIndex(token.clone())) {
-            env.storage().persistent().set(&LendingKey::GlobalIndex(token.clone()), &SCALE);
-            env.storage().persistent().set(&LendingKey::LastUpdate(token.clone()), &env.ledger().timestamp());
-            env.storage().persistent().set(&LendingKey::TotalBorrows(token.clone()), &0_i128);
+        if !env
+            .storage()
+            .persistent()
+            .has(&LendingKey::GlobalIndex(token.clone()))
+        {
+            env.storage()
+                .persistent()
+                .set(&LendingKey::GlobalIndex(token.clone()), &SCALE);
+            env.storage().persistent().set(
+                &LendingKey::LastUpdate(token.clone()),
+                &env.ledger().timestamp(),
+            );
+            env.storage()
+                .persistent()
+                .set(&LendingKey::TotalBorrows(token.clone()), &0_i128);
         }
         env.events().publish((symbol_short!("add_asset"),), token);
     }
@@ -184,7 +202,8 @@ impl LendingContract {
         env.storage().persistent().set(&key, &next);
 
         nonreentrant_release(&env, LOCK);
-        env.events().publish((symbol_short!("deposit"),), (user, token, amount));
+        env.events()
+            .publish((symbol_short!("deposit"),), (user, token, amount));
     }
 
     /// Borrow `amount` of `token` against deposited collateral.
@@ -207,13 +226,22 @@ impl LendingContract {
         env.storage().persistent().set(&borrow_key, &new_debt);
 
         // Snapshot current global index for this user.
-        let global_idx: i128 = env.storage().persistent().get(&LendingKey::GlobalIndex(token.clone())).unwrap_or(SCALE);
-        env.storage().persistent().set(&LendingKey::BorrowIndex(user.clone(), token.clone()), &global_idx);
+        let global_idx: i128 = env
+            .storage()
+            .persistent()
+            .get(&LendingKey::GlobalIndex(token.clone()))
+            .unwrap_or(SCALE);
+        env.storage().persistent().set(
+            &LendingKey::BorrowIndex(user.clone(), token.clone()),
+            &global_idx,
+        );
 
         // Update total borrows.
         let tb_key = LendingKey::TotalBorrows(token.clone());
         let tb: i128 = env.storage().persistent().get(&tb_key).unwrap_or(0);
-        env.storage().persistent().set(&tb_key, &safe_add(&env, tb, amount));
+        env.storage()
+            .persistent()
+            .set(&tb_key, &safe_add(&env, tb, amount));
 
         // Verify collateralization ratio is still healthy.
         Self::assert_healthy(&env, &user);
@@ -223,7 +251,8 @@ impl LendingContract {
         client.transfer(&env.current_contract_address(), &user, &amount);
 
         nonreentrant_release(&env, LOCK);
-        env.events().publish((symbol_short!("borrow"),), (user, token, amount));
+        env.events()
+            .publish((symbol_short!("borrow"),), (user, token, amount));
     }
 
     /// Repay `amount` of `token` debt (principal + accrued interest).
@@ -249,11 +278,16 @@ impl LendingContract {
 
         let tb_key = LendingKey::TotalBorrows(token.clone());
         let tb: i128 = env.storage().persistent().get(&tb_key).unwrap_or(0);
-        let new_tb = if tb > repay_amount { tb - repay_amount } else { 0 };
+        let new_tb = if tb > repay_amount {
+            tb - repay_amount
+        } else {
+            0
+        };
         env.storage().persistent().set(&tb_key, &new_tb);
 
         nonreentrant_release(&env, LOCK);
-        env.events().publish((symbol_short!("repay"),), (user, token, repay_amount));
+        env.events()
+            .publish((symbol_short!("repay"),), (user, token, repay_amount));
     }
 
     /// Withdraw `amount` of collateral `token`, provided the position stays healthy.
@@ -278,7 +312,8 @@ impl LendingContract {
         client.transfer(&env.current_contract_address(), &user, &amount);
 
         nonreentrant_release(&env, LOCK);
-        env.events().publish((symbol_short!("withdraw"),), (user, token, amount));
+        env.events()
+            .publish((symbol_short!("withdraw"),), (user, token, amount));
     }
 
     /// Liquidate an undercollateralized position.
@@ -322,20 +357,36 @@ impl LendingContract {
 
         // Compute collateral to seize (including liquidation bonus).
         // seized = repay_amount * debt_price / coll_price * (BPS + liq_bonus) / BPS
-        let liq_bonus: i128 = env.storage().instance().get(&LendingKey::LiqBonus).unwrap_or(500);
-        let numerator = safe_mul(&env, safe_mul(&env, repay_amount, debt_price), safe_add(&env, BPS, liq_bonus));
+        let liq_bonus: i128 = env
+            .storage()
+            .instance()
+            .get(&LendingKey::LiqBonus)
+            .unwrap_or(500);
+        let numerator = safe_mul(
+            &env,
+            safe_mul(&env, repay_amount, debt_price),
+            safe_add(&env, BPS, liq_bonus),
+        );
         let denominator = safe_mul(&env, coll_price, BPS);
         let seize_amount = numerator / denominator;
 
         // Cap repay at outstanding debt.
         let borrow_key = LendingKey::BorrowPrincipal(borrower.clone(), debt_token.clone());
         let debt: i128 = env.storage().persistent().get(&borrow_key).unwrap_or(0);
-        let actual_repay = if repay_amount > debt { debt } else { repay_amount };
+        let actual_repay = if repay_amount > debt {
+            debt
+        } else {
+            repay_amount
+        };
 
         // Cap seize at available collateral.
         let coll_key = LendingKey::Collateral(borrower.clone(), collateral_token.clone());
         let coll_balance: i128 = env.storage().persistent().get(&coll_key).unwrap_or(0);
-        let actual_seize = if seize_amount > coll_balance { coll_balance } else { seize_amount };
+        let actual_seize = if seize_amount > coll_balance {
+            coll_balance
+        } else {
+            seize_amount
+        };
 
         // Liquidator repays debt on behalf of borrower.
         let debt_client = token::Client::new(&env, &debt_token);
@@ -347,7 +398,11 @@ impl LendingContract {
 
         let tb_key = LendingKey::TotalBorrows(debt_token.clone());
         let tb: i128 = env.storage().persistent().get(&tb_key).unwrap_or(0);
-        let new_tb = if tb > actual_repay { tb - actual_repay } else { 0 };
+        let new_tb = if tb > actual_repay {
+            tb - actual_repay
+        } else {
+            0
+        };
         env.storage().persistent().set(&tb_key, &new_tb);
 
         // Seize collateral from borrower and send to liquidator.
@@ -360,7 +415,14 @@ impl LendingContract {
         nonreentrant_release(&env, LOCK);
         env.events().publish(
             (symbol_short!("liquidate"),),
-            (liquidator, borrower, debt_token, collateral_token, actual_repay, actual_seize),
+            (
+                liquidator,
+                borrower,
+                debt_token,
+                collateral_token,
+                actual_repay,
+                actual_seize,
+            ),
         );
     }
 
@@ -370,21 +432,30 @@ impl LendingContract {
 
     /// Returns the current collateral balance of `user` for `token`.
     pub fn collateral_of(env: Env, user: Address, token: Address) -> i128 {
-        env.storage().persistent().get(&LendingKey::Collateral(user, token)).unwrap_or(0)
+        env.storage()
+            .persistent()
+            .get(&LendingKey::Collateral(user, token))
+            .unwrap_or(0)
     }
 
     /// Returns the current outstanding debt (principal + accrued interest) of `user` for `token`.
     pub fn debt_of(env: Env, user: Address, token: Address) -> i128 {
-        let principal: i128 = env.storage().persistent()
+        let principal: i128 = env
+            .storage()
+            .persistent()
             .get(&LendingKey::BorrowPrincipal(user.clone(), token.clone()))
             .unwrap_or(0);
         if principal == 0 {
             return 0;
         }
-        let global_idx: i128 = env.storage().persistent()
+        let global_idx: i128 = env
+            .storage()
+            .persistent()
             .get(&LendingKey::GlobalIndex(token.clone()))
             .unwrap_or(SCALE);
-        let user_idx: i128 = env.storage().persistent()
+        let user_idx: i128 = env
+            .storage()
+            .persistent()
             .get(&LendingKey::BorrowIndex(user, token))
             .unwrap_or(SCALE);
         // accrued_debt = principal * global_idx / user_idx
@@ -411,7 +482,11 @@ impl LendingContract {
         let idx_key = LendingKey::GlobalIndex(token.clone());
         let rate_key = LendingKey::BorrowRate(token.clone());
 
-        let last_ts: u64 = env.storage().persistent().get(&last_key).unwrap_or(env.ledger().timestamp());
+        let last_ts: u64 = env
+            .storage()
+            .persistent()
+            .get(&last_key)
+            .unwrap_or(env.ledger().timestamp());
         let now = env.ledger().timestamp();
         if now <= last_ts {
             return;
@@ -445,15 +520,23 @@ impl LendingContract {
         if principal == 0 {
             return;
         }
-        let global_idx: i128 = env.storage().persistent()
+        let global_idx: i128 = env
+            .storage()
+            .persistent()
             .get(&LendingKey::GlobalIndex(token.clone()))
             .unwrap_or(SCALE);
-        let user_idx: i128 = env.storage().persistent().get(&user_idx_key).unwrap_or(SCALE);
+        let user_idx: i128 = env
+            .storage()
+            .persistent()
+            .get(&user_idx_key)
+            .unwrap_or(SCALE);
 
         if global_idx > user_idx {
             // new_principal = principal * global_idx / user_idx
             let new_principal = principal * global_idx / user_idx;
-            env.storage().persistent().set(&principal_key, &new_principal);
+            env.storage()
+                .persistent()
+                .set(&principal_key, &new_principal);
             env.storage().persistent().set(&user_idx_key, &global_idx);
         }
     }
@@ -490,11 +573,21 @@ impl LendingContract {
         collateral_token: &Address,
         debt_token: &Address,
     ) {
-        let coll_balance: i128 = env.storage().persistent()
-            .get(&LendingKey::Collateral(user.clone(), collateral_token.clone()))
+        let coll_balance: i128 = env
+            .storage()
+            .persistent()
+            .get(&LendingKey::Collateral(
+                user.clone(),
+                collateral_token.clone(),
+            ))
             .unwrap_or(0);
-        let debt: i128 = env.storage().persistent()
-            .get(&LendingKey::BorrowPrincipal(user.clone(), debt_token.clone()))
+        let debt: i128 = env
+            .storage()
+            .persistent()
+            .get(&LendingKey::BorrowPrincipal(
+                user.clone(),
+                debt_token.clone(),
+            ))
             .unwrap_or(0);
 
         if debt == 0 {
@@ -503,10 +596,14 @@ impl LendingContract {
 
         let coll_price = Self::get_price(env, collateral_token);
         let debt_price = Self::get_price(env, debt_token);
-        let cf: i128 = env.storage().persistent()
+        let cf: i128 = env
+            .storage()
+            .persistent()
             .get(&LendingKey::CollateralFactor(collateral_token.clone()))
             .unwrap_or(7500);
-        let min_ratio: i128 = env.storage().instance()
+        let min_ratio: i128 = env
+            .storage()
+            .instance()
             .get(&LendingKey::MinCollRatio)
             .unwrap_or(15000);
 
@@ -533,7 +630,9 @@ impl LendingContract {
     /// Returns price scaled to SCALE (1e12). Panics if the oracle returns a
     /// stale or zero price to prevent oracle manipulation attacks.
     fn get_price(env: &Env, token: &Address) -> i128 {
-        let oracle: Address = env.storage().instance()
+        let oracle: Address = env
+            .storage()
+            .instance()
             .get(&LendingKey::Oracle)
             .unwrap_or_else(|| panic_with_error!(env, LendingError::NotInitialized));
 
@@ -552,7 +651,9 @@ impl LendingContract {
 
     /// Require that the caller is the admin.
     fn require_admin(env: &Env) {
-        let admin: Address = env.storage().instance()
+        let admin: Address = env
+            .storage()
+            .instance()
             .get(&LendingKey::Admin)
             .unwrap_or_else(|| panic_with_error!(env, LendingError::NotInitialized));
         admin.require_auth();
@@ -567,7 +668,11 @@ impl LendingContract {
 
     /// Panic if `token` has no registered collateral factor (i.e. not supported).
     fn assert_supported(env: &Env, token: &Address) {
-        if !env.storage().persistent().has(&LendingKey::CollateralFactor(token.clone())) {
+        if !env
+            .storage()
+            .persistent()
+            .has(&LendingKey::CollateralFactor(token.clone()))
+        {
             panic_with_error!(env, LendingError::TokenNotSupported);
         }
     }

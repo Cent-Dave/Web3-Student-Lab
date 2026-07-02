@@ -309,10 +309,12 @@ impl TokenBuyback {
         }
 
         // Perform Swap: Swap treasury stablecoin tokens for project tokens using DEX.
-        let dex_client = crate::amm_pool::ConstantProductPoolContractClient::new(&env, &config.dex_contract);
+        let dex_client =
+            crate::amm_pool::ConstantProductPoolContractClient::new(&env, &config.dex_contract);
         let current_addr = env.current_contract_address();
-        
-        let tokens_purchased_i128 = dex_client.swap(&current_addr, &current_addr, &(amount as i128));
+
+        let tokens_purchased_i128 =
+            dex_client.swap(&current_addr, &current_addr, &(amount as i128));
         let tokens_purchased = tokens_purchased_i128 as u128;
 
         if tokens_purchased == 0 {
@@ -547,17 +549,19 @@ mod test {
         let admin = Address::generate(&env);
         let dex = env.register(crate::amm_pool::ConstantProductPoolContract, ());
         let treasury = Address::generate(&env);
-        
+
         let project_token_admin = Address::generate(&env);
-        let project_token_contract = env.register_stellar_asset_contract_v2(project_token_admin.clone());
-        let project_token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &project_token_contract.address());
-        
+        let project_token_contract =
+            env.register_stellar_asset_contract_v2(project_token_admin.clone());
+        let project_token_admin_client =
+            soroban_sdk::token::StellarAssetClient::new(&env, &project_token_contract.address());
+
         let contract_id = env.register(TokenBuyback, ());
         let client = TokenBuybackClient::new(&env, &contract_id);
-        
+
         // Pre-mint tokens to the buyback contract so it can execute the burn
         project_token_admin_client.mint(&contract_id, &2000);
-        
+
         client.init(
             &admin,
             &dex,

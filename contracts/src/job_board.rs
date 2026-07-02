@@ -88,27 +88,15 @@ impl JobBoardContract {
         employer.require_auth();
         assert!(budget > 0, "budget must be > 0");
         assert!(!milestones.is_empty(), "need at least one milestone");
-        assert!(
-            milestones.len() <= MAX_MILESTONES,
-            "too many milestones"
-        );
-        assert!(
-            required_skills.len() <= MAX_SKILLS,
-            "too many skills"
-        );
+        assert!(milestones.len() <= MAX_MILESTONES, "too many milestones");
+        assert!(required_skills.len() <= MAX_SKILLS, "too many skills");
 
         // Verify milestone payments sum to budget
         let total: u64 = milestones.iter().map(|m| m.payment).sum();
         assert!(total == budget, "milestone payments must equal budget");
 
-        let id: u64 = env
-            .storage()
-            .instance()
-            .get(&JobKey::NextId)
-            .unwrap_or(0);
-        env.storage()
-            .instance()
-            .set(&JobKey::NextId, &(id + 1));
+        let id: u64 = env.storage().instance().get(&JobKey::NextId).unwrap_or(0);
+        env.storage().instance().set(&JobKey::NextId, &(id + 1));
 
         let job = Job {
             id,
@@ -153,10 +141,8 @@ impl JobBoardContract {
             .persistent()
             .set(&JobKey::Applications(job_id), &apps);
 
-        env.events().publish(
-            (soroban_sdk::symbol_short!("job_apply"), applicant),
-            job_id,
-        );
+        env.events()
+            .publish((soroban_sdk::symbol_short!("job_apply"), applicant), job_id);
         let _ = job; // suppress unused warning
     }
 
@@ -183,7 +169,10 @@ impl JobBoardContract {
         worker.require_auth();
         assert!(job.status == JobStatus::InProgress, "not in progress");
 
-        let mut ms = job.milestones.get(milestone_idx).expect("invalid milestone");
+        let mut ms = job
+            .milestones
+            .get(milestone_idx)
+            .expect("invalid milestone");
         assert!(ms.status == MilestoneStatus::Pending, "already submitted");
         ms.status = MilestoneStatus::Submitted;
         job.milestones.set(milestone_idx, ms);
@@ -201,7 +190,10 @@ impl JobBoardContract {
         job.employer.require_auth();
         let worker = job.applicant.clone().expect("no worker");
 
-        let mut ms = job.milestones.get(milestone_idx).expect("invalid milestone");
+        let mut ms = job
+            .milestones
+            .get(milestone_idx)
+            .expect("invalid milestone");
         assert!(ms.status == MilestoneStatus::Submitted, "not submitted");
 
         let payment = ms.payment;
@@ -239,7 +231,10 @@ impl JobBoardContract {
         };
         let _ = caller_is_employer;
 
-        let mut ms = job.milestones.get(milestone_idx).expect("invalid milestone");
+        let mut ms = job
+            .milestones
+            .get(milestone_idx)
+            .expect("invalid milestone");
         assert!(ms.status == MilestoneStatus::Submitted, "not submitted");
         ms.status = MilestoneStatus::Disputed;
         job.milestones.set(milestone_idx, ms);
@@ -253,17 +248,15 @@ impl JobBoardContract {
     }
 
     /// Admin resolves dispute: `release_to_worker` true → pay worker, false → refund employer.
-    pub fn resolve_dispute(
-        env: Env,
-        job_id: u64,
-        milestone_idx: u32,
-        release_to_worker: bool,
-    ) {
+    pub fn resolve_dispute(env: Env, job_id: u64, milestone_idx: u32, release_to_worker: bool) {
         Self::require_admin(&env);
         let mut job: Job = Self::load_job(&env, job_id);
         assert!(job.status == JobStatus::Disputed, "not disputed");
 
-        let mut ms = job.milestones.get(milestone_idx).expect("invalid milestone");
+        let mut ms = job
+            .milestones
+            .get(milestone_idx)
+            .expect("invalid milestone");
         let payment = ms.payment;
         ms.status = if release_to_worker {
             MilestoneStatus::Approved
@@ -291,7 +284,10 @@ impl JobBoardContract {
         env.storage().persistent().set(&JobKey::Job(job_id), &job);
 
         env.events().publish(
-            (soroban_sdk::symbol_short!("resolved"), soroban_sdk::symbol_short!("admin")),
+            (
+                soroban_sdk::symbol_short!("resolved"),
+                soroban_sdk::symbol_short!("admin"),
+            ),
             (job_id, milestone_idx, release_to_worker),
         );
     }

@@ -188,9 +188,7 @@ impl AnalyticsEngineContract {
         env.storage()
             .persistent()
             .set(&AnalyticsKey::NextMetricId, &1u64);
-        env.storage()
-            .persistent()
-            .set(&AnalyticsKey::Admin, &admin);
+        env.storage().persistent().set(&AnalyticsKey::Admin, &admin);
     }
 
     /// Define a new metric
@@ -259,10 +257,9 @@ impl AnalyticsEngineContract {
             .set(&AnalyticsKey::MetricDefinition(metric_id), &metric_def);
 
         // Index by type
-        env.storage().persistent().set(
-            &AnalyticsKey::MetricsByType(metric_type as u32),
-            &metric_id,
-        );
+        env.storage()
+            .persistent()
+            .set(&AnalyticsKey::MetricsByType(metric_type as u32), &metric_id);
 
         // Increment next metric ID
         env.storage()
@@ -310,14 +307,13 @@ impl AnalyticsEngineContract {
 
         // Determine time range
         let now = env.ledger().timestamp();
-        let (time_range_start, time_range_end) = if let (Some(start), Some(end)) =
-            (custom_time_range_start, custom_time_range_end)
-        {
-            (start, end)
-        } else {
-            let duration = metric_def.time_window.duration_seconds();
-            (now.saturating_sub(duration), now)
-        };
+        let (time_range_start, time_range_end) =
+            if let (Some(start), Some(end)) = (custom_time_range_start, custom_time_range_end) {
+                (start, end)
+            } else {
+                let duration = metric_def.time_window.duration_seconds();
+                (now.saturating_sub(duration), now)
+            };
 
         // Compute metric value based on type
         let value = match metric_def.metric_type {
@@ -396,7 +392,7 @@ impl AnalyticsEngineContract {
             .unwrap_or_else(|| panic_with_error!(&env, AnalyticsError::MetricNotFound));
 
         // Calculate current period value
-        let current_result = Self::calculate_metric(&env, metric_id, None, None);
+        let current_result = Self::calculate_metric(env.clone(), metric_id, None, None);
         let current_value = current_result.value;
 
         // Calculate previous period value
@@ -405,7 +401,8 @@ impl AnalyticsEngineContract {
         let prev_start = now.saturating_sub(duration * 2);
         let prev_end = now.saturating_sub(duration);
 
-        let prev_result = Self::calculate_metric(&env, metric_id, Some(prev_start), Some(prev_end));
+        let prev_result =
+            Self::calculate_metric(env.clone(), metric_id, Some(prev_start), Some(prev_end));
         let previous_value = prev_result.value;
 
         // Calculate percentage change
@@ -469,7 +466,12 @@ impl AnalyticsEngineContract {
 
         while current_start < end_timestamp {
             let current_end = current_start + bucket_size_seconds;
-            let result = Self::calculate_metric(&env, metric_id, Some(current_start), Some(current_end));
+            let result = Self::calculate_metric(
+                env.clone(),
+                metric_id,
+                Some(current_start),
+                Some(current_end),
+            );
             results.push_back(result);
             current_start = current_end;
         }
@@ -536,10 +538,8 @@ impl AnalyticsEngineContract {
             .persistent()
             .set(&AnalyticsKey::MetricDefinition(metric_id), &metric_def);
 
-        env.events().publish(
-            (Symbol::new(&env, "metric_deactivated"),),
-            (metric_id,),
-        );
+        env.events()
+            .publish((Symbol::new(&env, "metric_deactivated"),), (metric_id,));
     }
 }
 
@@ -661,12 +661,8 @@ mod tests {
         );
 
         let now = env.ledger().timestamp();
-        let timeseries = client.export_metric_timeseries(
-            &metric_id,
-            &(now - 86400),
-            &now,
-            &3600u64,
-        );
+        let timeseries =
+            client.export_metric_timeseries(&metric_id, &(now - 86400), &now, &3600u64);
 
         assert!(timeseries.len() > 0);
     }

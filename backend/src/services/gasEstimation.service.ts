@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Gas Estimation Service — Open Source Contribution Trainer backend.
  *

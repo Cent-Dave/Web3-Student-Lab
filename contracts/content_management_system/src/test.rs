@@ -1,7 +1,10 @@
 #![cfg(test)]
 
 use super::*;
-use soroban_sdk::{testutils::{Address as _, Ledger}, vec, Env, String};
+use soroban_sdk::{
+    testutils::{Address as _, Ledger},
+    vec, Env, String,
+};
 use types::{AccessPolicy, ContentStatus};
 
 fn create_test_env() -> Env {
@@ -105,7 +108,11 @@ fn test_create_content() {
     let description = String::from_str(&env, "Learn Rust programming");
     let content_hash = String::from_str(&env, "QmHash123");
     let content_type = String::from_str(&env, "lesson");
-    let tags = vec![&env, String::from_str(&env, "rust"), String::from_str(&env, "programming")];
+    let tags = vec![
+        &env,
+        String::from_str(&env, "rust"),
+        String::from_str(&env, "programming"),
+    ];
 
     let content_id = client.create_content(
         &instructor,

@@ -2,7 +2,7 @@
 // Language: Rust (Soroban)
 
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Map, Vec, Bytes};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Bytes, Env, Map, Vec};
 
 const MAX_SIGNERS: usize = 10;
 
@@ -40,21 +40,42 @@ impl MultiSigWalletContract {
             "Invalid threshold"
         );
         env.storage().instance().set(&DataKey::Signers, &signers);
-        env.storage().instance().set(&DataKey::Threshold, &threshold);
+        env.storage()
+            .instance()
+            .set(&DataKey::Threshold, &threshold);
         env.storage().instance().set(&DataKey::ProposalCount, &0u32);
-        env.storage().instance().set(&DataKey::TimelockPeriod, &timelock_period);
+        env.storage()
+            .instance()
+            .set(&DataKey::TimelockPeriod, &timelock_period);
     }
 
-    pub fn submit_proposal(env: Env, proposer: Address, to: Address, value: i128, data: Bytes) -> u32 {
+    pub fn submit_proposal(
+        env: Env,
+        proposer: Address,
+        to: Address,
+        value: i128,
+        data: Bytes,
+    ) -> u32 {
         proposer.require_auth();
 
         let signers: Vec<Address> = env.storage().instance().get(&DataKey::Signers).unwrap();
         assert!(signers.contains(&proposer), "Not a signer");
 
-        let mut proposals: Map<u32, Proposal> =
-            env.storage().instance().get(&DataKey::Proposals).unwrap_or_else(|| Map::new(&env));
-        let proposal_count: u32 = env.storage().instance().get(&DataKey::ProposalCount).unwrap_or(0);
-        let timelock_period: u64 = env.storage().instance().get(&DataKey::TimelockPeriod).unwrap_or(0);
+        let mut proposals: Map<u32, Proposal> = env
+            .storage()
+            .instance()
+            .get(&DataKey::Proposals)
+            .unwrap_or_else(|| Map::new(&env));
+        let proposal_count: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::ProposalCount)
+            .unwrap_or(0);
+        let timelock_period: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TimelockPeriod)
+            .unwrap_or(0);
         let now = env.ledger().timestamp();
 
         let proposal = Proposal {
@@ -68,8 +89,12 @@ impl MultiSigWalletContract {
             timelock: now + timelock_period,
         };
         proposals.set(proposal_count, proposal);
-        env.storage().instance().set(&DataKey::Proposals, &proposals);
-        env.storage().instance().set(&DataKey::ProposalCount, &(proposal_count + 1));
+        env.storage()
+            .instance()
+            .set(&DataKey::Proposals, &proposals);
+        env.storage()
+            .instance()
+            .set(&DataKey::ProposalCount, &(proposal_count + 1));
 
         proposal_count
     }
@@ -80,7 +105,8 @@ impl MultiSigWalletContract {
         let signers: Vec<Address> = env.storage().instance().get(&DataKey::Signers).unwrap();
         assert!(signers.contains(&signer), "Not a signer");
 
-        let mut proposals: Map<u32, Proposal> = env.storage().instance().get(&DataKey::Proposals).unwrap();
+        let mut proposals: Map<u32, Proposal> =
+            env.storage().instance().get(&DataKey::Proposals).unwrap();
         let mut proposal = proposals.get(proposal_id).unwrap();
 
         assert!(!proposal.executed, "Already executed");
@@ -88,11 +114,14 @@ impl MultiSigWalletContract {
 
         proposal.approvals.push_back(signer);
         proposals.set(proposal_id, proposal);
-        env.storage().instance().set(&DataKey::Proposals, &proposals);
+        env.storage()
+            .instance()
+            .set(&DataKey::Proposals, &proposals);
     }
 
     pub fn execute_proposal(env: Env, proposal_id: u32) {
-        let mut proposals: Map<u32, Proposal> = env.storage().instance().get(&DataKey::Proposals).unwrap();
+        let mut proposals: Map<u32, Proposal> =
+            env.storage().instance().get(&DataKey::Proposals).unwrap();
         let mut proposal = proposals.get(proposal_id).unwrap();
         let threshold: u32 = env.storage().instance().get(&DataKey::Threshold).unwrap();
         let now = env.ledger().timestamp();
@@ -108,7 +137,9 @@ impl MultiSigWalletContract {
 
         proposal.executed = true;
         proposals.set(proposal_id, proposal);
-        env.storage().instance().set(&DataKey::Proposals, &proposals);
+        env.storage()
+            .instance()
+            .set(&DataKey::Proposals, &proposals);
     }
 
     pub fn add_signer(env: Env, new_signer: Address) {

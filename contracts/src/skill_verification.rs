@@ -74,7 +74,10 @@ impl SkillVerificationContract {
             .persistent()
             .set(&SkillKey::Attester(attester.clone()), &true);
         env.events().publish(
-            (soroban_sdk::symbol_short!("attester"), soroban_sdk::symbol_short!("added")),
+            (
+                soroban_sdk::symbol_short!("attester"),
+                soroban_sdk::symbol_short!("added"),
+            ),
             attester,
         );
     }
@@ -86,7 +89,10 @@ impl SkillVerificationContract {
             .persistent()
             .set(&SkillKey::Attester(attester.clone()), &false);
         env.events().publish(
-            (soroban_sdk::symbol_short!("attester"), soroban_sdk::symbol_short!("removed")),
+            (
+                soroban_sdk::symbol_short!("attester"),
+                soroban_sdk::symbol_short!("removed"),
+            ),
             attester,
         );
     }
@@ -145,34 +151,18 @@ impl SkillVerificationContract {
     }
 
     /// Check whether a user holds a valid (non-expired) attestation for a skill at minimum level.
-    pub fn verify_skill(
-        env: Env,
-        user: Address,
-        skill: Symbol,
-        min_level: SkillLevel,
-    ) -> bool {
+    pub fn verify_skill(env: Env, user: Address, skill: Symbol, min_level: SkillLevel) -> bool {
         let profile = Self::get_or_default_profile(&env, &user);
         let now = env.ledger().sequence() as u64;
         profile.attestations.iter().any(|a| {
-            a.skill == skill
-                && a.expires_at > now
-                && (a.level as u32) >= (min_level as u32)
+            a.skill == skill && a.expires_at > now && (a.level as u32) >= (min_level as u32)
         })
     }
 
     /// Verify that a user has ALL required skills (used by job board).
-    pub fn verify_all_skills(
-        env: Env,
-        user: Address,
-        required_skills: Vec<Symbol>,
-    ) -> bool {
+    pub fn verify_all_skills(env: Env, user: Address, required_skills: Vec<Symbol>) -> bool {
         for skill in required_skills.iter() {
-            if !Self::verify_skill(
-                env.clone(),
-                user.clone(),
-                skill,
-                SkillLevel::Beginner,
-            ) {
+            if !Self::verify_skill(env.clone(), user.clone(), skill, SkillLevel::Beginner) {
                 return false;
             }
         }

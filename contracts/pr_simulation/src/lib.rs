@@ -187,14 +187,8 @@ impl PrSimulation {
         // Compute verdict from the supplied changes.
         let verdict = Self::compute_verdict(&changes);
 
-        let id: u64 = env
-            .storage()
-            .instance()
-            .get(&PrSimKey::NextId)
-            .unwrap_or(0);
-        env.storage()
-            .instance()
-            .set(&PrSimKey::NextId, &(id + 1));
+        let id: u64 = env.storage().instance().get(&PrSimKey::NextId).unwrap_or(0);
+        env.storage().instance().set(&PrSimKey::NextId, &(id + 1));
 
         let record = SimulationRecord {
             id,
@@ -314,10 +308,7 @@ impl PrSimulation {
 
     /// Return the number of simulations stored.
     pub fn simulation_count(env: Env) -> u64 {
-        env.storage()
-            .instance()
-            .get(&PrSimKey::NextId)
-            .unwrap_or(0)
+        env.storage().instance().get(&PrSimKey::NextId).unwrap_or(0)
     }
 
     /// Analyse a single `StorageChange` and return whether it is safe.
@@ -397,12 +388,7 @@ mod tests {
         BytesN::from_array(env, &bytes)
     }
 
-    fn make_change(
-        env: &Env,
-        key: &str,
-        old_type: &str,
-        new_type: &str,
-    ) -> StorageChange {
+    fn make_change(env: &Env, key: &str, old_type: &str, new_type: &str) -> StorageChange {
         StorageChange {
             key_name: String::from_str(env, key),
             old_type: String::from_str(env, old_type),
@@ -418,18 +404,10 @@ mod tests {
     fn test_initialise_sets_admin() {
         let (env, client, admin) = setup();
         let w = dummy_wasm(&env, 1);
-        let changes = Vec::from_array(
-            &env,
-            [make_change(&env, "Score", "u32", "u32")],
-        );
+        let changes = Vec::from_array(&env, [make_change(&env, "Score", "u32", "u32")]);
         // Admin should be able to create a simulation without panic.
-        let id = client.simulate_upgrade(
-            &admin,
-            &String::from_str(&env, "Test PR"),
-            &w,
-            &w,
-            &changes,
-        );
+        let id =
+            client.simulate_upgrade(&admin, &String::from_str(&env, "Test PR"), &w, &w, &changes);
         assert_eq!(id, 0);
     }
 
@@ -537,17 +515,8 @@ mod tests {
         let w = dummy_wasm(&env, 1);
         let rogue = Address::generate(&env);
 
-        let changes = Vec::from_array(
-            &env,
-            [make_change(&env, "K", "u32", "u32")],
-        );
-        client.simulate_upgrade(
-            &rogue,
-            &String::from_str(&env, "Bad"),
-            &w,
-            &w,
-            &changes,
-        );
+        let changes = Vec::from_array(&env, [make_change(&env, "K", "u32", "u32")]);
+        client.simulate_upgrade(&rogue, &String::from_str(&env, "Bad"), &w, &w, &changes);
     }
 
     #[test]
@@ -556,17 +525,8 @@ mod tests {
         let (env, client, admin) = setup();
         let w = dummy_wasm(&env, 1);
 
-        let changes = Vec::from_array(
-            &env,
-            [make_change(&env, "K", "u32", "u32")],
-        );
-        client.simulate_upgrade(
-            &admin,
-            &String::from_str(&env, ""),
-            &w,
-            &w,
-            &changes,
-        );
+        let changes = Vec::from_array(&env, [make_change(&env, "K", "u32", "u32")]);
+        client.simulate_upgrade(&admin, &String::from_str(&env, ""), &w, &w, &changes);
     }
 
     #[test]
@@ -576,10 +536,7 @@ mod tests {
         let zero_wasm = BytesN::from_array(&env, &[0u8; 32]);
         let good_wasm = dummy_wasm(&env, 1);
 
-        let changes = Vec::from_array(
-            &env,
-            [make_change(&env, "K", "u32", "u32")],
-        );
+        let changes = Vec::from_array(&env, [make_change(&env, "K", "u32", "u32")]);
         // current_wasm is all zeros → should panic
         client.simulate_upgrade(
             &admin,
@@ -613,17 +570,9 @@ mod tests {
         let (env, client, admin) = setup();
         let w = dummy_wasm(&env, 1);
 
-        let changes = Vec::from_array(
-            &env,
-            [make_change(&env, "K", "u32", "u32")],
-        );
-        let id = client.simulate_upgrade(
-            &admin,
-            &String::from_str(&env, "Good PR"),
-            &w,
-            &w,
-            &changes,
-        );
+        let changes = Vec::from_array(&env, [make_change(&env, "K", "u32", "u32")]);
+        let id =
+            client.simulate_upgrade(&admin, &String::from_str(&env, "Good PR"), &w, &w, &changes);
 
         client.approve(&admin, &id);
         let record = client.get_simulation(&id).unwrap();
@@ -636,17 +585,9 @@ mod tests {
         let (env, client, admin) = setup();
         let w = dummy_wasm(&env, 1);
 
-        let changes = Vec::from_array(
-            &env,
-            [make_change(&env, "K", "u32", "u32")],
-        );
-        let id = client.simulate_upgrade(
-            &admin,
-            &String::from_str(&env, "Bad PR"),
-            &w,
-            &w,
-            &changes,
-        );
+        let changes = Vec::from_array(&env, [make_change(&env, "K", "u32", "u32")]);
+        let id =
+            client.simulate_upgrade(&admin, &String::from_str(&env, "Bad PR"), &w, &w, &changes);
 
         client.reject(&admin, &id);
         let record = client.get_simulation(&id).unwrap();
@@ -658,17 +599,9 @@ mod tests {
         let (env, client, admin) = setup();
         let w = dummy_wasm(&env, 1);
 
-        let changes = Vec::from_array(
-            &env,
-            [make_change(&env, "K", "u32", "u32")],
-        );
-        let id = client.simulate_upgrade(
-            &admin,
-            &String::from_str(&env, "Exec PR"),
-            &w,
-            &w,
-            &changes,
-        );
+        let changes = Vec::from_array(&env, [make_change(&env, "K", "u32", "u32")]);
+        let id =
+            client.simulate_upgrade(&admin, &String::from_str(&env, "Exec PR"), &w, &w, &changes);
         client.approve(&admin, &id);
         client.execute(&admin, &id);
 
@@ -682,10 +615,7 @@ mod tests {
         let (env, client, admin) = setup();
         let w = dummy_wasm(&env, 1);
 
-        let changes = Vec::from_array(
-            &env,
-            [make_change(&env, "K", "u32", "u32")],
-        );
+        let changes = Vec::from_array(&env, [make_change(&env, "K", "u32", "u32")]);
         let id = client.simulate_upgrade(
             &admin,
             &String::from_str(&env, "Draft PR"),
@@ -703,10 +633,7 @@ mod tests {
         let (env, client, admin) = setup();
         let w = dummy_wasm(&env, 1);
 
-        let changes = Vec::from_array(
-            &env,
-            [make_change(&env, "K", "u32", "u32")],
-        );
+        let changes = Vec::from_array(&env, [make_change(&env, "K", "u32", "u32")]);
         let id = client.simulate_upgrade(
             &admin,
             &String::from_str(&env, "Double approve"),
@@ -756,27 +683,12 @@ mod tests {
         assert_eq!(client.simulation_count(), 0);
 
         let w = dummy_wasm(&env, 1);
-        let changes = Vec::from_array(
-            &env,
-            [make_change(&env, "K", "u32", "u32")],
-        );
+        let changes = Vec::from_array(&env, [make_change(&env, "K", "u32", "u32")]);
 
-        client.simulate_upgrade(
-            &admin,
-            &String::from_str(&env, "PR 1"),
-            &w,
-            &w,
-            &changes,
-        );
+        client.simulate_upgrade(&admin, &String::from_str(&env, "PR 1"), &w, &w, &changes);
         assert_eq!(client.simulation_count(), 1);
 
-        client.simulate_upgrade(
-            &admin,
-            &String::from_str(&env, "PR 2"),
-            &w,
-            &w,
-            &changes,
-        );
+        client.simulate_upgrade(&admin, &String::from_str(&env, "PR 2"), &w, &w, &changes);
         assert_eq!(client.simulation_count(), 2);
     }
 
@@ -794,10 +706,7 @@ mod tests {
         let (env, client, admin) = setup();
         let w = dummy_wasm(&env, 1);
 
-        let changes = Vec::from_array(
-            &env,
-            [make_change(&env, "K", "u32", "u32")],
-        );
+        let changes = Vec::from_array(&env, [make_change(&env, "K", "u32", "u32")]);
         let id = client.simulate_upgrade(
             &admin,
             &String::from_str(&env, "Immutable"),

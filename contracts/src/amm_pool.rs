@@ -1,4 +1,4 @@
-use soroban_sdk::{contract, contractimpl, Env, Address};
+use soroban_sdk::{contract, contractimpl, Address, Env};
 
 #[contract]
 pub struct ConstantProductPoolContract;

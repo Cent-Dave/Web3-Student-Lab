@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import * as transactionController from './transaction.controller.js';
 import * as p2pController from './p2p.controller.js';
-import { requireAuth } from '../middleware/auth.middleware.js'; // Assuming basic auth is needed
+import { authenticate as requireAuth } from '../auth/auth.middleware.js'; // Assuming basic auth is needed
 
 const router = Router();
 

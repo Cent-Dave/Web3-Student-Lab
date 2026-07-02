@@ -1,8 +1,8 @@
 /// Token burn mechanism module
 /// Handles automated token burning after market purchases with on-chain verification
-
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, panic_with_error, Address, Env, Symbol, Vec,
+    contract, contracterror, contractimpl, contracttype, panic_with_error, Address, Env, Symbol,
+    Vec,
 };
 
 #[contracterror]
@@ -59,7 +59,7 @@ pub struct BurnCertificate {
 #[derive(Clone)]
 pub enum DataKey {
     TokenContract,
-    BurnRecords(u32),         // indexed by record number
+    BurnRecords(u32), // indexed by record number
     BurnRecordCount,
     CumulativeTokensBurned,
     BurnCertificates(Symbol), // indexed by certificate ID
@@ -88,7 +88,9 @@ impl TokenBurnMechanism {
         env.storage()
             .instance()
             .set(&DataKey::TokenContract, &token_contract);
-        env.storage().instance().set(&DataKey::BurnRecordCount, &0u32);
+        env.storage()
+            .instance()
+            .set(&DataKey::BurnRecordCount, &0u32);
         env.storage()
             .instance()
             .set(&DataKey::CumulativeTokensBurned, &0u128);
@@ -107,11 +109,7 @@ impl TokenBurnMechanism {
     }
 
     /// Record a token burn
-    pub fn burn_tokens(
-        env: Env,
-        amount: u128,
-        reason: Symbol,
-    ) -> Symbol {
+    pub fn burn_tokens(env: Env, amount: u128, reason: Symbol) -> Symbol {
         let admin: Address = env
             .storage()
             .instance()
@@ -132,10 +130,7 @@ impl TokenBurnMechanism {
             .unwrap_or(0);
 
         // Generate certificate ID
-        let cert_id = Symbol::new(
-            &env,
-            "CERT_ID",
-        );
+        let cert_id = Symbol::new(&env, "CERT_ID");
 
         let record = BurnRecord {
             timestamp: env.ledger().timestamp(),
@@ -175,10 +170,9 @@ impl TokenBurnMechanism {
             .instance()
             .get(&DataKey::CumulativeTokensBurned)
             .unwrap_or(0);
-        env.storage().instance().set(
-            &DataKey::CumulativeTokensBurned,
-            &(cumulative + amount),
-        );
+        env.storage()
+            .instance()
+            .set(&DataKey::CumulativeTokensBurned, &(cumulative + amount));
 
         let supply_reduction: u128 = env
             .storage()
@@ -190,7 +184,10 @@ impl TokenBurnMechanism {
             .set(&DataKey::SupplyReduction, &(supply_reduction + amount));
 
         env.events().publish(
-            (Symbol::new(&env, "burn"), Symbol::new(&env, "tokens_burned")),
+            (
+                Symbol::new(&env, "burn"),
+                Symbol::new(&env, "tokens_burned"),
+            ),
             (amount, reason, cert_id.clone()),
         );
 
@@ -212,9 +209,7 @@ impl TokenBurnMechanism {
 
     /// Get burn record
     pub fn get_burn_record(env: Env, index: u32) -> Option<BurnRecord> {
-        env.storage()
-            .instance()
-            .get(&DataKey::BurnRecords(index))
+        env.storage().instance().get(&DataKey::BurnRecords(index))
     }
 
     /// Get burn certificate
@@ -278,12 +273,16 @@ impl TokenBurnMechanism {
             .get(&DataKey::SupplyReduction)
             .unwrap_or(0);
 
-        env.storage()
-            .instance()
-            .set(&DataKey::SupplyReduction, &(current_reduction + amount_burned));
+        env.storage().instance().set(
+            &DataKey::SupplyReduction,
+            &(current_reduction + amount_burned),
+        );
 
         env.events().publish(
-            (Symbol::new(&env, "burn"), Symbol::new(&env, "supply_updated")),
+            (
+                Symbol::new(&env, "burn"),
+                Symbol::new(&env, "supply_updated"),
+            ),
             (amount_burned,),
         );
     }
@@ -337,11 +336,7 @@ impl TokenBurnMechanism {
     }
 
     /// Batch burn multiple amounts with different reasons
-    pub fn batch_burn(
-        env: Env,
-        amounts: Vec<u128>,
-        reasons: Vec<Symbol>,
-    ) -> Vec<Symbol> {
+    pub fn batch_burn(env: Env, amounts: Vec<u128>, reasons: Vec<Symbol>) -> Vec<Symbol> {
         if amounts.len() != reasons.len() {
             panic_with_error!(&env, BurnError::InvalidAmount);
         }
@@ -384,14 +379,10 @@ mod test {
 
         TokenBurnMechanism::init(env.clone(), admin.clone(), token, 1_000_000);
 
-        let _cert = TokenBurnMechanism::burn_tokens(
-            env.clone(),
-            100_000,
-            Symbol::new(&env, "buyback"),
-        );
+        let _cert =
+            TokenBurnMechanism::burn_tokens(env.clone(), 100_000, Symbol::new(&env, "buyback"));
 
         let current_supply = TokenBurnMechanism::get_current_supply(env);
         assert_eq!(current_supply, 900_000);
     }
 }
-

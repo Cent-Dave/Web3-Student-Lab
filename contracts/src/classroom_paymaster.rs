@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, Env, Address};
+use soroban_sdk::{contract, contractimpl, Address, Env};
 
 #[contract]
 pub struct ClassroomPaymasterContract;

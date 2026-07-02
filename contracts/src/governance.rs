@@ -176,17 +176,14 @@ impl GovernanceContract {
         }
         env.storage().instance().set(&GovKey::Admin, &admin);
         env.storage().instance().set(&GovKey::GovToken, &gov_token);
-        env.storage()
-            .instance()
-            .set(&GovKey::NextProposalId, &0u64);
+        env.storage().instance().set(&GovKey::NextProposalId, &0u64);
         env.storage()
             .instance()
             .set(&GovKey::ProposalThreshold, &DEFAULT_PROPOSAL_THRESHOLD);
         env.storage()
             .instance()
             .set(&GovKey::VotingPeriod, &DEFAULT_VOTING_PERIOD);
-        env.events()
-            .publish((symbol_short!("gov_init"),), admin);
+        env.events().publish((symbol_short!("gov_init"),), admin);
     }
 
     // -----------------------------------------------------------------------
@@ -217,9 +214,10 @@ impl GovernanceContract {
             .persistent()
             .get(&GovKey::Credits(depositor.clone()))
             .unwrap_or(0);
-        env.storage()
-            .persistent()
-            .set(&GovKey::Credits(depositor.clone()), &safe_add(&env, prev, amount));
+        env.storage().persistent().set(
+            &GovKey::Credits(depositor.clone()),
+            &safe_add(&env, prev, amount),
+        );
         env.events()
             .publish((symbol_short!("crd_dep"),), (depositor, amount));
     }
@@ -349,9 +347,10 @@ impl GovernanceContract {
         if credits < credits_to_spend {
             panic_with_error!(&env, GovernanceError::InsufficientCredits);
         }
-        env.storage()
-            .persistent()
-            .set(&GovKey::Credits(voter.clone()), &(credits - credits_to_spend));
+        env.storage().persistent().set(
+            &GovKey::Credits(voter.clone()),
+            &(credits - credits_to_spend),
+        );
 
         // Quadratic vote weight.
         let vote_weight = isqrt(credits_to_spend as u128) as i128;
@@ -410,8 +409,10 @@ impl GovernanceContract {
         env.storage()
             .persistent()
             .set(&GovKey::Proposal(proposal_id), &proposal);
-        env.events()
-            .publish((symbol_short!("prop_fin"), proposal_id), proposal.status.clone());
+        env.events().publish(
+            (symbol_short!("prop_fin"), proposal_id),
+            proposal.status.clone(),
+        );
     }
 
     /// Execute the action of a `Passed` proposal.

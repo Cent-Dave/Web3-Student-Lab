@@ -72,13 +72,19 @@ impl FreelancePlatform {
     /// Register a freelancer/worker on the platform.
     pub fn register_worker(env: Env, worker: Address) {
         worker.require_auth();
-        env.storage().instance().set(&DataKey::Worker(worker.clone()), &true);
-        env.events().publish((symbol_short!("worker_r"), worker), ());
+        env.storage()
+            .instance()
+            .set(&DataKey::Worker(worker.clone()), &true);
+        env.events()
+            .publish((symbol_short!("worker_r"), worker), ());
     }
 
     /// Check if a worker is registered.
     pub fn is_worker_registered(env: Env, worker: Address) -> bool {
-        env.storage().instance().get(&DataKey::Worker(worker)).unwrap_or(false)
+        env.storage()
+            .instance()
+            .get(&DataKey::Worker(worker))
+            .unwrap_or(false)
     }
 
     /// Create a job post and deposit the milestone budgets into escrow.
@@ -127,8 +133,14 @@ impl FreelancePlatform {
             });
         }
 
-        let job_id: u64 = env.storage().instance().get(&DataKey::NextJobId).unwrap_or(1);
-        env.storage().instance().set(&DataKey::NextJobId, &(job_id + 1));
+        let job_id: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::NextJobId)
+            .unwrap_or(1);
+        env.storage()
+            .instance()
+            .set(&DataKey::NextJobId, &(job_id + 1));
 
         let job = Job {
             id: job_id,
@@ -140,9 +152,12 @@ impl FreelancePlatform {
         };
 
         env.storage().instance().set(&DataKey::Job(job_id), &job);
-        env.storage().instance().set(&DataKey::Applications(job_id), &Vec::<Address>::new(&env));
+        env.storage()
+            .instance()
+            .set(&DataKey::Applications(job_id), &Vec::<Address>::new(&env));
 
-        env.events().publish((symbol_short!("job_new"), client), (job_id, budget));
+        env.events()
+            .publish((symbol_short!("job_new"), client), (job_id, budget));
         job_id
     }
 
@@ -161,8 +176,11 @@ impl FreelancePlatform {
             .unwrap();
 
         apps.push_back(worker.clone());
-        env.storage().instance().set(&DataKey::Applications(job_id), &apps);
-        env.events().publish((symbol_short!("job_apply"), worker), job_id);
+        env.storage()
+            .instance()
+            .set(&DataKey::Applications(job_id), &apps);
+        env.events()
+            .publish((symbol_short!("job_apply"), worker), job_id);
     }
 
     /// Assign a worker to a job (client only).
@@ -196,7 +214,10 @@ impl FreelancePlatform {
 
         job.freelancer = worker.clone();
         env.storage().instance().set(&DataKey::Job(job_id), &job);
-        env.events().publish((Symbol::new(&env, "job_assign"), job.client), (job_id, worker));
+        env.events().publish(
+            (Symbol::new(&env, "job_assign"), job.client),
+            (job_id, worker),
+        );
     }
 
     /// Worker submits a milestone.
@@ -305,7 +326,10 @@ impl FreelancePlatform {
         job.status = symbol_short!("disputed");
 
         env.storage().instance().set(&DataKey::Job(job_id), &job);
-        env.events().publish((symbol_short!("disputed"), caller), (job_id, milestone_index));
+        env.events().publish(
+            (symbol_short!("disputed"), caller),
+            (job_id, milestone_index),
+        );
     }
 
     /// Admin resolves a dispute, distributing funds accordingly.

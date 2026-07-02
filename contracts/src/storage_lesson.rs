@@ -10,7 +10,7 @@ impl StorageLessonContract {
     /// Storage fee mechanics:
     /// Instance storage is stored along with the contract instance.
     /// It shares the same TTL as the contract instance.
-    
+
     pub fn set(env: Env, key: Symbol, val: u32) {
         // Implement standard set function using instance keys.
         env.storage().instance().set(&key, &val);

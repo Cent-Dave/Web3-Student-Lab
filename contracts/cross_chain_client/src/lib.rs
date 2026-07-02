@@ -25,8 +25,8 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short,
-    Address, Bytes, BytesN, Env,
+    contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, Address,
+    Bytes, BytesN, Env,
 };
 
 // ---------------------------------------------------------------------------
@@ -224,7 +224,13 @@ impl CrossChainClient {
     // -----------------------------------------------------------------------
 
     /// `source_chain[4] || nonce[8] || sender || payload` (big-endian)
-    fn canonical_bytes(env: &Env, source_chain: ChainId, nonce: u64, sender: &Bytes, payload: &Bytes) -> Bytes {
+    fn canonical_bytes(
+        env: &Env,
+        source_chain: ChainId,
+        nonce: u64,
+        sender: &Bytes,
+        payload: &Bytes,
+    ) -> Bytes {
         let mut data = Bytes::new(env);
         data.push_back((source_chain >> 24) as u8);
         data.push_back((source_chain >> 16) as u8);

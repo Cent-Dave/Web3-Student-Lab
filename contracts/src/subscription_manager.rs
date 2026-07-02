@@ -1,5 +1,5 @@
 //! Subscription Management System for Web3 Student Lab
-//! 
+//!
 //! Features:
 //! - Tiered subscription plans (Basic, Pro, Enterprise)
 //! - Recurring billing with flexible periods
@@ -11,8 +11,8 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, panic_with_error,
-    Address, BytesN, Env, String, Symbol, Vec, Map, U256
+    contract, contracterror, contractimpl, contracttype, panic_with_error, Address, BytesN, Env,
+    Map, String, Symbol, Vec, U256,
 };
 
 /// Subscription plan tiers
@@ -202,14 +202,12 @@ pub struct EmergencyPause {
 }
 
 /// Storage keys
-const ADMIN: Symbol = Symbol::new(&"ADMIN");
-const CONFIG: Symbol = Symbol::new(&"CONFIG");
-const SUBSCRIPTIONS: Symbol = Symbol::new(&"SUBSCRIPTIONS");
-const USER_SUBSCRIPTIONS: Symbol = Symbol::new(&"USER_SUBSCRIPTIONS");
-const SUBSCRIPTION_PLANS: Symbol = Symbol::new(&"SUBSCRIPTION_PLANS");
-const PAYMENT_RECORDS: Symbol = Symbol::new(&"PAYMENT_RECORDS");
-const NEXT_SUBSCRIPTION_ID: Symbol = Symbol::new(&"NEXT_SUBSCRIPTION_ID");
-const NEXT_PAYMENT_ID: Symbol = Symbol::new(&"NEXT_PAYMENT_ID");
+const ADMIN: Symbol = soroban_sdk::symbol_short!("ADMIN");
+const CONFIG: Symbol = soroban_sdk::symbol_short!("CONFIG");
+const SUBSCRIPTIONS: Symbol = soroban_sdk::symbol_short!("SUBS");
+const USER_SUBSCRIPTIONS: Symbol = soroban_sdk::symbol_short!("USR_SUBS");
+const SUBSCRIPTION_PLANS: Symbol = soroban_sdk::symbol_short!("PLANS");
+const NEXT_SUBSCRIPTION_ID: Symbol = soroban_sdk::symbol_short!("NEXT_ID");
 
 /// Subscription Manager Contract
 #[contract]
@@ -218,7 +216,11 @@ pub struct SubscriptionManager;
 #[contractimpl]
 impl SubscriptionManager {
     /// Initialize the contract
-    pub fn initialize(env: Env, admin: Address, treasury: Address) -> Result<(), SubscriptionError> {
+    pub fn initialize(
+        env: Env,
+        admin: Address,
+        treasury: Address,
+    ) -> Result<(), SubscriptionError> {
         if env.storage().instance().has(&ADMIN) {
             return Err(SubscriptionError::InvalidConfig);
         }
@@ -228,8 +230,8 @@ impl SubscriptionManager {
             treasury,
             paused: false,
             emergency_pause: false,
-            platform_fee_percent: 5, // 5% platform fee
-            min_subscription_period: 2592000, // 30 days in seconds
+            platform_fee_percent: 5,           // 5% platform fee
+            min_subscription_period: 2592000,  // 30 days in seconds
             max_subscription_period: 31536000, // 365 days in seconds
             grace_period_days: 7,
         };
@@ -237,7 +239,6 @@ impl SubscriptionManager {
         env.storage().instance().set(&ADMIN, &admin);
         env.storage().instance().set(&CONFIG, &config);
         env.storage().instance().set(&NEXT_SUBSCRIPTION_ID, &1u64);
-        env.storage().instance().set(&NEXT_PAYMENT_ID, &1u64);
 
         // Initialize default subscription plans
         Self::initialize_default_plans(env)?;
@@ -255,7 +256,7 @@ impl SubscriptionManager {
         auto_renew: bool,
     ) -> Result<u64, SubscriptionError> {
         let config: ContractConfig = env.storage().instance().get(&CONFIG).unwrap();
-        
+
         if config.paused || config.emergency_pause {
             return Err(SubscriptionError::ContractPaused);
         }
@@ -277,8 +278,14 @@ impl SubscriptionManager {
         let end_date = current_time + period_seconds;
 
         // Create subscription
-        let subscription_id = env.storage().instance().get(&NEXT_SUBSCRIPTION_ID).unwrap_or(1u64);
-        env.storage().instance().set(&NEXT_SUBSCRIPTION_ID, &(subscription_id + 1));
+        let subscription_id = env
+            .storage()
+            .instance()
+            .get(&NEXT_SUBSCRIPTION_ID)
+            .unwrap_or(1u64);
+        env.storage()
+            .instance()
+            .set(&NEXT_SUBSCRIPTION_ID, &(subscription_id + 1));
 
         let subscription = Subscription {
             user: user.clone(),
@@ -295,7 +302,8 @@ impl SubscriptionManager {
         };
 
         // Store subscription
-        let mut subscriptions: Map<u64, Subscription> = env.storage()
+        let mut subscriptions: Map<u64, Subscription> = env
+            .storage()
             .instance()
             .get(&SUBSCRIPTIONS)
             .unwrap_or(Map::new(&env));
@@ -303,26 +311,29 @@ impl SubscriptionManager {
         env.storage().instance().set(&SUBSCRIPTIONS, &subscriptions);
 
         // Update user subscriptions mapping
-        let mut user_subscriptions: Map<Address, Vec<u64>> = env.storage()
+        let mut user_subscriptions: Map<Address, Vec<u64>> = env
+            .storage()
             .instance()
             .get(&USER_SUBSCRIPTIONS)
             .unwrap_or(Map::new(&env));
-        
-        let mut user_subs = user_subscriptions.get(user.clone()).unwrap_or(Vec::new(&env));
+
+        let mut user_subs = user_subscriptions
+            .get(user.clone())
+            .unwrap_or(Vec::new(&env));
         user_subs.push_back(subscription_id);
         user_subscriptions.set(user.clone(), user_subs);
-        env.storage().instance().set(&USER_SUBSCRIPTIONS, &user_subscriptions);
+        env.storage()
+            .instance()
+            .set(&USER_SUBSCRIPTIONS, &user_subscriptions);
 
         // Emit event
-        env.events().publish(
-            SubscriptionCreated {
-                subscription_id,
-                user: user.clone(),
-                tier,
-                start_date: current_time,
-                end_date,
-            },
-        );
+        env.events().publish((soroban_sdk::symbol_short!("sub_cre"), subscription_id), SubscriptionCreated {
+            subscription_id,
+            user: user.clone(),
+            tier,
+            start_date: current_time,
+            end_date,
+        });
 
         Ok(subscription_id)
     }
@@ -334,17 +345,19 @@ impl SubscriptionManager {
         subscription_id: u64,
     ) -> Result<(), SubscriptionError> {
         let config: ContractConfig = env.storage().instance().get(&CONFIG).unwrap();
-        
+
         if config.emergency_pause {
             return Err(SubscriptionError::ContractPaused);
         }
 
-        let mut subscriptions: Map<u64, Subscription> = env.storage()
+        let mut subscriptions: Map<u64, Subscription> = env
+            .storage()
             .instance()
             .get(&SUBSCRIPTIONS)
             .unwrap_or(Map::new(&env));
 
-        let mut subscription = subscriptions.get(subscription_id)
+        let mut subscription = subscriptions
+            .get(subscription_id)
             .ok_or(SubscriptionError::SubscriptionNotFound)?;
 
         // Check authorization
@@ -367,29 +380,29 @@ impl SubscriptionManager {
         env.storage().instance().set(&SUBSCRIPTIONS, &subscriptions);
 
         // Emit event
-        env.events().publish(
-            SubscriptionCancelled {
-                subscription_id,
-                user: subscription.user.clone(),
-                cancellation_date: env.ledger().timestamp(),
-                refund_amount,
-            },
-        );
+        env.events().publish((soroban_sdk::symbol_short!("sub_cnc"), subscription_id), SubscriptionCancelled {
+            subscription_id,
+            user: subscription.user.clone(),
+            cancellation_date: env.ledger().timestamp(),
+            refund_amount,
+        });
 
-        env.events().publish(
-            SubscriptionUpdated {
-                subscription_id,
-                user: subscription.user.clone(),
-                old_status,
-                new_status: SubscriptionStatus::Cancelled,
-            },
-        );
+        env.events().publish((soroban_sdk::symbol_short!("sub_upd"), subscription_id), SubscriptionUpdated {
+            subscription_id,
+            user: subscription.user.clone(),
+            old_status,
+            new_status: SubscriptionStatus::Cancelled,
+        });
 
         Ok(())
     }
 
     /// Pause contract (admin only)
-    pub fn pause_contract(env: Env, admin: Address, reason: String) -> Result<(), SubscriptionError> {
+    pub fn pause_contract(
+        env: Env,
+        admin: Address,
+        reason: String,
+    ) -> Result<(), SubscriptionError> {
         if !Self::is_admin(env.clone(), admin.clone()) {
             return Err(SubscriptionError::Unauthorized);
         }
@@ -398,13 +411,11 @@ impl SubscriptionManager {
         config.paused = true;
         env.storage().instance().set(&CONFIG, &config);
 
-        env.events().publish(
-            EmergencyPause {
-                paused_by: admin,
-                pause_date: env.ledger().timestamp(),
-                reason,
-            },
-        );
+        env.events().publish((soroban_sdk::symbol_short!("pause"), admin.clone()), EmergencyPause {
+            paused_by: admin,
+            pause_date: env.ledger().timestamp(),
+            reason,
+        });
 
         Ok(())
     }
@@ -423,7 +434,11 @@ impl SubscriptionManager {
     }
 
     /// Emergency pause (admin only)
-    pub fn emergency_pause(env: Env, admin: Address, reason: String) -> Result<(), SubscriptionError> {
+    pub fn emergency_pause(
+        env: Env,
+        admin: Address,
+        reason: String,
+    ) -> Result<(), SubscriptionError> {
         if !Self::is_admin(env.clone(), admin.clone()) {
             return Err(SubscriptionError::Unauthorized);
         }
@@ -432,31 +447,35 @@ impl SubscriptionManager {
         config.emergency_pause = true;
         env.storage().instance().set(&CONFIG, &config);
 
-        env.events().publish(
-            EmergencyPause {
-                paused_by: admin,
-                pause_date: env.ledger().timestamp(),
-                reason,
-            },
-        );
+        env.events().publish((soroban_sdk::symbol_short!("pause"), admin.clone()), EmergencyPause {
+            paused_by: admin,
+            pause_date: env.ledger().timestamp(),
+            reason,
+        });
 
         Ok(())
     }
 
     /// Get subscription details
-    pub fn get_subscription(env: Env, subscription_id: u64) -> Result<Subscription, SubscriptionError> {
-        let subscriptions: Map<u64, Subscription> = env.storage()
+    pub fn get_subscription(
+        env: Env,
+        subscription_id: u64,
+    ) -> Result<Subscription, SubscriptionError> {
+        let subscriptions: Map<u64, Subscription> = env
+            .storage()
             .instance()
             .get(&SUBSCRIPTIONS)
             .unwrap_or(Map::new(&env));
 
-        subscriptions.get(subscription_id)
+        subscriptions
+            .get(subscription_id)
             .ok_or(SubscriptionError::SubscriptionNotFound)
     }
 
     /// Get user subscriptions
     pub fn get_user_subscriptions(env: Env, user: Address) -> Vec<u64> {
-        let user_subscriptions: Map<Address, Vec<u64>> = env.storage()
+        let user_subscriptions: Map<Address, Vec<u64>> = env
+            .storage()
             .instance()
             .get(&USER_SUBSCRIPTIONS)
             .unwrap_or(Map::new(&env));
@@ -465,8 +484,12 @@ impl SubscriptionManager {
     }
 
     /// Get plan details
-    pub fn get_plan(env: Env, tier: SubscriptionTier) -> Result<SubscriptionPlan, SubscriptionError> {
-        let plans: Map<SubscriptionTier, SubscriptionPlan> = env.storage()
+    pub fn get_plan(
+        env: Env,
+        tier: SubscriptionTier,
+    ) -> Result<SubscriptionPlan, SubscriptionError> {
+        let plans: Map<SubscriptionTier, SubscriptionPlan> = env
+            .storage()
             .instance()
             .get(&SUBSCRIPTION_PLANS)
             .unwrap_or(Map::new(&env));
@@ -476,7 +499,8 @@ impl SubscriptionManager {
 
     /// Get all plans
     pub fn get_all_plans(env: Env) -> Vec<SubscriptionPlan> {
-        let plans: Map<SubscriptionTier, SubscriptionPlan> = env.storage()
+        let plans: Map<SubscriptionTier, SubscriptionPlan> = env
+            .storage()
             .instance()
             .get(&SUBSCRIPTION_PLANS)
             .unwrap_or(Map::new(&env));
@@ -517,21 +541,20 @@ impl SubscriptionManager {
             is_active,
         };
 
-        let mut plans: Map<SubscriptionTier, SubscriptionPlan> = env.storage()
+        let mut plans: Map<SubscriptionTier, SubscriptionPlan> = env
+            .storage()
             .instance()
             .get(&SUBSCRIPTION_PLANS)
             .unwrap_or(Map::new(&env));
-        
+
         plans.set(tier.clone(), plan.clone());
         env.storage().instance().set(&SUBSCRIPTION_PLANS, &plans);
 
-        env.events().publish(
-            PlanUpdated {
-                tier,
-                updated_by: admin,
-                update_date: env.ledger().timestamp(),
-            },
-        );
+        env.events().publish((soroban_sdk::symbol_short!("plan_upd"), tier.clone()), PlanUpdated {
+            tier,
+            updated_by: admin,
+            update_date: env.ledger().timestamp(),
+        });
 
         Ok(())
     }
@@ -543,12 +566,14 @@ impl SubscriptionManager {
     }
 
     fn has_active_subscription(env: Env, user: Address) -> bool {
-        let user_subscriptions = Self::get_user_subscriptions(env, user);
+        let user_subscriptions = Self::get_user_subscriptions(env.clone(), user);
         let current_time = env.ledger().timestamp();
 
         for subscription_id in user_subscriptions {
             if let Ok(subscription) = Self::get_subscription(env.clone(), subscription_id) {
-                if subscription.status == SubscriptionStatus::Active && subscription.end_date > current_time {
+                if subscription.status == SubscriptionStatus::Active
+                    && subscription.end_date > current_time
+                {
                     return true;
                 }
             }
@@ -558,9 +583,9 @@ impl SubscriptionManager {
 
     fn billing_period_to_seconds(period: BillingPeriod) -> u64 {
         match period {
-            BillingPeriod::Monthly => 2592000,    // 30 days
+            BillingPeriod::Monthly => 2592000,   // 30 days
             BillingPeriod::Quarterly => 7776000, // 90 days
-            BillingPeriod::Yearly => 31536000,    // 365 days
+            BillingPeriod::Yearly => 31536000,   // 365 days
         }
     }
 
@@ -575,14 +600,16 @@ impl SubscriptionManager {
     fn calculate_refund(env: Env, subscription: Subscription) -> Option<i128> {
         let current_time = env.ledger().timestamp();
         let remaining_time = subscription.end_date.saturating_sub(current_time);
-        let total_time = subscription.end_date.saturating_sub(subscription.start_date);
-        
+        let total_time = subscription
+            .end_date
+            .saturating_sub(subscription.start_date);
+
         if total_time == 0 || remaining_time == 0 {
             return None;
         }
 
         let refund_percentage = (remaining_time as i128) * 100 / (total_time as i128);
-        
+
         if let Ok(plan) = Self::get_plan(env, subscription.plan_tier) {
             Some(plan.price * refund_percentage / 100)
         } else {
@@ -594,12 +621,15 @@ impl SubscriptionManager {
         let mut plans: Map<SubscriptionTier, SubscriptionPlan> = Map::new(&env);
 
         // Basic Plan
-        let basic_features = Vec::from_array(&env, [
-            String::from_str(&env, "Access to basic courses"),
-            String::from_str(&env, "Email support"),
-            String::from_str(&env, "Certificate of completion"),
-        ]);
-        
+        let basic_features = Vec::from_array(
+            &env,
+            [
+                String::from_str(&env, "Access to basic courses"),
+                String::from_str(&env, "Email support"),
+                String::from_str(&env, "Certificate of completion"),
+            ],
+        );
+
         plans.set(
             SubscriptionTier::Basic,
             SubscriptionPlan {
@@ -607,7 +637,7 @@ impl SubscriptionManager {
                 name: String::from_str(&env, "Basic"),
                 description: String::from_str(&env, "Perfect for getting started"),
                 price: 10_000_000, // 0.001 XLM equivalent
-                currency: Symbol::new(&"XLM"),
+                currency: soroban_sdk::symbol_short!("XLM"),
                 billing_period: BillingPeriod::Monthly,
                 features: basic_features,
                 max_users: 1,
@@ -616,13 +646,16 @@ impl SubscriptionManager {
         );
 
         // Pro Plan
-        let pro_features = Vec::from_array(&env, [
-            String::from_str(&env, "Access to all courses"),
-            String::from_str(&env, "Priority support"),
-            String::from_str(&env, "Verified certificates"),
-            String::from_str(&env, "Course completion tracking"),
-        ]);
-        
+        let pro_features = Vec::from_array(
+            &env,
+            [
+                String::from_str(&env, "Access to all courses"),
+                String::from_str(&env, "Priority support"),
+                String::from_str(&env, "Verified certificates"),
+                String::from_str(&env, "Course completion tracking"),
+            ],
+        );
+
         plans.set(
             SubscriptionTier::Pro,
             SubscriptionPlan {
@@ -630,7 +663,7 @@ impl SubscriptionManager {
                 name: String::from_str(&env, "Pro"),
                 description: String::from_str(&env, "For serious learners"),
                 price: 25_000_000, // 0.0025 XLM equivalent
-                currency: Symbol::new(&"XLM"),
+                currency: soroban_sdk::symbol_short!("XLM"),
                 billing_period: BillingPeriod::Quarterly,
                 features: pro_features,
                 max_users: 3,
@@ -639,14 +672,17 @@ impl SubscriptionManager {
         );
 
         // Enterprise Plan
-        let enterprise_features = Vec::from_array(&env, [
-            String::from_str(&env, "Unlimited course access"),
-            String::from_str(&env, "Dedicated support"),
-            String::from_str(&env, "Premium certificates"),
-            String::from_str(&env, "Advanced analytics"),
-            String::from_str(&env, "Custom branding"),
-        ]);
-        
+        let enterprise_features = Vec::from_array(
+            &env,
+            [
+                String::from_str(&env, "Unlimited course access"),
+                String::from_str(&env, "Dedicated support"),
+                String::from_str(&env, "Premium certificates"),
+                String::from_str(&env, "Advanced analytics"),
+                String::from_str(&env, "Custom branding"),
+            ],
+        );
+
         plans.set(
             SubscriptionTier::Enterprise,
             SubscriptionPlan {
@@ -654,7 +690,7 @@ impl SubscriptionManager {
                 name: String::from_str(&env, "Enterprise"),
                 description: String::from_str(&env, "For teams and organizations"),
                 price: 100_000_000, // 0.01 XLM equivalent
-                currency: Symbol::new(&"XLM"),
+                currency: soroban_sdk::symbol_short!("XLM"),
                 billing_period: BillingPeriod::Yearly,
                 features: enterprise_features,
                 max_users: 10,

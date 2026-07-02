@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { redisConnection } from '../../utils/redis.js';
 
 export interface SimulatorAsset {

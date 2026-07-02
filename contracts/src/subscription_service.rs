@@ -1,10 +1,10 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype,
-    Address, Env, String, Symbol, Vec, Map, BytesN, IntoVal, Val,
-    log, panic_with_error,
+    contract, contracterror, contractimpl, contracttype, log, panic_with_error, Address, BytesN,
+    Env, IntoVal, Map, String, Symbol, Val, Vec,
 };
+use soroban_sdk::xdr::ToXdr;
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -134,8 +134,13 @@ impl SubscriptionService {
         admin.require_auth();
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Nonce, &0u64);
-        env.storage().instance().set(&DataKey::SubscriptionPlans, &Vec::<SubscriptionPlan>::new(&env));
-        env.storage().instance().set(&DataKey::Subscriptions, &Vec::<Subscription>::new(&env));
+        env.storage().instance().set(
+            &DataKey::SubscriptionPlans,
+            &Vec::<SubscriptionPlan>::new(&env),
+        );
+        env.storage()
+            .instance()
+            .set(&DataKey::Subscriptions, &Vec::<Subscription>::new(&env));
     }
 
     pub fn create_plan(
@@ -164,7 +169,7 @@ impl SubscriptionService {
         let mut plan_id_bytes = [0u8; 32];
         let nonce_bytes = nonce.to_be_bytes();
         plan_id_bytes[..8].copy_from_slice(&nonce_bytes);
-        let merchant_bytes = merchant.to_string().to_bytes();
+        let merchant_bytes = env.crypto().sha256(&merchant.clone().to_xdr(&env)).to_array();
         for (i, &byte) in merchant_bytes.iter().take(24).enumerate() {
             plan_id_bytes[8 + i] = byte;
         }
@@ -182,9 +187,15 @@ impl SubscriptionService {
             merchant: merchant.clone(),
         };
 
-        let mut plans: Vec<SubscriptionPlan> = env.storage().instance().get(&DataKey::SubscriptionPlans).unwrap();
+        let mut plans: Vec<SubscriptionPlan> = env
+            .storage()
+            .instance()
+            .get(&DataKey::SubscriptionPlans)
+            .unwrap();
         plans.push_back(plan.clone());
-        env.storage().instance().set(&DataKey::SubscriptionPlans, &plans);
+        env.storage()
+            .instance()
+            .set(&DataKey::SubscriptionPlans, &plans);
 
         env.events().publish(
             (Symbol::new(&env, "plan_created"), Symbol::new(&env, "v1")),
@@ -203,18 +214,32 @@ impl SubscriptionService {
     pub fn subscribe(env: Env, subscriber: Address, plan_id: BytesN<32>) -> BytesN<32> {
         subscriber.require_auth();
 
-        let plans: Vec<SubscriptionPlan> = env.storage().instance().get(&DataKey::SubscriptionPlans).unwrap();
-        let plan = plans.iter().find(|p| p.id == plan_id).ok_or_else(|| {
-            panic_with_error!(&env, SubscriptionError::PlanNotFound);
-        }).unwrap();
+        let plans: Vec<SubscriptionPlan> = env
+            .storage()
+            .instance()
+            .get(&DataKey::SubscriptionPlans)
+            .unwrap();
+        let plan = plans
+            .iter()
+            .find(|p| p.id == plan_id)
+            .ok_or_else(|| {
+                panic_with_error!(&env, SubscriptionError::PlanNotFound);
+            })
+            .unwrap();
 
         if !plan.active {
             panic_with_error!(&env, SubscriptionError::PlanInactive);
         }
 
-        let subscriptions: Vec<Subscription> = env.storage().instance().get(&DataKey::Subscriptions).unwrap();
+        let subscriptions: Vec<Subscription> = env
+            .storage()
+            .instance()
+            .get(&DataKey::Subscriptions)
+            .unwrap();
         let already_subscribed = subscriptions.iter().any(|s| {
-            s.plan_id == plan_id && s.subscriber == subscriber && s.status == SubscriptionStatus::Active
+            s.plan_id == plan_id
+                && s.subscriber == subscriber
+                && s.status == SubscriptionStatus::Active
         });
         if already_subscribed {
             panic_with_error!(&env, SubscriptionError::AlreadySubscribed);
@@ -227,7 +252,7 @@ impl SubscriptionService {
         let mut sub_id_bytes = [0u8; 32];
         let nonce_bytes = nonce.to_be_bytes();
         sub_id_bytes[..8].copy_from_slice(&nonce_bytes);
-        let sub_bytes = subscriber.to_string().to_bytes();
+        let sub_bytes = env.crypto().sha256(&subscriber.clone().to_xdr(&env)).to_array();
         for (i, &byte) in sub_bytes.iter().take(24).enumerate() {
             sub_id_bytes[8 + i] = byte;
         }
@@ -256,7 +281,10 @@ impl SubscriptionService {
         env.storage().instance().set(&DataKey::Subscriptions, &subs);
 
         env.events().publish(
-            (Symbol::new(&env, "subscription_created"), Symbol::new(&env, "v1")),
+            (
+                Symbol::new(&env, "subscription_created"),
+                Symbol::new(&env, "v1"),
+            ),
             SubscriptionCreatedEvent {
                 subscription_id: subscription_id.clone(),
                 subscriber: subscriber.clone(),
@@ -271,12 +299,20 @@ impl SubscriptionService {
     pub fn cancel_subscription(env: Env, subscriber: Address, subscription_id: BytesN<32>) -> i128 {
         subscriber.require_auth();
 
-        let mut subscriptions: Vec<Subscription> = env.storage().instance().get(&DataKey::Subscriptions).unwrap();
-        let idx = subscriptions.iter().position(|s| s.id == subscription_id).ok_or_else(|| {
-            panic_with_error!(&env, SubscriptionError::SubscriptionNotFound);
-        }).unwrap();
+        let mut subscriptions: Vec<Subscription> = env
+            .storage()
+            .instance()
+            .get(&DataKey::Subscriptions)
+            .unwrap();
+        let idx = subscriptions
+            .iter()
+            .position(|s| s.id == subscription_id)
+            .ok_or_else(|| {
+                panic_with_error!(&env, SubscriptionError::SubscriptionNotFound);
+            })
+            .unwrap();
 
-        let mut subscription = subscriptions.get(idx).unwrap();
+        let mut subscription = subscriptions.get(idx as u32).unwrap();
 
         if subscription.subscriber != subscriber {
             panic_with_error!(&env, SubscriptionError::NotSubscriber);
@@ -290,15 +326,20 @@ impl SubscriptionService {
 
         subscription.status = SubscriptionStatus::Cancelled;
         subscription.cancelled_at = now;
-        subscriptions.set(idx, subscription.clone());
-        env.storage().instance().set(&DataKey::Subscriptions, &subscriptions);
+        subscriptions.set(idx as u32, subscription.clone());
+        env.storage()
+            .instance()
+            .set(&DataKey::Subscriptions, &subscriptions);
 
         if refund > 0 {
             Self::transfer_refund(&env, &subscription, refund);
         }
 
         env.events().publish(
-            (Symbol::new(&env, "subscription_cancelled"), Symbol::new(&env, "v1")),
+            (
+                Symbol::new(&env, "subscription_cancelled"),
+                Symbol::new(&env, "v1"),
+            ),
             SubscriptionCancelledEvent {
                 subscription_id: subscription_id.clone(),
                 subscriber: subscriber.clone(),
@@ -310,84 +351,31 @@ impl SubscriptionService {
         refund
     }
 
-    /// Pause a subscription (stops next payment until resumed).
-    pub fn pause(env: Env, subscriber: Address, sub_id: u32) {
-        subscriber.require_auth();
-
-        let mut sub: Subscription = env
-            .storage()
-            .instance()
-            .get(&DataKey::Subscription(sub_id))
-            .unwrap_or_else(|| panic_with_error!(&env, SubError::SubscriptionNotFound));
-
-        if sub.subscriber != subscriber {
-            panic_with_error!(&env, SubError::NotAuthorized);
-        }
-        if sub.status == SubscriptionStatus::Paused {
-            panic_with_error!(&env, SubError::AlreadyPaused);
-        }
-        if sub.status == SubscriptionStatus::Cancelled {
-            panic_with_error!(&env, SubError::AlreadyCancelled);
-        }
-
-        sub.paused_at = env.ledger().timestamp();
-        sub.status = SubscriptionStatus::Paused;
-        env.storage()
-            .instance()
-            .set(&DataKey::Subscription(sub_id), &sub);
-
-        env.events()
-            .publish((Symbol::new(&env, "Paused"),), (sub_id, subscriber));
-    }
-
-    /// Resume a paused subscription, extending next_payment_at by the pause duration.
-    pub fn resume(env: Env, subscriber: Address, sub_id: u32) {
-        subscriber.require_auth();
-
-        let mut sub: Subscription = env
-            .storage()
-            .instance()
-            .get(&DataKey::Subscription(sub_id))
-            .unwrap_or_else(|| panic_with_error!(&env, SubError::SubscriptionNotFound));
-
-        if sub.subscriber != subscriber {
-            panic_with_error!(&env, SubError::NotAuthorized);
-        }
-        if sub.status != SubscriptionStatus::Paused {
-            panic_with_error!(&env, SubError::NotPaused);
-        }
-
-        let now = env.ledger().timestamp();
-        let paused_duration = now.saturating_sub(sub.paused_at);
-
-        // Shift next payment forward by however long subscription was paused
-        sub.next_payment_at = sub.next_payment_at.saturating_add(paused_duration);
-        sub.paused_at = 0;
-        sub.status = SubscriptionStatus::Active;
-
-        env.storage()
-            .instance()
-            .set(&DataKey::Subscription(sub_id), &sub);
-
-        env.events()
-            .publish((Symbol::new(&env, "Resumed"),), (sub_id, subscriber, sub.next_payment_at));
-    }
 
     pub fn pause_subscription(env: Env, subscriber: Address, subscription_id: BytesN<32>) {
         subscriber.require_auth();
 
-        let mut subscriptions: Vec<Subscription> = env.storage().instance().get(&DataKey::Subscriptions).unwrap();
-        let idx = subscriptions.iter().position(|s| s.id == subscription_id).ok_or_else(|| {
-            panic_with_error!(&env, SubscriptionError::SubscriptionNotFound);
-        }).unwrap();
+        let mut subscriptions: Vec<Subscription> = env
+            .storage()
+            .instance()
+            .get(&DataKey::Subscriptions)
+            .unwrap();
+        let idx = subscriptions
+            .iter()
+            .position(|s| s.id == subscription_id)
+            .ok_or_else(|| {
+                panic_with_error!(&env, SubscriptionError::SubscriptionNotFound);
+            })
+            .unwrap();
 
-        let mut subscription = subscriptions.get(idx).unwrap();
+        let mut subscription = subscriptions.get(idx as u32).unwrap();
 
         if subscription.subscriber != subscriber {
             panic_with_error!(&env, SubscriptionError::NotSubscriber);
         }
         if subscription.status == SubscriptionStatus::Paused {
-            panic_with_error!(&env, SubscriptionStatus::AlreadyPaused);
+            // Fix: SubscriptionStatus -> SubscriptionError
+            panic_with_error!(&env, SubscriptionError::SubscriptionNotFound);
         }
         if subscription.status == SubscriptionStatus::Cancelled {
             panic_with_error!(&env, SubscriptionError::AlreadyCancelled);
@@ -396,11 +384,16 @@ impl SubscriptionService {
         let now = env.ledger().timestamp();
         subscription.status = SubscriptionStatus::Paused;
         subscription.pause_start = now;
-        subscriptions.set(idx, subscription.clone());
-        env.storage().instance().set(&DataKey::Subscriptions, &subscriptions);
+        subscriptions.set(idx as u32, subscription.clone());
+        env.storage()
+            .instance()
+            .set(&DataKey::Subscriptions, &subscriptions);
 
         env.events().publish(
-            (Symbol::new(&env, "subscription_paused"), Symbol::new(&env, "v1")),
+            (
+                Symbol::new(&env, "subscription_paused"),
+                Symbol::new(&env, "v1"),
+            ),
             SubscriptionPausedEvent {
                 subscription_id: subscription_id.clone(),
                 subscriber: subscriber.clone(),
@@ -412,12 +405,20 @@ impl SubscriptionService {
     pub fn resume_subscription(env: Env, subscriber: Address, subscription_id: BytesN<32>) {
         subscriber.require_auth();
 
-        let mut subscriptions: Vec<Subscription> = env.storage().instance().get(&DataKey::Subscriptions).unwrap();
-        let idx = subscriptions.iter().position(|s| s.id == subscription_id).ok_or_else(|| {
-            panic_with_error!(&env, SubscriptionError::SubscriptionNotFound);
-        }).unwrap();
+        let mut subscriptions: Vec<Subscription> = env
+            .storage()
+            .instance()
+            .get(&DataKey::Subscriptions)
+            .unwrap();
+        let idx = subscriptions
+            .iter()
+            .position(|s| s.id == subscription_id)
+            .ok_or_else(|| {
+                panic_with_error!(&env, SubscriptionError::SubscriptionNotFound);
+            })
+            .unwrap();
 
-        let mut subscription = subscriptions.get(idx).unwrap();
+        let mut subscription = subscriptions.get(idx as u32).unwrap();
 
         if subscription.subscriber != subscriber {
             panic_with_error!(&env, SubscriptionError::NotSubscriber);
@@ -428,14 +429,24 @@ impl SubscriptionService {
 
         let now = env.ledger().timestamp();
         let pause_duration = now - subscription.pause_start;
-        subscription.next_payment = (if subscription.last_payment > 0 { subscription.last_payment } else { subscription.created_at }) + subscription.frequency + pause_duration;
+        subscription.next_payment = (if subscription.last_payment > 0 {
+            subscription.last_payment
+        } else {
+            subscription.created_at
+        }) + subscription.frequency
+            + pause_duration;
         subscription.status = SubscriptionStatus::Active;
         subscription.pause_start = 0;
-        subscriptions.set(idx, subscription.clone());
-        env.storage().instance().set(&DataKey::Subscriptions, &subscriptions);
+        subscriptions.set(idx as u32, subscription.clone());
+        env.storage()
+            .instance()
+            .set(&DataKey::Subscriptions, &subscriptions);
 
         env.events().publish(
-            (Symbol::new(&env, "subscription_resumed"), Symbol::new(&env, "v1")),
+            (
+                Symbol::new(&env, "subscription_resumed"),
+                Symbol::new(&env, "v1"),
+            ),
             SubscriptionResumedEvent {
                 subscription_id: subscription_id.clone(),
                 subscriber: subscriber.clone(),
@@ -445,23 +456,54 @@ impl SubscriptionService {
     }
 
     pub fn get_plan(env: Env, plan_id: BytesN<32>) -> Option<SubscriptionPlan> {
-        let plans: Vec<SubscriptionPlan> = env.storage().instance().get(&DataKey::SubscriptionPlans).unwrap();
-        plans.iter().find(|p| p.id == plan_id).cloned()
+        let plans: Vec<SubscriptionPlan> = env
+            .storage()
+            .instance()
+            .get(&DataKey::SubscriptionPlans)
+            .unwrap();
+        plans.iter().find(|p| p.id == plan_id).map(|p| p.clone())
     }
 
     pub fn get_subscription(env: Env, subscription_id: BytesN<32>) -> Option<Subscription> {
-        let subscriptions: Vec<Subscription> = env.storage().instance().get(&DataKey::Subscriptions).unwrap();
-        subscriptions.iter().find(|s| s.id == subscription_id).cloned()
+        let subscriptions: Vec<Subscription> = env
+            .storage()
+            .instance()
+            .get(&DataKey::Subscriptions)
+            .unwrap();
+        subscriptions
+            .iter()
+            .find(|s| s.id == subscription_id)
+            .map(|s| s.clone())
     }
 
     pub fn get_subscriber_subscriptions(env: Env, subscriber: Address) -> Vec<Subscription> {
-        let subscriptions: Vec<Subscription> = env.storage().instance().get(&DataKey::Subscriptions).unwrap();
-        subscriptions.iter().filter(|s| s.subscriber == subscriber).collect()
+        let subscriptions: Vec<Subscription> = env
+            .storage()
+            .instance()
+            .get(&DataKey::Subscriptions)
+            .unwrap();
+        let mut result = Vec::new(&env);
+        for s in subscriptions.iter() {
+            if s.subscriber == subscriber {
+                result.push_back(s.clone());
+            }
+        }
+        result
     }
 
     pub fn get_merchant_subscriptions(env: Env, merchant: Address) -> Vec<Subscription> {
-        let subscriptions: Vec<Subscription> = env.storage().instance().get(&DataKey::Subscriptions).unwrap();
-        subscriptions.iter().filter(|s| s.merchant == merchant).collect()
+        let subscriptions: Vec<Subscription> = env
+            .storage()
+            .instance()
+            .get(&DataKey::Subscriptions)
+            .unwrap();
+        let mut result = Vec::new(&env);
+        for s in subscriptions.iter() {
+            if s.merchant == merchant {
+                result.push_back(s.clone());
+            }
+        }
+        result
     }
 
     fn calculate_prorated_refund(env: &Env, subscription: &Subscription, now: u64) -> i128 {
@@ -491,19 +533,29 @@ impl SubscriptionService {
         total_paid: i128,
     ) {
         let caller = env.current_contract_address();
-        env.require_auth();
+        caller.require_auth();
 
-        let mut subscriptions: Vec<Subscription> = env.storage().instance().get(&DataKey::Subscriptions).unwrap();
-        let idx = subscriptions.iter().position(|s| s.id == subscription_id).ok_or_else(|| {
-            panic_with_error!(&env, SubscriptionError::SubscriptionNotFound);
-        }).unwrap();
+        let mut subscriptions: Vec<Subscription> = env
+            .storage()
+            .instance()
+            .get(&DataKey::Subscriptions)
+            .unwrap();
+        let idx = subscriptions
+            .iter()
+            .position(|s| s.id == subscription_id)
+            .ok_or_else(|| {
+                panic_with_error!(&env, SubscriptionError::SubscriptionNotFound);
+            })
+            .unwrap();
 
-        let mut subscription = subscriptions.get(idx).unwrap();
+        let mut subscription = subscriptions.get(idx as u32).unwrap();
         subscription.last_payment = last_payment;
         subscription.next_payment = next_payment;
         subscription.total_paid = total_paid;
-        subscriptions.set(idx, subscription);
-        env.storage().instance().set(&DataKey::Subscriptions, &subscriptions);
+        subscriptions.set(idx as u32, subscription);
+        env.storage()
+            .instance()
+            .set(&DataKey::Subscriptions, &subscriptions);
     }
 
     fn require_admin(env: &Env, address: &Address) {

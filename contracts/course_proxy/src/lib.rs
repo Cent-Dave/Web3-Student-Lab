@@ -17,7 +17,9 @@
 
 #![no_std]
 
-use soroban_sdk::{contract, contracterror, contractimpl, contracttype, panic_with_error, Address, BytesN, Env};
+use soroban_sdk::{
+    contract, contracterror, contractimpl, contracttype, panic_with_error, Address, BytesN, Env,
+};
 
 #[contracttype]
 #[derive(Clone)]
@@ -47,8 +49,12 @@ impl CourseProxy {
             panic_with_error!(&env, ProxyError::AlreadyInitialized);
         }
         env.storage().instance().set(&CourseProxyKey::Admin, &admin);
-        env.storage().instance().set(&CourseProxyKey::ImplWasm, &wasm_hash);
-        env.storage().instance().set(&CourseProxyKey::CourseVersion, &1u32);
+        env.storage()
+            .instance()
+            .set(&CourseProxyKey::ImplWasm, &wasm_hash);
+        env.storage()
+            .instance()
+            .set(&CourseProxyKey::CourseVersion, &1u32);
         // Upgrade WASM so the contract immediately executes implementation logic.
         env.deployer().update_current_contract_wasm(wasm_hash);
     }

@@ -3,7 +3,6 @@ use soroban_sdk::{
     Vec,
 };
 
-
 #[contracttype]
 #[derive(Clone)]
 enum DataKey {

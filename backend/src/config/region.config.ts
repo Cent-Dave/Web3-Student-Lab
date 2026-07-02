@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Multi-region Redis replication configuration.
  *

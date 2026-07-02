@@ -219,10 +219,13 @@ impl StateChannelContract {
             challenge_period,
             status: ChannelStatus::Open,
         };
-        env.storage().persistent().set(&SCKey::Channel(id), &channel);
+        env.storage()
+            .persistent()
+            .set(&SCKey::Channel(id), &channel);
 
         nonreentrant_release(&env, LOCK);
-        env.events().publish((symbol_short!("sc_open"),), (id, party_a, party_b, total));
+        env.events()
+            .publish((symbol_short!("sc_open"),), (id, party_a, party_b, total));
         id
     }
 
@@ -272,8 +275,10 @@ impl StateChannelContract {
 
         // Verify both signatures over the canonical state hash.
         let state_hash = Self::state_hash(&env, channel_id, nonce, balance_a, balance_b);
-        env.crypto().ed25519_verify(&channel.pubkey_a, &state_hash.clone().into(), &sig_a);
-        env.crypto().ed25519_verify(&channel.pubkey_b, &state_hash.into(), &sig_b);
+        env.crypto()
+            .ed25519_verify(&channel.pubkey_a, &state_hash.clone().into(), &sig_a);
+        env.crypto()
+            .ed25519_verify(&channel.pubkey_b, &state_hash.into(), &sig_b);
 
         // Update channel state.
         channel.nonce = nonce;
@@ -281,7 +286,9 @@ impl StateChannelContract {
         channel.balance_b = balance_b;
         channel.challenge_expiry = env.ledger().timestamp() + channel.challenge_period;
         channel.status = ChannelStatus::Closing;
-        env.storage().persistent().set(&SCKey::Channel(channel_id), &channel);
+        env.storage()
+            .persistent()
+            .set(&SCKey::Channel(channel_id), &channel);
 
         env.events().publish(
             (symbol_short!("sc_state"),),
@@ -310,7 +317,9 @@ impl StateChannelContract {
         sig_b: BytesN<64>,
     ) {
         // Reuse submit_state — it already handles the Closing + higher-nonce path.
-        Self::submit_state(env, caller, channel_id, nonce, balance_a, balance_b, sig_a, sig_b);
+        Self::submit_state(
+            env, caller, channel_id, nonce, balance_a, balance_b, sig_a, sig_b,
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -352,10 +361,13 @@ impl StateChannelContract {
         channel.status = ChannelStatus::Settled;
         channel.balance_a = 0;
         channel.balance_b = 0;
-        env.storage().persistent().set(&SCKey::Channel(channel_id), &channel);
+        env.storage()
+            .persistent()
+            .set(&SCKey::Channel(channel_id), &channel);
 
         nonreentrant_release(&env, LOCK);
-        env.events().publish((symbol_short!("sc_settle"),), channel_id);
+        env.events()
+            .publish((symbol_short!("sc_settle"),), channel_id);
     }
 
     // -----------------------------------------------------------------------
@@ -385,26 +397,39 @@ impl StateChannelContract {
         }
 
         let state_hash = Self::state_hash(&env, channel_id, nonce, balance_a, balance_b);
-        env.crypto().ed25519_verify(&channel.pubkey_a, &state_hash.clone().into(), &sig_a);
-        env.crypto().ed25519_verify(&channel.pubkey_b, &state_hash.into(), &sig_b);
+        env.crypto()
+            .ed25519_verify(&channel.pubkey_a, &state_hash.clone().into(), &sig_a);
+        env.crypto()
+            .ed25519_verify(&channel.pubkey_b, &state_hash.into(), &sig_b);
 
         nonreentrant_acquire(&env, LOCK);
 
         let token_client = token::Client::new(&env, &channel.token);
         if balance_a > 0 {
-            token_client.transfer(&env.current_contract_address(), &channel.party_a, &balance_a);
+            token_client.transfer(
+                &env.current_contract_address(),
+                &channel.party_a,
+                &balance_a,
+            );
         }
         if balance_b > 0 {
-            token_client.transfer(&env.current_contract_address(), &channel.party_b, &balance_b);
+            token_client.transfer(
+                &env.current_contract_address(),
+                &channel.party_b,
+                &balance_b,
+            );
         }
 
         channel.status = ChannelStatus::Settled;
         channel.balance_a = 0;
         channel.balance_b = 0;
-        env.storage().persistent().set(&SCKey::Channel(channel_id), &channel);
+        env.storage()
+            .persistent()
+            .set(&SCKey::Channel(channel_id), &channel);
 
         nonreentrant_release(&env, LOCK);
-        env.events().publish((symbol_short!("sc_coop"),), (channel_id, nonce));
+        env.events()
+            .publish((symbol_short!("sc_coop"),), (channel_id, nonce));
     }
 
     // -----------------------------------------------------------------------

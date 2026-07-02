@@ -1,6 +1,6 @@
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, panic_with_error, Address, Env, String,
-    Map, Vec,
+    contract, contracterror, contractimpl, contracttype, panic_with_error, Address, Env, Map,
+    String, Vec,
 };
 
 #[contracttype]
@@ -18,10 +18,10 @@ pub struct TicketMetadata {
 #[derive(Clone)]
 pub enum DataKey {
     Admin,
-    Ticket(u32), // ticket_id -> TicketMetadata
-    TicketOwner(u32), // ticket_id -> Address
+    Ticket(u32),         // ticket_id -> TicketMetadata
+    TicketOwner(u32),    // ticket_id -> Address
     EventOrganizer(u32), // event_id -> Address
-    EventTickets(u32), // event_id -> Vec<u32>
+    EventTickets(u32),   // event_id -> Vec<u32>
     TicketCounter,
 }
 
@@ -58,7 +58,11 @@ impl NftTicketingContract {
         caller.require_auth();
         // Assume caller is organizer or admin for simplicity
 
-        let mut counter: u32 = env.storage().instance().get(&DataKey::TicketCounter).unwrap_or(0);
+        let mut counter: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TicketCounter)
+            .unwrap_or(0);
         counter += 1;
 
         let metadata = TicketMetadata {
@@ -70,9 +74,15 @@ impl NftTicketingContract {
             face_value,
         };
 
-        env.storage().instance().set(&DataKey::Ticket(counter), &metadata);
-        env.storage().instance().set(&DataKey::TicketOwner(counter), &to);
-        env.storage().instance().set(&DataKey::TicketCounter, &counter);
+        env.storage()
+            .instance()
+            .set(&DataKey::Ticket(counter), &metadata);
+        env.storage()
+            .instance()
+            .set(&DataKey::TicketOwner(counter), &to);
+        env.storage()
+            .instance()
+            .set(&DataKey::TicketCounter, &counter);
 
         let mut tickets: Vec<u32> = env
             .storage()
@@ -80,10 +90,13 @@ impl NftTicketingContract {
             .get(&DataKey::EventTickets(event_id))
             .unwrap_or(Vec::new(&env));
         tickets.push_back(counter);
-        env.storage().instance().set(&DataKey::EventTickets(event_id), &tickets);
+        env.storage()
+            .instance()
+            .set(&DataKey::EventTickets(event_id), &tickets);
 
         // Emit mint event
-        env.events().publish(("Mint", "ticket_id"), (counter, to.clone(), event_id));
+        env.events()
+            .publish(("Mint", "ticket_id"), (counter, to.clone(), event_id));
 
         counter
     }
@@ -104,14 +117,21 @@ impl NftTicketingContract {
 
     pub fn transfer_ticket(env: Env, from: Address, to: Address, ticket_id: u32) {
         from.require_auth();
-        
-        let current_owner: Address = env.storage().instance().get(&DataKey::TicketOwner(ticket_id)).unwrap();
+
+        let current_owner: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::TicketOwner(ticket_id))
+            .unwrap();
         if from != current_owner {
             panic_with_error!(&env, TicketingError::NotAuthorized);
         }
 
-        env.storage().instance().set(&DataKey::TicketOwner(ticket_id), &to);
-        
-        env.events().publish(("Transfer", "ticket_id"), (from, to, ticket_id));
+        env.storage()
+            .instance()
+            .set(&DataKey::TicketOwner(ticket_id), &to);
+
+        env.events()
+            .publish(("Transfer", "ticket_id"), (from, to, ticket_id));
     }
 }

@@ -1,9 +1,6 @@
 #![cfg(test)]
 use super::*;
-use soroban_sdk::{
-    testutils::Address as _,
-    token, vec, Address, Env,
-};
+use soroban_sdk::{testutils::Address as _, token, vec, Address, Env};
 
 fn setup() -> (
     Env,
@@ -52,10 +49,10 @@ fn test_worker_registration() {
 #[test]
 fn test_create_job_and_escrow_deposit() {
     let (env, _, token_client, token_admin, contract_addr, client) = setup();
-    
+
     let employer = Address::generate(&env);
     let freelancer = Address::generate(&env);
-    
+
     // Mint 1000 tokens to employer
     token_admin.mint(&employer, &1000);
     assert_eq!(token_client.balance(&employer), 1000);
@@ -76,7 +73,7 @@ fn test_create_job_and_escrow_deposit() {
     );
 
     assert_eq!(job_id, 1);
-    
+
     // Check employer balance was transferred to contract escrow
     assert_eq!(token_client.balance(&employer), 0);
     assert_eq!(token_client.balance(&contract_addr), 1000);

@@ -1,9 +1,10 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype,
-    Address, Env, BytesN, Vec, Map, Symbol, String, panic_with_error, log,
+    contract, contracterror, contractimpl, contracttype, log, panic_with_error, Address, BytesN,
+    Env, Map, String, Symbol, Vec, IntoVal, Val,
 };
+use soroban_sdk::xdr::ToXdr;
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -99,9 +100,15 @@ impl RecurringPayments {
         }
         admin.require_auth();
         env.storage().instance().set(&DataKey::Admin, &admin);
-        env.storage().instance().set(&DataKey::MaxRetries, &max_retries);
-        env.storage().instance().set(&DataKey::PaymentHistory, &Vec::<PaymentRecord>::new(&env));
-        env.storage().instance().set(&DataKey::FailedPayments, &Vec::<FailedPayment>::new(&env));
+        env.storage()
+            .instance()
+            .set(&DataKey::MaxRetries, &max_retries);
+        env.storage()
+            .instance()
+            .set(&DataKey::PaymentHistory, &Vec::<PaymentRecord>::new(&env));
+        env.storage()
+            .instance()
+            .set(&DataKey::FailedPayments, &Vec::<FailedPayment>::new(&env));
     }
 
     pub fn execute_payment(
@@ -109,12 +116,11 @@ impl RecurringPayments {
         subscription_id: BytesN<32>,
         subscription_contract: Address,
     ) -> BytesN<32> {
-        let subscription: super::subscription_service::Subscription = 
-            env.invoke_contract(
-                &subscription_contract,
-                &Symbol::new(&env, "get_subscription"),
-                Vec::from_array(&env, [subscription_id.clone().into_val(&env)]),
-            );
+        let subscription: super::subscription_service::Subscription = env.invoke_contract(
+            &subscription_contract,
+            &Symbol::new(&env, "get_subscription"),
+            soroban_sdk::vec![&env, subscription_id.clone().into_val(&env)],
+        );
 
         if subscription.status != super::subscription_service::SubscriptionStatus::Active {
             panic_with_error!(&env, PaymentError::SubscriptionNotFound);
@@ -131,7 +137,7 @@ impl RecurringPayments {
         }
 
         let payment_id = Self::generate_payment_id(&env, &subscription);
-        
+
         match Self::transfer_payment(&env, &subscription) {
             Ok(tx_hash) => {
                 let record = PaymentRecord {
@@ -152,7 +158,10 @@ impl RecurringPayments {
                 Self::update_subscription_payment(&env, &subscription, &subscription_contract);
 
                 env.events().publish(
-                    (Symbol::new(&env, "payment_executed"), Symbol::new(&env, "v1")),
+                    (
+                        Symbol::new(&env, "payment_executed"),
+                        Symbol::new(&env, "v1"),
+                    ),
                     PaymentExecutedEvent {
                         payment_id: payment_id.clone(),
                         subscription_id: subscription.id.clone(),
@@ -175,26 +184,31 @@ impl RecurringPayments {
         subscription_id: BytesN<32>,
         subscription_contract: Address,
     ) -> Option<BytesN<32>> {
-        let failed_payments: Vec<FailedPayment> = env.storage().instance().get(&DataKey::FailedPayments).unwrap();
-        let failed_idx = failed_payments.iter().position(|f| f.subscription_id == subscription_id);
+        let failed_payments: Vec<FailedPayment> = env
+            .storage()
+            .instance()
+            .get(&DataKey::FailedPayments)
+            .unwrap();
+        let failed_idx = failed_payments
+            .iter()
+            .position(|f| f.subscription_id == subscription_id);
 
         if failed_idx.is_none() {
             return None;
         }
 
-        let failed_payment = failed_payments.get(failed_idx.unwrap()).unwrap();
+        let failed_payment = failed_payments.get(failed_idx.unwrap() as u32).unwrap();
         let max_retries: u32 = env.storage().instance().get(&DataKey::MaxRetries).unwrap();
 
         if failed_payment.retry_count >= max_retries {
             panic_with_error!(&env, PaymentError::MaxRetriesExceeded);
         }
 
-        let subscription: super::subscription_service::Subscription = 
-            env.invoke_contract(
-                &subscription_contract,
-                &Symbol::new(&env, "get_subscription"),
-                Vec::from_array(&env, [subscription_id.clone().into_val(&env)]),
-            );
+        let subscription: super::subscription_service::Subscription = env.invoke_contract(
+            &subscription_contract,
+            &Symbol::new(&env, "get_subscription"),
+            soroban_sdk::vec![&env, subscription_id.clone().into_val(&env)],
+        );
 
         if subscription.status != super::subscription_service::SubscriptionStatus::Active {
             return None;
@@ -223,15 +237,20 @@ impl RecurringPayments {
                 };
 
                 Self::save_payment_record(&env, &record);
-                
+
                 let mut updated_failed = failed_payments;
                 updated_failed.remove(failed_idx.unwrap() as u32);
-                env.storage().instance().set(&DataKey::FailedPayments, &updated_failed);
+                env.storage()
+                    .instance()
+                    .set(&DataKey::FailedPayments, &updated_failed);
 
                 Self::update_subscription_payment(&env, &subscription, &subscription_contract);
 
                 env.events().publish(
-                    (Symbol::new(&env, "payment_retried"), Symbol::new(&env, "v1")),
+                    (
+                        Symbol::new(&env, "payment_retried"),
+                        Symbol::new(&env, "v1"),
+                    ),
                     PaymentRetriedEvent {
                         payment_id: payment_id.clone(),
                         subscription_id: subscription.id.clone(),
@@ -244,19 +263,25 @@ impl RecurringPayments {
             }
             Err(_) => {
                 let mut updated_failed = failed_payments;
-                let mut failed = updated_failed.get(failed_idx.unwrap()).unwrap();
-                failed.retry_count += 1;
+                let mut failed = updated_failed.get(failed_idx.unwrap() as u32).unwrap();
+                let retry_count = failed.retry_count + 1;
+                failed.retry_count = retry_count;
                 failed.last_attempt = now;
                 failed.next_retry = now + 86400;
-                updated_failed.set(failed_idx.unwrap(), failed);
-                env.storage().instance().set(&DataKey::FailedPayments, &updated_failed);
+                updated_failed.set(failed_idx.unwrap() as u32, failed);
+                env.storage()
+                    .instance()
+                    .set(&DataKey::FailedPayments, &updated_failed);
 
                 env.events().publish(
-                    (Symbol::new(&env, "payment_retried"), Symbol::new(&env, "v1")),
+                    (
+                        Symbol::new(&env, "payment_retried"),
+                        Symbol::new(&env, "v1"),
+                    ),
                     PaymentRetriedEvent {
                         payment_id: payment_id.clone(),
                         subscription_id: subscription.id.clone(),
-                        retry_count: failed.retry_count,
+                        retry_count,
                         success: false,
                     },
                 );
@@ -266,27 +291,41 @@ impl RecurringPayments {
         }
     }
 
-    pub fn get_payment_history(
-        env: Env,
-        subscription_id: BytesN<32>,
-    ) -> Vec<PaymentRecord> {
-        let history: Vec<PaymentRecord> = env.storage().instance().get(&DataKey::PaymentHistory).unwrap();
-        history.iter().filter(|p| p.subscription_id == subscription_id).collect()
+    pub fn get_payment_history(env: Env, subscription_id: BytesN<32>) -> Vec<PaymentRecord> {
+        let history: Vec<PaymentRecord> = env
+            .storage()
+            .instance()
+            .get(&DataKey::PaymentHistory)
+            .unwrap();
+        let mut filtered = Vec::new(&env);
+        for p in history.iter() {
+            if p.subscription_id == subscription_id {
+                filtered.push_back(p);
+            }
+        }
+        filtered
     }
 
     pub fn get_failed_payments(env: Env) -> Vec<FailedPayment> {
-        env.storage().instance().get(&DataKey::FailedPayments).unwrap()
+        env.storage()
+            .instance()
+            .get(&DataKey::FailedPayments)
+            .unwrap()
     }
 
-    pub fn get_subscription_total_paid(
-        env: Env,
-        subscription_id: BytesN<32>,
-    ) -> i128 {
-        let history: Vec<PaymentRecord> = env.storage().instance().get(&DataKey::PaymentHistory).unwrap();
-        history.iter()
-            .filter(|p| p.subscription_id == subscription_id && p.status == PaymentStatus::Success)
-            .map(|p| p.amount)
-            .sum()
+    pub fn get_subscription_total_paid(env: Env, subscription_id: BytesN<32>) -> i128 {
+        let history: Vec<PaymentRecord> = env
+            .storage()
+            .instance()
+            .get(&DataKey::PaymentHistory)
+            .unwrap();
+        let mut total = 0;
+        for p in history.iter() {
+            if p.subscription_id == subscription_id && p.status == PaymentStatus::Success {
+                total += p.amount;
+            }
+        }
+        total
     }
 
     fn check_balance(env: &Env, subscription: &super::subscription_service::Subscription) -> bool {
@@ -302,21 +341,29 @@ impl RecurringPayments {
     ) -> Result<BytesN<32>, ()> {
         use soroban_sdk::token::Client as TokenClient;
         let token_client = TokenClient::new(env, &subscription.token);
-        
+
         let contract_address = env.current_contract_address();
-        
-        token_client.transfer(&subscription.subscriber, &contract_address, &subscription.amount);
-        token_client.transfer(&contract_address, &subscription.merchant, &subscription.amount);
-        
+
+        token_client.transfer(
+            &subscription.subscriber,
+            &contract_address,
+            &subscription.amount,
+        );
+        token_client.transfer(
+            &contract_address,
+            &subscription.merchant,
+            &subscription.amount,
+        );
+
         let mut tx_bytes = [0u8; 32];
         let timestamp = env.ledger().timestamp();
         let ts_bytes = timestamp.to_be_bytes();
         tx_bytes[..8].copy_from_slice(&ts_bytes);
-        let sub_bytes = subscription.subscriber.to_string().to_bytes();
+        let sub_bytes = env.crypto().sha256(&subscription.subscriber.clone().to_xdr(&env)).to_array();
         for (i, &byte) in sub_bytes.iter().take(24).enumerate() {
             tx_bytes[8 + i] = byte;
         }
-        
+
         Ok(BytesN::from_array(env, &tx_bytes))
     }
 
@@ -325,17 +372,23 @@ impl RecurringPayments {
         subscription: &super::subscription_service::Subscription,
         reason: &str,
     ) {
-        let mut failed_payments: Vec<FailedPayment> = env.storage().instance().get(&DataKey::FailedPayments).unwrap();
-        
-        let existing_idx = failed_payments.iter().position(|f| f.subscription_id == subscription.id);
-        
+        let mut failed_payments: Vec<FailedPayment> = env
+            .storage()
+            .instance()
+            .get(&DataKey::FailedPayments)
+            .unwrap();
+
+        let existing_idx = failed_payments
+            .iter()
+            .position(|f| f.subscription_id == subscription.id);
+
         if let Some(idx) = existing_idx {
-            let mut failed = failed_payments.get(idx).unwrap();
+            let mut failed = failed_payments.get(idx as u32).unwrap();
             failed.retry_count += 1;
             failed.last_attempt = env.ledger().timestamp();
             failed.next_retry = env.ledger().timestamp() + 86400;
             failed.reason = String::from_str(env, reason);
-            failed_payments.set(idx, failed);
+            failed_payments.set(idx as u32, failed);
         } else {
             let failed = FailedPayment {
                 subscription_id: subscription.id.clone(),
@@ -346,24 +399,40 @@ impl RecurringPayments {
             };
             failed_payments.push_back(failed);
         }
-        
-        env.storage().instance().set(&DataKey::FailedPayments, &failed_payments);
+
+        env.storage()
+            .instance()
+            .set(&DataKey::FailedPayments, &failed_payments);
     }
 
     fn save_payment_record(env: &Env, record: &PaymentRecord) {
-        let mut history: Vec<PaymentRecord> = env.storage().instance().get(&DataKey::PaymentHistory).unwrap();
+        let mut history: Vec<PaymentRecord> = env
+            .storage()
+            .instance()
+            .get(&DataKey::PaymentHistory)
+            .unwrap();
         history.push_back(record.clone());
-        env.storage().instance().set(&DataKey::PaymentHistory, &history);
+        env.storage()
+            .instance()
+            .set(&DataKey::PaymentHistory, &history);
     }
 
     fn clear_failed_payment(env: &Env, subscription_id: &BytesN<32>) {
-        let failed_payments: Vec<FailedPayment> = env.storage().instance().get(&DataKey::FailedPayments).unwrap();
-        let idx = failed_payments.iter().position(|f| f.subscription_id == *subscription_id);
-        
+        let failed_payments: Vec<FailedPayment> = env
+            .storage()
+            .instance()
+            .get(&DataKey::FailedPayments)
+            .unwrap();
+        let idx = failed_payments
+            .iter()
+            .position(|f| f.subscription_id == *subscription_id);
+
         if let Some(idx) = idx {
             let mut updated = failed_payments;
             updated.remove(idx as u32);
-            env.storage().instance().set(&DataKey::FailedPayments, &updated);
+            env.storage()
+                .instance()
+                .set(&DataKey::FailedPayments, &updated);
         }
     }
 
@@ -373,24 +442,28 @@ impl RecurringPayments {
         subscription_contract: &Address,
     ) {
         let now = env.ledger().timestamp();
-        env.invoke_contract(
+        env.invoke_contract::<()>(
             subscription_contract,
             &Symbol::new(env, "update_payment_info"),
-            Vec::from_array(env, [
+            soroban_sdk::vec![
+                env,
                 subscription.id.clone().into_val(env),
                 now.into_val(env),
                 (now + subscription.frequency).into_val(env),
                 (subscription.total_paid + subscription.amount).into_val(env),
-            ]),
+            ],
         );
     }
 
-    fn generate_payment_id(env: &Env, subscription: &super::subscription_service::Subscription) -> BytesN<32> {
+    fn generate_payment_id(
+        env: &Env,
+        subscription: &super::subscription_service::Subscription,
+    ) -> BytesN<32> {
         let mut id_bytes = [0u8; 32];
         let timestamp = env.ledger().timestamp();
         let ts_bytes = timestamp.to_be_bytes();
         id_bytes[..8].copy_from_slice(&ts_bytes);
-        let sub_bytes = subscription.subscriber.to_string().to_bytes();
+        let sub_bytes = env.crypto().sha256(&subscription.subscriber.clone().to_xdr(env)).to_array();
         for (i, &byte) in sub_bytes.iter().take(24).enumerate() {
             id_bytes[8 + i] = byte;
         }

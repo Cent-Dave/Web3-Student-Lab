@@ -1,4 +1,4 @@
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, BytesN, Symbol};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, BytesN, Env, Symbol};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -21,7 +21,11 @@ impl PlaygroundCacheContract {
     }
 
     pub fn set_cache(env: Env, admin: Address, key: Symbol, value: BytesN<32>) {
-        let config_admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap_or_else(|| panic!("not initialized"));
+        let config_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .unwrap_or_else(|| panic!("not initialized"));
         if admin != config_admin {
             panic!("not admin");
         }
@@ -30,7 +34,10 @@ impl PlaygroundCacheContract {
     }
 
     pub fn get_cache(env: Env, key: Symbol) -> BytesN<32> {
-        env.storage().persistent().get(&DataKey::Cache(key)).unwrap_or_else(|| panic!("not found"))
+        env.storage()
+            .persistent()
+            .get(&DataKey::Cache(key))
+            .unwrap_or_else(|| panic!("not found"))
     }
 }
 
@@ -38,7 +45,7 @@ impl PlaygroundCacheContract {
 mod test {
     extern crate std;
     use super::*;
-    use soroban_sdk::{testutils::Address as _, Env, BytesN, Symbol};
+    use soroban_sdk::{testutils::Address as _, BytesN, Env, Symbol};
 
     #[test]
     fn test_caching_layer() {

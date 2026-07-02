@@ -1,18 +1,18 @@
 #![no_std]
 
+mod errors;
+mod events;
 mod storage;
 mod types;
-mod events;
-mod errors;
 
 #[cfg(test)]
 mod test;
 
-use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
-use types::{AccessPolicy, ContentMetadata, ContentStatus, ContentItem};
 use errors::Error;
-use storage::*;
 use events::*;
+use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
+use storage::*;
+use types::{AccessPolicy, ContentItem, ContentMetadata, ContentStatus};
 
 #[contract]
 pub struct ContentManagementSystem;
@@ -282,12 +282,12 @@ impl ContentManagementSystem {
         // Published content: check access policy
         if content.status == ContentStatus::Published {
             match content.access_policy {
-                AccessPolicy::Public => {}, // Anyone can access
+                AccessPolicy::Public => {} // Anyone can access
                 AccessPolicy::Enrolled => {
                     if !is_admin && !is_instructor && !is_enrolled(&env, content_id, &caller) {
                         return Err(Error::AccessDenied);
                     }
-                },
+                }
                 AccessPolicy::Restricted => {
                     if !is_admin && !is_instructor {
                         return Err(Error::AccessDenied);
@@ -299,12 +299,12 @@ impl ContentManagementSystem {
         // Archived content: same as published
         if content.status == ContentStatus::Archived {
             match content.access_policy {
-                AccessPolicy::Public => {},
+                AccessPolicy::Public => {}
                 AccessPolicy::Enrolled => {
                     if !is_admin && !is_instructor && !is_enrolled(&env, content_id, &caller) {
                         return Err(Error::AccessDenied);
                     }
-                },
+                }
                 AccessPolicy::Restricted => {
                     if !is_admin && !is_instructor {
                         return Err(Error::AccessDenied);
@@ -338,7 +338,8 @@ impl ContentManagementSystem {
         for i in 0..total {
             if let Ok(content) = get_content(&env, i) {
                 if content.status == ContentStatus::Published
-                    && content.access_policy == AccessPolicy::Public {
+                    && content.access_policy == AccessPolicy::Public
+                {
                     result.push_back(i);
                 }
             }

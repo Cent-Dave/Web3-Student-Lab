@@ -219,18 +219,20 @@ impl FlashLoanProviderContract {
             .persistent()
             .get(&FlashLoanKey::FeesCollected(token.clone()))
             .unwrap_or(0);
-        env.storage()
-            .persistent()
-            .set(&FlashLoanKey::FeesCollected(token.clone()), &safe_add(&env, prev_fees, fee));
+        env.storage().persistent().set(
+            &FlashLoanKey::FeesCollected(token.clone()),
+            &safe_add(&env, prev_fees, fee),
+        );
 
         let prev_vol: i128 = env
             .storage()
             .persistent()
             .get(&FlashLoanKey::TotalVolume(token.clone()))
             .unwrap_or(0);
-        env.storage()
-            .persistent()
-            .set(&FlashLoanKey::TotalVolume(token.clone()), &safe_add(&env, prev_vol, amount));
+        env.storage().persistent().set(
+            &FlashLoanKey::TotalVolume(token.clone()),
+            &safe_add(&env, prev_vol, amount),
+        );
 
         env.events()
             .publish((symbol_short!("fl_loan"),), (receiver, token, amount, fee));
@@ -252,8 +254,7 @@ impl FlashLoanProviderContract {
         env.storage()
             .instance()
             .set(&FlashLoanKey::FeeBps, &fee_bps);
-        env.events()
-            .publish((symbol_short!("fl_fee"),), fee_bps);
+        env.events().publish((symbol_short!("fl_fee"),), fee_bps);
     }
 
     /// Withdraw accumulated protocol fees. Only admin.
@@ -267,11 +268,7 @@ impl FlashLoanProviderContract {
             .get(&FlashLoanKey::FeesCollected(token.clone()))
             .unwrap_or(0);
         if fees > 0 {
-            token::Client::new(&env, &token).transfer(
-                &env.current_contract_address(),
-                &to,
-                &fees,
-            );
+            token::Client::new(&env, &token).transfer(&env.current_contract_address(), &to, &fees);
             env.storage()
                 .persistent()
                 .set(&FlashLoanKey::FeesCollected(token.clone()), &0i128);

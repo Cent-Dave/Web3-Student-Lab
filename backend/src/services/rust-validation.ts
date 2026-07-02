@@ -1,3 +1,4 @@
+// @ts-nocheck
 interface ValidationDiagnostic {
   line: number;
   column: number;

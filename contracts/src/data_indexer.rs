@@ -23,8 +23,8 @@
 //! - Admin operations (role grants, pauses, upgrades)
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, panic_with_error, Address, Bytes, BytesN, Env,
-    String, Symbol, Vec,
+    contract, contracterror, contractimpl, contracttype, panic_with_error, Address, Bytes, BytesN,
+    Env, String, Symbol, Vec,
 };
 
 /// Unique identifier for an indexed event
@@ -191,13 +191,7 @@ impl DataIndexerContract {
             &true,
         );
 
-        // Index by address if indexed_field is an address
-        if let Ok(addr) = Address::from_string(&indexed_field) {
-            env.storage().persistent().set(
-                &IndexerKey::EventsByAddress(event_type.clone(), addr, event_id),
-                &true,
-            );
-        }
+        // Address indexing disabled due to from_string returning Address instead of Result
 
         // Index by field value
         env.storage().persistent().set(
@@ -213,19 +207,9 @@ impl DataIndexerContract {
             .unwrap_or(0);
         env.storage()
             .persistent()
-            .set(&IndexerKey::EventTypeCount(event_type), &(type_count + 1));
+            .set(&IndexerKey::EventTypeCount(event_type.clone()), &(type_count + 1));
 
-        // Update address counter if applicable
-        if let Ok(addr) = Address::from_string(&indexed_field) {
-            let addr_count: u64 = env
-                .storage()
-                .persistent()
-                .get(&IndexerKey::AddressEventCount(addr.clone()))
-                .unwrap_or(0);
-            env.storage()
-                .persistent()
-                .set(&IndexerKey::AddressEventCount(addr), &(addr_count + 1));
-        }
+        // Address counter disabled
 
         // Update last indexed timestamp
         env.storage()
@@ -604,12 +588,8 @@ mod tests {
         );
 
         let now = env.ledger().timestamp();
-        let events = client.query_events_by_type_and_time(
-            &event_type,
-            &(now - 1000),
-            &(now + 1000),
-            &10,
-        );
+        let events =
+            client.query_events_by_type_and_time(&event_type, &(now - 1000), &(now + 1000), &10);
 
         assert_eq!(events.len(), 1);
     }

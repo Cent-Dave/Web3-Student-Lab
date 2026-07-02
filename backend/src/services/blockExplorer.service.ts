@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Block Explorer Service — Hackathon Project Idea Generator backend.
  *

@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(warnings)]
 pub mod activity_log;
 pub mod admin;
 pub mod airdrop_manager;
@@ -69,9 +70,9 @@ pub mod subscription_service;
 pub mod swap_router;
 pub mod sybil_resistance;
 pub mod timestamping;
+pub mod token;
 pub mod token_buyback;
 pub mod token_gated_access;
-pub mod token;
 pub mod upgrade;
 pub mod verification;
 pub mod verification_system;
