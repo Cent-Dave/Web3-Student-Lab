@@ -44,37 +44,34 @@ export default function Navbar() {
     <header className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? 'bg-black/80 border-b border-red-500/20 backdrop-blur-xl shadow-[0_10px_30px_rgba(220,38,38,0.1)]' : 'bg-transparent border-b border-white/5'}`}>
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 w-full px-4 py-4 sm:px-6 lg:px-8">
         <div className="flex shrink-0">
-          <Link href="/" className="group flex items-center gap-4" onClick={() => setOpen(false)}>
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-red-500/30 bg-gradient-to-br from-red-600 to-orange-600 text-sm font-black tracking-[0.3em] text-white shadow-[0_0_20px_rgba(220,38,38,0.4)] group-hover:scale-105 transition-transform group-hover:shadow-[0_0_30px_rgba(220,38,38,0.6)] relative overflow-hidden">
+          <Link href="/" className="group flex items-center gap-3" onClick={() => setOpen(false)}>
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-500/30 bg-gradient-to-br from-red-600 to-orange-600 text-xs font-black tracking-widest text-white shadow-[0_0_15px_rgba(220,38,38,0.3)] group-hover:scale-105 transition-transform group-hover:shadow-[0_0_25px_rgba(220,38,38,0.5)] relative overflow-hidden">
               <div className="absolute inset-0 bg-white/20 translate-y-full transition-transform group-hover:translate-y-0" />
               <span className="relative z-10">W3</span>
             </div>
             <div className="hidden sm:block">
-              <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-red-500 font-bold group-hover:text-red-400 transition-colors flex items-center gap-1">
-                <Sparkles className="w-3 h-3" /> {t('nav.open_source_lab')}
-              </p>
-              <p className="text-sm font-black tracking-widest text-white uppercase mt-0.5">
+              <p className="text-sm font-black tracking-widest text-white uppercase">
                 {t('nav.web3_student_lab')}
               </p>
             </div>
           </Link>
         </div>
 
-        <nav className="hidden items-center gap-1 xl:flex" aria-label="Primary">
+        <nav className="hidden items-center gap-2 xl:flex" aria-label="Primary">
           {primaryNav.map((item) => {
             const active = isActive(item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`relative px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.15em] transition-all rounded-xl ${
+                className={`relative px-3 py-2.5 text-[10px] font-bold uppercase tracking-widest transition-colors ${
                   active
-                    ? 'text-white bg-white/10'
-                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                    ? 'text-white'
+                    : 'text-gray-400 hover:text-white'
                 }`}
               >
                 {active && (
-                  <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/2 h-[2px] bg-red-500 rounded-t-full shadow-[0_0_10px_rgba(220,38,38,0.8)]" />
+                  <span className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-1 h-1 bg-red-500 rounded-full shadow-[0_0_10px_rgba(220,38,38,1)]" />
                 )}
                 {getNavLabel(item.label)}
               </Link>
@@ -82,21 +79,21 @@ export default function Navbar() {
           })}
         </nav>
 
-        <div className="flex shrink-0 items-center gap-4">
-          <div className="hidden items-center gap-3 xl:flex">
+        <div className="flex shrink-0 items-center gap-6">
+          <div className="hidden items-center gap-6 xl:flex">
             <LanguageSelector />
             {user ? (
               <>
                 <NotificationBell />
                 <Link
                   href="/certificates"
-                  className="rounded-xl border border-white/10 px-5 py-2.5 text-[10px] font-black uppercase tracking-[0.15em] text-white transition-all hover:border-red-500/50 hover:bg-red-500/10 hover:shadow-[0_0_15px_rgba(220,38,38,0.2)]"
+                  className="text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-white transition-colors"
                 >
                   {t('nav.certificates')}
                 </Link>
                 <button
                   onClick={logout}
-                  className="rounded-xl bg-white/10 px-5 py-2.5 text-[10px] font-black uppercase tracking-[0.15em] text-white transition-all hover:bg-white/20"
+                  className="text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-white transition-colors"
                 >
                   {t('nav.sign_out')}
                 </button>
