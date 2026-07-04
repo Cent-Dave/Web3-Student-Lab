@@ -16,10 +16,11 @@ const router = Router();
  * @desc    Initiate GitHub OAuth login flow
  * @access  Public
  */
-router.get('/github', async (_req: Request, res: Response) => {
+router.get('/github', async (req: Request, res: Response) => {
   try {
     // Create CSRF state and store in database
-    const state = await createOAuthState();
+    const workspaceId = (req.query.workspaceId as string) || 'default';
+    const state = await createOAuthState(workspaceId);
 
     // Build the GitHub authorization URL
     const authorizeUrl = buildAuthorizationUrl(state);

@@ -44,8 +44,9 @@ export const generateState = (): string => {
 /**
  * Create and store an OAuth state in the database
  */
-export const createOAuthState = async (): Promise<string> => {
-  const state = generateState();
+export const createOAuthState = async (workspaceId: string = 'default'): Promise<string> => {
+  const rawState = generateState();
+  const state = `${workspaceId}__${rawState}`;
   const expiresAt = new Date(Date.now() + OAUTH_STATE_EXPIRY_MINUTES * 60 * 1000);
 
   await prisma.oAuthState.create({
