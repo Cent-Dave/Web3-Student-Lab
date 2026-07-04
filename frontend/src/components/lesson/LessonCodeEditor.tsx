@@ -154,31 +154,33 @@ export function LessonCodeEditor({
         </button>
       </header>
 
-      <div className="relative flex-grow">
+      <div className="relative flex-grow min-h-[300px]">
         {monacoError ? (
           <FallbackTextarea value={code} onChange={handleChange} />
         ) : (
           <EditorErrorBoundary onError={() => setMonacoError(true)}>
-            <Editor
-              height="100%"
-              defaultLanguage={language}
-              language={language}
-              value={code}
-              onChange={handleChange}
-              onMount={handleMount}
-              theme="vs-dark"
-              options={{
-                minimap: { enabled: false },
-                fontSize: 14,
-                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                tabSize: 4,
-                insertSpaces: true,
-                automaticLayout: true,
-                scrollBeyondLastLine: false,
-                wordWrap: 'on',
-                padding: { top: 16 },
-              }}
-            />
+            <div className="absolute inset-0">
+              <Editor
+                height="100%"
+                defaultLanguage={language}
+                language={language}
+                value={code}
+                onChange={handleChange}
+                onMount={handleMount}
+                theme="vs-dark"
+                options={{
+                  minimap: { enabled: false },
+                  fontSize: 14,
+                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                  tabSize: 4,
+                  insertSpaces: true,
+                  automaticLayout: true,
+                  scrollBeyondLastLine: false,
+                  wordWrap: 'on',
+                  padding: { top: 16 },
+                }}
+              />
+            </div>
           </EditorErrorBoundary>
         )}
       </div>
