@@ -42,14 +42,14 @@ export default function Navbar() {
 
   return (
     <header className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? 'bg-black/80 border-b border-red-500/20 backdrop-blur-xl shadow-[0_10px_30px_rgba(220,38,38,0.1)]' : 'bg-transparent border-b border-white/5'}`}>
-      <div className="mx-auto flex max-w-7xl items-center justify-between w-full px-4 py-4 sm:px-6 lg:px-8">
-        <div className="flex flex-1 justify-start">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 w-full px-4 py-4 sm:px-6 lg:px-8">
+        <div className="flex shrink-0">
           <Link href="/" className="group flex items-center gap-4" onClick={() => setOpen(false)}>
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-red-500/30 bg-gradient-to-br from-red-600 to-orange-600 text-sm font-black tracking-[0.3em] text-white shadow-[0_0_20px_rgba(220,38,38,0.4)] group-hover:scale-105 transition-transform group-hover:shadow-[0_0_30px_rgba(220,38,38,0.6)] relative overflow-hidden">
               <div className="absolute inset-0 bg-white/20 translate-y-full transition-transform group-hover:translate-y-0" />
               <span className="relative z-10">W3</span>
             </div>
-            <div>
+            <div className="hidden sm:block">
               <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-red-500 font-bold group-hover:text-red-400 transition-colors flex items-center gap-1">
                 <Sparkles className="w-3 h-3" /> {t('nav.open_source_lab')}
               </p>
@@ -60,14 +60,14 @@ export default function Navbar() {
           </Link>
         </div>
 
-        <nav className="hidden items-center gap-2 lg:flex" aria-label="Primary">
+        <nav className="hidden items-center gap-1 xl:flex" aria-label="Primary">
           {primaryNav.map((item) => {
             const active = isActive(item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`relative px-4 py-2.5 text-xs font-black uppercase tracking-[0.15em] transition-all rounded-xl ${
+                className={`relative px-3 py-2.5 text-xs font-black uppercase tracking-[0.15em] transition-all rounded-xl ${
                   active
                     ? 'text-white bg-white/10'
                     : 'text-gray-400 hover:text-white hover:bg-white/5'
@@ -82,8 +82,8 @@ export default function Navbar() {
           })}
         </nav>
 
-        <div className="flex flex-1 justify-end items-center gap-4">
-          <div className="hidden items-center gap-4 lg:flex">
+        <div className="flex shrink-0 items-center gap-4">
+          <div className="hidden items-center gap-3 xl:flex">
             <LanguageSelector />
             {user ? (
               <>
@@ -130,7 +130,7 @@ export default function Navbar() {
           <button
             type="button"
             onClick={() => setOpen((value) => !value)}
-            className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 text-white lg:hidden bg-white/5 hover:bg-white/10 transition-colors"
+            className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 text-white xl:hidden bg-white/5 hover:bg-white/10 transition-colors"
             aria-expanded={open}
             aria-label={open ? 'Close menu' : 'Open menu'}
           >
@@ -140,7 +140,7 @@ export default function Navbar() {
       </div>
 
       {open && (
-        <div className="border-t border-red-500/20 bg-black/95 backdrop-blur-2xl lg:hidden shadow-[0_20px_40px_rgba(220,38,38,0.1)] absolute w-full left-0">
+        <div className="border-t border-red-500/20 bg-black/95 backdrop-blur-2xl xl:hidden shadow-[0_20px_40px_rgba(220,38,38,0.1)] absolute w-full left-0">
           <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-6 sm:px-6">
             {primaryNav.map((item) => {
               const active = isActive(item.href);
