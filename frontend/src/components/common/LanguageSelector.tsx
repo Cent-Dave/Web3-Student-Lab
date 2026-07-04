@@ -13,17 +13,23 @@ export function LanguageSelector() {
   const { locale, setLocale, t } = useI18n();
 
   return (
-    <select
-      value={locale}
-      onChange={(event) => setLocale(event.target.value as Locale)}
-      className="rounded border border-white/20 bg-black px-2 py-1 text-[10px] font-bold tracking-wider text-zinc-200 uppercase"
-      aria-label="Language selector"
-    >
-      {locales.map((item) => (
-        <option key={item.id} value={item.id}>
-          {t(item.labelKey)}
-        </option>
-      ))}
-    </select>
+    <div className="relative inline-flex items-center gap-1.5 rounded-xl bg-white/5 pl-3 pr-2 py-1.5 hover:bg-white/10 transition-colors cursor-pointer border border-transparent hover:border-white/10">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>
+      <select
+        value={locale}
+        onChange={(event) => setLocale(event.target.value as Locale)}
+        className="appearance-none bg-transparent text-[10px] font-bold tracking-widest text-white uppercase outline-none cursor-pointer pr-4"
+        aria-label="Language selector"
+      >
+        {locales.map((item) => (
+          <option key={item.id} value={item.id} className="bg-zinc-900 text-white font-sans">
+            {t(item.labelKey)}
+          </option>
+        ))}
+      </select>
+      <div className="pointer-events-none absolute right-2 text-gray-400">
+        <svg className="w-3 h-3 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" /></svg>
+      </div>
+    </div>
   );
 }

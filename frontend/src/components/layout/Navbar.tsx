@@ -107,12 +107,6 @@ export default function Navbar() {
             ) : (
               <>
                 <Link
-                  href="/auth/login"
-                  className="rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-[0.15em] text-gray-400 transition-all hover:text-white hover:bg-white/5"
-                >
-                  {publicKey ? t('nav.wallet_connected') : t('nav.connect_wallet')}
-                </Link>
-                <Link
                   href={profileCompleted ? '/auth/login' : '/auth/register'}
                   className="group relative inline-flex items-center gap-2 rounded-xl bg-red-600 px-6 py-3 text-xs font-black uppercase tracking-[0.15em] text-white shadow-[0_0_20px_rgba(220,38,38,0.3)] transition-all hover:scale-105 hover:shadow-[0_0_30px_rgba(220,38,38,0.5)] overflow-hidden"
                 >
@@ -194,13 +188,6 @@ export default function Navbar() {
                 </>
               ) : (
                 <>
-                  <Link
-                    href="/auth/login"
-                    onClick={() => setOpen(false)}
-                    className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-xs font-black uppercase tracking-[0.2em] text-white text-center hover:bg-white/10 transition-colors"
-                  >
-                    {publicKey ? t('nav.wallet_connected') : t('nav.connect_wallet')}
-                  </Link>
                   <Link
                     href={profileCompleted ? '/auth/login' : '/auth/register'}
                     onClick={() => setOpen(false)}
