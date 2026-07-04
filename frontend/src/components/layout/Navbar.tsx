@@ -67,7 +67,7 @@ export default function Navbar() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`relative px-3 py-2.5 text-xs font-black uppercase tracking-[0.15em] transition-all rounded-xl ${
+                className={`relative px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.15em] transition-all rounded-xl ${
                   active
                     ? 'text-white bg-white/10'
                     : 'text-gray-400 hover:text-white hover:bg-white/5'
@@ -90,13 +90,13 @@ export default function Navbar() {
                 <NotificationBell />
                 <Link
                   href="/certificates"
-                  className="rounded-xl border border-white/10 px-5 py-2.5 text-xs font-black uppercase tracking-[0.15em] text-white transition-all hover:border-red-500/50 hover:bg-red-500/10 hover:shadow-[0_0_15px_rgba(220,38,38,0.2)]"
+                  className="rounded-xl border border-white/10 px-5 py-2.5 text-[10px] font-black uppercase tracking-[0.15em] text-white transition-all hover:border-red-500/50 hover:bg-red-500/10 hover:shadow-[0_0_15px_rgba(220,38,38,0.2)]"
                 >
                   {t('nav.certificates')}
                 </Link>
                 <button
                   onClick={logout}
-                  className="rounded-xl bg-white/10 px-5 py-2.5 text-xs font-black uppercase tracking-[0.15em] text-white transition-all hover:bg-white/20"
+                  className="rounded-xl bg-white/10 px-5 py-2.5 text-[10px] font-black uppercase tracking-[0.15em] text-white transition-all hover:bg-white/20"
                 >
                   {t('nav.sign_out')}
                 </button>
@@ -155,8 +155,8 @@ export default function Navbar() {
                       : 'bg-white/5 border-transparent text-gray-300 hover:bg-white/10'
                   }`}
                 >
-                  <span className={`block text-xs font-black uppercase tracking-[0.2em] ${active ? 'text-red-400' : 'text-white'}`}>{getNavLabel(item.label)}</span>
-                  <span className="mt-1.5 block text-xs font-light text-gray-500 leading-relaxed">{item.description}</span>
+                  <span className={`block text-[10px] font-black uppercase tracking-[0.2em] ${active ? 'text-red-400' : 'text-white'}`}>{getNavLabel(item.label)}</span>
+                  <span className="mt-1.5 block text-[10px] font-light text-gray-500 leading-relaxed">{item.description}</span>
                 </Link>
               );
             })}
@@ -171,12 +171,12 @@ export default function Navbar() {
                   <Link
                     href="/certificates"
                     onClick={() => setOpen(false)}
-                    className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-xs font-black uppercase tracking-[0.2em] text-white text-center hover:bg-white/10 transition-colors"
+                    className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white text-center hover:bg-white/10 transition-colors"
                   >
                     {t('nav.certificates')}
                   </Link>
                   <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-5 py-4">
-                    <span className="text-xs font-black uppercase tracking-[0.2em] text-white">{t('nav.notifications')}</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white">{t('nav.notifications')}</span>
                     <NotificationBell />
                   </div>
                   <button
@@ -184,7 +184,7 @@ export default function Navbar() {
                       logout();
                       setOpen(false);
                     }}
-                    className="rounded-2xl bg-white/10 px-5 py-4 text-xs font-black uppercase tracking-[0.2em] text-white sm:col-span-2 hover:bg-white/20 transition-colors"
+                    className="rounded-2xl bg-white/10 px-5 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white sm:col-span-2 hover:bg-white/20 transition-colors"
                   >
                     {t('nav.sign_out')}
                   </button>
