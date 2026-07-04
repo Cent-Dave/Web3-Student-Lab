@@ -30,7 +30,7 @@ export default function LessonDetailPage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-20 items-center gap-4">
             <Link
-              href="/dashboard"
+              href="/"
               className="text-text-secondary hover:text-foreground flex items-center gap-2 transition-colors"
             >
               <ArrowLeft className="h-5 w-5" />

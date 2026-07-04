@@ -147,7 +147,7 @@ export function LearningDashboard() {
             <p className="mt-2 text-xs text-gray-500 uppercase tracking-widest">Bookmarked lessons</p>
             <div className="mt-8 space-y-4">
               {savedLessons.length === 0 ? <p className="text-sm text-gray-500 text-center py-8 rounded-2xl border border-dashed border-white/10">Star lessons to save them here.</p> : savedLessons.map((item) => (
-                <a key={`${item.courseId}:${item.id}`} href={item.route} className="group block rounded-2xl border border-white/5 bg-black p-5 transition-all hover:-translate-y-1 hover:border-red-500/30 hover:bg-white/5 hover:shadow-[0_10px_30px_rgba(220,38,38,0.1)]">
+                <a key={`${item.courseId}:${item.id}`} href={`/lessons/${item.courseId}/${item.id}`} className="group block rounded-2xl border border-white/5 bg-black p-5 transition-all hover:-translate-y-1 hover:border-red-500/30 hover:bg-white/5 hover:shadow-[0_10px_30px_rgba(220,38,38,0.1)]">
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-red-500">{item.courseTitle}</p>
                   <p className="mt-1 font-bold text-gray-200 group-hover:text-white">{item.title}</p>
                 </a>
