@@ -7,6 +7,7 @@ import { useWallet } from '@/contexts/WalletContext';
 import { WalletConnectCard } from '@/components/wallet/WalletConnectCard';
 import { useWalletProfileCompletion } from '@/lib/profile-completion';
 import { useEffect } from 'react';
+import { getWorkspaceId } from '@/lib/api-config';
 
 const GITHUB_OAUTH_URL = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1'}/oauth/github`;
 
@@ -24,7 +25,8 @@ export default function LoginPage() {
   }, [router, isAuthenticated]);
 
   const handleGitHubLogin = () => {
-    window.location.href = GITHUB_OAUTH_URL;
+    const workspaceId = getWorkspaceId();
+    window.location.href = `${GITHUB_OAUTH_URL}?workspaceId=${workspaceId}`;
   };
 
   return (

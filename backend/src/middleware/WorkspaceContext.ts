@@ -12,7 +12,7 @@ export const requireWorkspaceMiddleware = (
   res: Response,
   next: NextFunction
 ): void => {
-  const workspaceId = req.headers['x-workspace-id'] as string;
+  const workspaceId = (req.headers['x-workspace-id'] || req.query.workspaceId) as string;
 
   if (!workspaceId) {
     if (process.env.NODE_ENV === 'test' && req.headers['x-test-bypass-workspace'] !== 'false') {
@@ -35,7 +35,7 @@ export const optionalWorkspaceMiddleware = (
   res: Response,
   next: NextFunction
 ): void => {
-  const workspaceId = req.headers['x-workspace-id'] as string;
+  const workspaceId = (req.headers['x-workspace-id'] || req.query.workspaceId) as string;
 
   if (workspaceId) {
     workspaceContextStorage.run(workspaceId, () => {
