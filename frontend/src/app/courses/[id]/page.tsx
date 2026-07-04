@@ -130,9 +130,9 @@ export default function CourseDetailPage() {
   }
 
   const courseContent = getTranslatedCourseContent(course, tn);
-  const curriculumCourse = curriculumCourses.find(c => c.id === course?.id);
+  const curriculumCourse = curriculumCourses.find(c => c.title.toLowerCase() === course?.title.toLowerCase());
   const totalLessons = curriculumCourse?.lessons.length || 0;
-  const completedCount = curriculumCourse?.lessons.filter(l => completedLessons.includes(`${course?.id}:${l.id}`)).length || 0;
+  const completedCount = curriculumCourse?.lessons.filter(l => completedLessons.includes(`${curriculumCourse?.id}:${l.id}`)).length || 0;
   const isCourseCompleted = totalLessons > 0 && completedCount === totalLessons;
 
   return (
@@ -341,7 +341,7 @@ export default function CourseDetailPage() {
                       </button>
                     ) : (
                       <Link
-                        href={`/lessons/${course.id}/${curriculumCourse?.lessons[0]?.id}`}
+                        href={`/lessons/${curriculumCourse?.id}/${curriculumCourse?.lessons[0]?.id}`}
                         className="flex w-full items-center justify-center rounded-xl border border-red-500/30 bg-red-500/10 py-4 font-black tracking-widest text-red-400 uppercase transition-all hover:bg-red-500/20"
                       >
                         Continue Lessons ({completedCount}/{totalLessons})
