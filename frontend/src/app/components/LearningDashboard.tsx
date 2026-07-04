@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { allLessons, courses, storageKeys } from "../curriculum-data";
 import { CompletionModal, launchCompletionConfetti } from "./CompletionCelebration";
 import { ProgressRing } from "./ProgressRing";
@@ -131,9 +132,14 @@ export function LearningDashboard() {
               })}
             </div>
 
-            <button onClick={completeLesson} className={`mt-8 w-full rounded-2xl px-5 py-4 text-sm font-black uppercase tracking-[0.2em] transition-all duration-300 ${completedSet.has(lessonKey) ? "border border-red-500/50 bg-red-500/10 text-red-400" : "bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:scale-[1.02] hover:bg-red-500 hover:shadow-[0_0_30px_rgba(220,38,38,0.6)]"}`}>
-              {completedSet.has(lessonKey) ? "Lesson completed" : "Mark lesson complete"}
-            </button>
+            <div className="mt-8 flex flex-col gap-4 sm:flex-row">
+              <Link href="/lessons" className="flex-1 text-center rounded-2xl bg-white px-5 py-4 text-sm font-black uppercase tracking-[0.2em] text-black shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all duration-300 hover:scale-[1.02] hover:bg-gray-200">
+                Take Lesson
+              </Link>
+              <button onClick={completeLesson} className={`flex-1 rounded-2xl px-5 py-4 text-sm font-black uppercase tracking-[0.2em] transition-all duration-300 ${completedSet.has(lessonKey) ? "border border-red-500/50 bg-red-500/10 text-red-400" : "bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:scale-[1.02] hover:bg-red-500 hover:shadow-[0_0_30px_rgba(220,38,38,0.6)]"}`}>
+                {completedSet.has(lessonKey) ? "Completed" : "Mark Complete"}
+              </button>
+            </div>
           </article>
 
           <aside className="rounded-3xl border border-white/5 bg-white/[0.02] p-8">
