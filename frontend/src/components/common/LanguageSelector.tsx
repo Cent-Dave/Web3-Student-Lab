@@ -13,12 +13,12 @@ export function LanguageSelector() {
   const { locale, setLocale, t } = useI18n();
 
   return (
-    <div className="relative inline-flex items-center gap-1.5 rounded-xl bg-white/5 pl-3 pr-2 py-1.5 hover:bg-white/10 transition-colors cursor-pointer border border-transparent hover:border-white/10">
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>
+    <div className="relative inline-flex items-center gap-2 text-gray-300 hover:text-white transition-colors cursor-pointer group">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-current transition-colors"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>
       <select
         value={locale}
         onChange={(event) => setLocale(event.target.value as Locale)}
-        className="appearance-none bg-transparent text-[10px] font-bold tracking-widest text-white uppercase outline-none cursor-pointer pr-4"
+        className="appearance-none bg-transparent text-xs font-bold tracking-widest text-current uppercase outline-none cursor-pointer pr-4"
         aria-label="Language selector"
       >
         {locales.map((item) => (

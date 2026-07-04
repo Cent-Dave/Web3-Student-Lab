@@ -93,13 +93,13 @@ export default function Navbar() {
                 <NotificationBell />
                 <Link
                   href="/certificates"
-                  className="text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-white transition-colors"
+                  className="text-xs font-bold uppercase tracking-widest text-gray-300 hover:text-white transition-colors"
                 >
                   {t('nav.certificates')}
                 </Link>
                 <button
                   onClick={logout}
-                  className="text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-white transition-colors"
+                  className="text-xs font-bold uppercase tracking-widest text-gray-300 hover:text-white transition-colors"
                 >
                   {t('nav.sign_out')}
                 </button>
