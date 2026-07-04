@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { useWalletProfileCompletion } from '@/lib/profile-completion';
 import { primaryNav } from '@/lib/site-data';
-import { ArrowRight, Menu, X, Sparkles } from 'lucide-react';
+import { ArrowRight, Menu, X, Sparkles, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
@@ -44,39 +44,45 @@ export default function Navbar() {
     <header className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? 'bg-black/80 border-b border-red-500/20 backdrop-blur-xl shadow-[0_10px_30px_rgba(220,38,38,0.1)]' : 'bg-transparent border-b border-white/5'}`}>
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 w-full px-4 py-4 sm:px-6 lg:px-8">
         <div className="flex shrink-0">
-          <Link href="/" className="group flex items-center gap-3" onClick={() => setOpen(false)}>
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-500/30 bg-gradient-to-br from-red-600 to-orange-600 text-xs font-black tracking-widest text-white shadow-[0_0_15px_rgba(220,38,38,0.3)] group-hover:scale-105 transition-transform group-hover:shadow-[0_0_25px_rgba(220,38,38,0.5)] relative overflow-hidden">
+          <Link href="/" className="group flex items-center gap-4" onClick={() => setOpen(false)}>
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-red-500/30 bg-gradient-to-br from-red-600 to-orange-600 text-sm font-black tracking-[0.3em] text-white shadow-[0_0_20px_rgba(220,38,38,0.4)] group-hover:scale-105 transition-transform group-hover:shadow-[0_0_30px_rgba(220,38,38,0.6)] relative overflow-hidden">
               <div className="absolute inset-0 bg-white/20 translate-y-full transition-transform group-hover:translate-y-0" />
-              <span className="relative z-10">W3</span>
+              <span className="relative z-10">W 3</span>
             </div>
             <div className="hidden sm:block">
-              <p className="text-sm font-black tracking-widest text-white uppercase">
+              <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-red-500 font-bold group-hover:text-red-400 transition-colors flex items-center gap-1">
+                <Sparkles className="w-3 h-3" /> {t('nav.open_source_lab')}
+              </p>
+              <p className="text-sm font-black tracking-widest text-white uppercase mt-0.5">
                 {t('nav.web3_student_lab')}
               </p>
             </div>
           </Link>
         </div>
 
-        <nav className="hidden items-center gap-2 xl:flex" aria-label="Primary">
-          {primaryNav.map((item) => {
-            const active = isActive(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`relative px-3 py-2.5 text-[10px] font-bold uppercase tracking-widest transition-colors ${
-                  active
-                    ? 'text-white'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                {active && (
-                  <span className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-1 h-1 bg-red-500 rounded-full shadow-[0_0_10px_rgba(220,38,38,1)]" />
-                )}
-                {getNavLabel(item.label)}
-              </Link>
-            );
-          })}
+        <nav className="hidden items-center gap-2 xl:flex relative z-[100]" aria-label="Primary">
+          <div className="group relative">
+            <button className="flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-widest text-gray-300 hover:text-white transition-colors">
+              Explore <ChevronDown className="w-4 h-4 transition-transform group-hover:rotate-180" />
+            </button>
+            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-72 rounded-2xl border border-red-500/20 bg-black/95 backdrop-blur-xl shadow-[0_20px_40px_rgba(220,38,38,0.2)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+              <div className="p-3 flex flex-col gap-1">
+                {primaryNav.map((item) => {
+                  const active = isActive(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`block px-4 py-3 rounded-xl transition-all border border-transparent ${active ? 'bg-red-500/10 border-red-500/20' : 'hover:bg-white/5 hover:border-white/10'}`}
+                    >
+                      <div className={`text-xs font-black uppercase tracking-widest mb-1 ${active ? 'text-white' : 'text-gray-300'}`}>{getNavLabel(item.label)}</div>
+                      <div className="text-[10px] text-gray-500 normal-case tracking-normal font-normal leading-relaxed">{item.description}</div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </nav>
 
         <div className="flex shrink-0 items-center gap-6">
