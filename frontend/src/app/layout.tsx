@@ -13,13 +13,19 @@ import { NotificationProvider } from '@/contexts/NotificationContext';
 import { Web3OnboardingProvider } from '@/contexts/Web3OnboardingContext';
 import { TutorialProvider } from '@/contexts/TutorialContext';
 import { SkipLink } from '@/components/ui/SkipLink';
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Web3 Student Lab',
   description:
     'An open-source educational platform for blockchain, smart contracts, open-source collaboration, and hackathon project development.',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({
