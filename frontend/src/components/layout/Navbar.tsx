@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { useWalletProfileCompletion } from '@/lib/profile-completion';
 import { primaryNav } from '@/lib/site-data';
-import { ArrowRight, Menu, X, Sparkles, ChevronDown } from 'lucide-react';
+import { ArrowRight, Menu, X, Sparkles, ChevronDown, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
@@ -93,15 +93,17 @@ export default function Navbar() {
                 <NotificationBell />
                 <Link
                   href="/certificates"
-                  className="text-xs font-bold uppercase tracking-widest text-gray-300 hover:text-white transition-colors"
+                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-bold uppercase tracking-widest text-red-400 hover:bg-red-500/20 hover:text-red-300 hover:border-red-500/50 transition-all shadow-[0_0_15px_rgba(220,38,38,0.15)] hover:shadow-[0_0_25px_rgba(220,38,38,0.25)]"
                 >
                   {t('nav.certificates')}
                 </Link>
                 <button
                   onClick={logout}
-                  className="text-xs font-bold uppercase tracking-widest text-gray-300 hover:text-white transition-colors"
+                  title={t('nav.sign_out')}
+                  aria-label={t('nav.sign_out')}
+                  className="flex h-10 w-10 items-center justify-center rounded-full transition-colors text-gray-400 hover:bg-white/5 hover:text-white"
                 >
-                  {t('nav.sign_out')}
+                  <LogOut className="h-4 w-4" />
                 </button>
               </>
             ) : (
