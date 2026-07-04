@@ -130,7 +130,15 @@ export default function CourseDetailPage() {
   }
 
   const courseContent = getTranslatedCourseContent(course, tn);
+  const COURSE_MAP: Record<string, string> = {
+    'cm1yxxxx-intro': 'blockchain-foundations',
+    'cm1yxxxx-soroban': 'smart-contracts',
+    'cm1yxxxx-defi': 'open-source'
+  };
+  const mappedId = course?.id ? COURSE_MAP[course.id] : null;
+  
   const curriculumCourse = curriculumCourses.find(c => 
+    c.id === mappedId ||
     course?.title.toLowerCase().includes(c.title.toLowerCase()) || 
     c.title.toLowerCase().includes(course?.title.toLowerCase() || '')
   ) || curriculumCourses[0];
