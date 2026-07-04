@@ -130,7 +130,10 @@ export default function CourseDetailPage() {
   }
 
   const courseContent = getTranslatedCourseContent(course, tn);
-  const curriculumCourse = curriculumCourses.find(c => c.title.toLowerCase() === course?.title.toLowerCase());
+  const curriculumCourse = curriculumCourses.find(c => 
+    course?.title.toLowerCase().includes(c.title.toLowerCase()) || 
+    c.title.toLowerCase().includes(course?.title.toLowerCase() || '')
+  ) || curriculumCourses[0];
   const totalLessons = curriculumCourse?.lessons.length || 0;
   const completedCount = curriculumCourse?.lessons.filter(l => completedLessons.includes(`${curriculumCourse?.id}:${l.id}`)).length || 0;
   const isCourseCompleted = totalLessons > 0 && completedCount === totalLessons;
