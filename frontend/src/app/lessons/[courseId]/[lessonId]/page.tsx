@@ -1,11 +1,12 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import LessonWorkspace from '@/components/lesson/LessonWorkspace';
 import { useParams, notFound } from 'next/navigation';
-import { courses } from '@/app/curriculum-data';
+import { courses, allLessons, storageKeys } from '@/app/curriculum-data';
 
 export default function LessonDetailPage() {
   const params = useParams();
@@ -15,9 +16,34 @@ export default function LessonDetailPage() {
   const course = courses.find((c) => c.id === courseId);
   const lesson = course?.lessons.find((l) => l.id === lessonId);
 
+  const [completed, setCompleted] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        setCompleted(JSON.parse(window.localStorage.getItem(storageKeys.completed) || "[]"));
+      } catch {}
+    }
+  }, []);
+
   if (!course || !lesson) {
     return notFound();
   }
+
+  const lessonKey = `${course.id}:${lesson.id}`;
+  const isCompleted = completed.includes(lessonKey);
+
+  function markComplete() {
+    if (!isCompleted) {
+      const next = [...completed, lessonKey];
+      setCompleted(next);
+      if (typeof window !== "undefined") window.localStorage.setItem(storageKeys.completed, JSON.stringify(next));
+    }
+  }
+
+  const currentIndex = allLessons.findIndex(l => l.id === lesson.id && l.courseId === course.id);
+  const prevLesson = currentIndex > 0 ? allLessons[currentIndex - 1] : null;
+  const nextLesson = currentIndex < allLessons.length - 1 ? allLessons[currentIndex + 1] : null;
 
   return (
     <div className="bg-background text-foreground relative min-h-screen overflow-hidden pb-20 transition-colors duration-200">
@@ -72,6 +98,44 @@ export default function LessonDetailPage() {
               </p>
             ))}
           </LessonWorkspace>
+
+          {/* Lesson Actions */}
+          <div className="mt-12 flex flex-col md:flex-row items-center justify-between gap-6 border-t border-white/10 pt-8">
+            <div className="flex-1 flex justify-start">
+              {prevLesson && (
+                <Link
+                  href={`/lessons/${prevLesson.courseId}/${prevLesson.id}`}
+                  className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-6 py-4 text-xs font-black uppercase tracking-widest transition-colors hover:bg-white/10"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Previous Lesson
+                </Link>
+              )}
+            </div>
+
+            <div className="flex-1 flex justify-center">
+              <button
+                onClick={markComplete}
+                disabled={isCompleted}
+                className={`flex items-center gap-3 rounded-2xl px-8 py-4 text-sm font-black uppercase tracking-[0.2em] transition-all duration-300 ${isCompleted ? "border border-red-500/50 bg-red-500/10 text-red-400" : "bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:scale-[1.02] hover:bg-red-500 hover:shadow-[0_0_30px_rgba(220,38,38,0.6)]"}`}
+              >
+                <CheckCircle className="h-5 w-5" />
+                {isCompleted ? "Completed" : "Mark Complete"}
+              </button>
+            </div>
+
+            <div className="flex-1 flex justify-end">
+              {nextLesson && (
+                <Link
+                  href={`/lessons/${nextLesson.courseId}/${nextLesson.id}`}
+                  className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-6 py-4 text-xs font-black uppercase tracking-widest transition-colors hover:bg-white/10"
+                >
+                  Next Lesson
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              )}
+            </div>
+          </div>
         </motion.div>
       </main>
     </div>
