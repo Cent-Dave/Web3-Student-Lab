@@ -24,39 +24,39 @@ export const courses: Course[] = [
     lessons: [
       {
         id: "blocks",
-        title: "How Blocks Work",
+        title: "Cryptographic Hashes & Blocks",
         route: "/roadmap/blockchain-foundations/blocks",
-        duration: "8 min",
+        duration: "15 min",
         content: [
-          "A blockchain is a continuously growing list of records, called blocks, which are linked and secured using cryptography.",
-          "Each block contains a cryptographic hash of the previous block, a timestamp, and transaction data.",
-          "In the editor, we will write a simple Rust struct that represents a block's structure in memory."
+          "A blockchain is a decentralized, immutable ledger where data is cryptographically secured across a network of participants.",
+          "At the core of this structure is the cryptographic hash function (like SHA-256). It takes an input of any size and produces a fixed-size, deterministic output. Even a single bit change in the input completely changes the output.",
+          "In the editor, we will write a professional Rust implementation of a block hashing mechanism, leveraging a mock SHA-256 function to understand memory layout and immutability."
         ],
-        starterCode: `#[derive(Clone, Debug)]\npub struct Block {\n    pub id: u64,\n    pub prev_hash: String,\n    pub data: String,\n}\n\n// TODO: Add an 'impl Block' with a 'new' function.`
+        starterCode: `use std::time::{SystemTime, UNIX_EPOCH};\n\n#[derive(Clone, Debug)]\npub struct Block {\n    pub index: u64,\n    pub timestamp: u128,\n    pub data: String,\n    pub previous_hash: String,\n    pub hash: String,\n}\n\nimpl Block {\n    pub fn new(index: u64, data: String, previous_hash: String) -> Self {\n        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();\n        let mut block = Self {\n            index,\n            timestamp,\n            data,\n            previous_hash,\n            hash: String::new(),\n        };\n        block.hash = block.calculate_hash();\n        block\n    }\n\n    pub fn calculate_hash(&self) -> String {\n        // TODO: Implement a pseudo-hashing function combining index, timestamp, data, and previous_hash\n        // Hint: Format them into a single string and return a simulated hex string.\n        String::from("hash_placeholder")\n    }\n}`
       },
       {
         id: "wallets",
-        title: "Wallets and Keys",
+        title: "Wallets, Keys, and Signatures",
         route: "/roadmap/blockchain-foundations/wallets",
-        duration: "10 min",
+        duration: "20 min",
         content: [
-          "Wallets don't actually hold your tokens; they hold the cryptographic keys that allow you to authorize transactions.",
-          "A public key serves as your address, while a private key acts as your password. Never share your private key!",
-          "Let's define a simple Wallet struct that holds a public address and balance."
+          "In Web3, identity and asset ownership are managed via asymmetric cryptography. A 'wallet' does not hold tokens; it holds the cryptographic keys required to sign transactions.",
+          "The Stellar network utilizes Ed25519 cryptography. Your public key acts as your network address (starting with 'G'), and your private key (starting with 'S') is used to sign transactions.",
+          "Let's implement a simplified Ed25519 keypair generator structure that derives a public address from a private seed."
         ],
-        starterCode: `pub struct Wallet {\n    pub address: String,\n    pub balance: u64,\n}\n\nimpl Wallet {\n    pub fn new(address: &str) -> Self {\n        Self {\n            address: address.to_string(),\n            balance: 0,\n        }\n    }\n}`
+        starterCode: `pub struct Keypair {\n    secret_seed: [u8; 32],\n    public_key: [u8; 32],\n}\n\nimpl Keypair {\n    pub fn from_secret_seed(seed: [u8; 32]) -> Self {\n        // In a real environment, we use curve25519 math to derive the public key.\n        // For this exercise, simulate the derivation by reversing the seed bytes.\n        let mut public_key = [0u8; 32];\n        // TODO: Implement the simulated derivation logic here\n\n        Self { secret_seed: seed, public_key }\n    }\n\n    pub fn get_stellar_address(&self) -> String {\n        // TODO: Return a simulated Stellar address starting with 'G'\n        String::from("G...")\n    }\n}`
       },
       {
         id: "consensus",
-        title: "Consensus Basics",
+        title: "The Stellar Consensus Protocol",
         route: "/roadmap/blockchain-foundations/consensus",
-        duration: "12 min",
+        duration: "25 min",
         content: [
-          "Consensus mechanisms are how decentralized networks agree on the true state of the blockchain.",
-          "Examples include Proof of Work (Bitcoin), Proof of Stake (Ethereum), and the Stellar Consensus Protocol (SCP).",
-          "In this exercise, write a function that validates if a block is approved by a majority of nodes."
+          "Unlike Proof of Work (PoW) or Proof of Stake (PoS), the Stellar Consensus Protocol (SCP) uses Federated Byzantine Agreement (FBA).",
+          "In FBA, each node chooses a 'quorum slice'—a specific set of trusted peers. System-wide consensus is achieved when quorum slices overlap, preventing conflicting transactions from being validated.",
+          "In this advanced exercise, write a function that validates if two nodes' quorum slices overlap securely."
         ],
-        starterCode: `pub fn is_approved(yes_votes: u32, total_nodes: u32) -> bool {\n    // TODO: Return true if yes_votes is greater than half of total_nodes\n    false\n}`
+        starterCode: `use std::collections::HashSet;\n\npub struct Node {\n    pub id: String,\n    pub quorum_slice: HashSet<String>,\n}\n\nimpl Node {\n    /// Validates if this node's quorum slice has a safe overlap with another node's slice.\n    /// FBA requires intersecting quorum slices to prevent network forks.\n    pub fn has_quorum_intersection(&self, other: &Node) -> bool {\n        // TODO: Return true if the intersection of self.quorum_slice and other.quorum_slice is not empty.\n        false\n    }\n}`
       },
     ],
   },
@@ -68,39 +68,39 @@ export const courses: Course[] = [
     lessons: [
       {
         id: "intro-contracts",
-        title: "Intro to Contracts",
+        title: "Contract Architecture & Environment",
         route: "/roadmap/smart-contracts/intro",
-        duration: "9 min",
+        duration: "20 min",
         content: [
-          "Smart contracts are self-executing contracts with the terms of the agreement directly written into code.",
-          "On the Stellar network, smart contracts are powered by Soroban and written in Rust.",
-          "Let's write a simple Hello World contract using Soroban."
+          "Smart contracts are autonomous programs deployed on-chain. On Stellar, smart contracts are powered by the Soroban environment, utilizing WebAssembly (WASM) for efficient and predictable execution.",
+          "The \`Env\` object in Soroban provides access to the ledger's state, cryptographic functions, and contract invocations.",
+          "Write a professional contract that performs basic compute operations while strictly managing execution footprints."
         ],
-        starterCode: `#![no_std]\nuse soroban_sdk::{contract, contractimpl, Env, Symbol, symbol_short};\n\n#[contract]\npub struct HelloContract;\n\n#[contractimpl]\nimpl HelloContract {\n    pub fn hello(env: Env, to: Symbol) -> Symbol {\n        // TODO: Return a greeting\n        symbol_short!("hello")\n    }\n}`
+        starterCode: `#![no_std]\nuse soroban_sdk::{contract, contractimpl, Env, Symbol, symbol_short};\n\n#[contract]\npub struct CalculatorContract;\n\n#[contractimpl]\nimpl CalculatorContract {\n    /// Adds two 64-bit integers securely, checking for overflow.\n    pub fn add(env: Env, a: i64, b: i64) -> i64 {\n        // TODO: Implement checked addition. Panic if overflow occurs.\n        // Hint: use a.checked_add(b).unwrap()\n        0\n    }\n}`
       },
       {
         id: "soroban-state",
-        title: "Soroban State",
+        title: "Persistent State & Authorization",
         route: "/roadmap/smart-contracts/soroban-state",
-        duration: "14 min",
+        duration: "30 min",
         content: [
-          "Contracts often need to remember data between invocations. This is called state.",
-          "Soroban provides Env storage to save and read persistent data.",
-          "In this lesson, let's write a simple counter contract that increments a stored value."
+          "Soroban supports three types of state storage: Temporary, Instance, and Persistent. Managing these correctly is critical for cost efficiency and security.",
+          "Equally important is \`require_auth()\`, which ensures that the invoker has cryptographically signed the transaction approving the specific function call and parameters.",
+          "Implement a secure vault contract that stores a persistent balance and requires authorization to withdraw funds."
         ],
-        starterCode: `#![no_std]\nuse soroban_sdk::{contract, contractimpl, Env, Symbol, symbol_short};\n\nconst COUNTER: Symbol = symbol_short!("COUNTER");\n\n#[contract]\npub struct Counter;\n\n#[contractimpl]\nimpl Counter {\n    pub fn increment(env: Env) -> u32 {\n        let mut count: u32 = env.storage().instance().get(&COUNTER).unwrap_or(0);\n        count += 1;\n        env.storage().instance().set(&COUNTER, &count);\n        count\n    }\n}`
+        starterCode: `#![no_std]\nuse soroban_sdk::{contract, contractimpl, Env, Address, Symbol};\n\n#[contract]\npub struct VaultContract;\n\n#[contractimpl]\nimpl VaultContract {\n    /// Withdraws an amount to the caller's address, ensuring they authorize the transaction.\n    pub fn withdraw(env: Env, caller: Address, amount: i128) {\n        // 1. Require authorization from the caller\n        caller.require_auth();\n\n        // 2. Fetch current balance from persistent storage\n        // TODO: Implement balance check and deduction logic\n    }\n}`
       },
       {
         id: "testing",
-        title: "Testing Contract Logic",
+        title: "Comprehensive Testing Strategies",
         route: "/roadmap/smart-contracts/testing",
-        duration: "11 min",
+        duration: "25 min",
         content: [
-          "Testing is critical for smart contracts since bugs can lead to lost funds.",
-          "Soroban allows you to test your Rust contracts locally using the standard cargo test command.",
-          "Write a simple test for our Counter contract."
+          "In Web3, testing is not optional; deploying untested code can lead to catastrophic financial loss. Soroban allows rigorous testing using Rust's native \`cargo test\`.",
+          "Professional testing involves simulating the \`Env\`, mocking user authorization, and performing contract-to-contract invocations.",
+          "Write a comprehensive test suite for the Vault contract, validating both successful transactions and intentional failures."
         ],
-        starterCode: `#[cfg(test)]\nmod test {\n    use super::*;\n    use soroban_sdk::Env;\n\n    #[test]\n    fn test_increment() {\n        let env = Env::default();\n        let contract_id = env.register_contract(None, Counter);\n        let client = CounterClient::new(&env, &contract_id);\n\n        assert_eq!(client.increment(), 1);\n        assert_eq!(client.increment(), 2);\n    }\n}`
+        starterCode: `#[cfg(test)]\nmod test {\n    use super::*;\n    use soroban_sdk::{Env, testutils::Address as _};\n\n    #[test]\n    fn test_vault_withdrawal() {\n        let env = Env::default();\n        let contract_id = env.register_contract(None, VaultContract);\n        let client = VaultContractClient::new(&env, &contract_id);\n\n        // Mock an address\n        let user = Address::generate(&env);\n\n        // TODO: Mock the user's auth and invoke client.withdraw(&user, &1000)\n        // TODO: Assert the resulting balance\n    }\n}`
       },
     ],
   },
@@ -112,39 +112,39 @@ export const courses: Course[] = [
     lessons: [
       {
         id: "issues",
-        title: "Reading Issues",
+        title: "Triaging & Reproducing Issues",
         route: "/roadmap/open-source/issues",
-        duration: "7 min",
+        duration: "15 min",
         content: [
-          "GitHub issues are the primary way to track bugs, features, and tasks in an open-source project.",
-          "A good issue contains a clear description, reproduction steps (for bugs), and expected behavior.",
-          "Write a simple Markdown template for reporting a bug."
+          "Professional open-source contribution begins with effective communication. GitHub issues are used to track bugs, propose architectural changes, and manage project milestones.",
+          "A high-quality bug report provides minimal reproducible examples (MREs), environment details, and execution context.",
+          "Format a comprehensive bug report template using Markdown."
         ],
-        starterCode: `## Bug Description\nA clear and concise description of what the bug is.\n\n## Steps to Reproduce\n1. Go to '...'\n2. Click on '....'\n3. See error\n\n## Expected Behavior\nA clear and concise description of what you expected to happen.`
+        starterCode: `## 🐛 Bug Report\n\n### Description\n<!-- Provide a clear, concise description of the issue. -->\n\n### Environment\n- **OS**: \n- **Node.js/Rust version**: \n- **Browser**: \n\n### Steps to Reproduce\n<!-- Provide a minimal, reproducible example -->\n1. \n2. \n3. \n\n### Expected vs Actual Behavior\n<!-- What did you expect? What actually happened? Provide stack traces if applicable. -->\n`
       },
       {
         id: "branches",
-        title: "Branch Workflow",
+        title: "Advanced Git Workflows",
         route: "/roadmap/open-source/branches",
-        duration: "9 min",
+        duration: "20 min",
         content: [
-          "Branching allows you to work on new features without affecting the main codebase.",
-          "A standard workflow is: create a branch, commit your changes, push to the remote, and open a Pull Request.",
-          "In the terminal (or this editor as a simulation), list the git commands to create and push a new branch."
+          "Maintaining a clean commit history is essential for collaborative projects. Teams rely on feature branches, rebasing, and atomic commits.",
+          "Instead of a simple merge, a \`git rebase\` rewrites your branch's history to sit neatly on top of the main branch, avoiding cluttered merge commits.",
+          "In the editor, simulate the CLI commands required to fetch the latest upstream changes, rebase your feature branch, and force push safely."
         ],
-        starterCode: `# 1. Create and switch to a new branch\ngit checkout -b feature/add-new-button\n\n# 2. Stage your changes\ngit add .\n\n# 3. Commit your changes\ngit commit -m "feat: add new button"\n\n# 4. Push to remote\ngit push origin feature/add-new-button`
+        starterCode: `# 1. Fetch the latest changes from the upstream remote\ngit fetch upstream\n\n# 2. Switch to your feature branch (e.g., feature/auth-fix)\ngit checkout feature/auth-fix\n\n# 3. Rebase your branch on top of upstream/main\n# TODO: Write the rebase command here\n\n# 4. Safely push the rewritten history to your fork\n# TODO: Write the push command (Hint: use --force-with-lease)`
       },
       {
         id: "prs",
-        title: "Submitting PRs",
+        title: "The Art of the Pull Request",
         route: "/roadmap/open-source/pull-requests",
-        duration: "13 min",
+        duration: "25 min",
         content: [
-          "A Pull Request (PR) is a proposal to merge your branch into the main repository.",
-          "Reviewers will leave comments, and you may need to push additional commits to address them.",
-          "Write a polite, informative PR description."
+          "A Pull Request (PR) is a formal request to merge your changes into the primary repository. It initiates a peer-review process where code quality, security, and logic are scrutinized.",
+          "A professional PR references the related issue, explains the architectural decisions, and highlights areas where the author wants specific feedback.",
+          "Draft a professional PR description utilizing semantic structure and GitHub's auto-linking features."
         ],
-        starterCode: `## What does this PR do?\nThis PR implements the new 'Take Lesson' button on the Learning Dashboard.\n\n## Changes\n- Added dynamic routing to /lessons/[courseId]/[lessonId]\n- Improved button aesthetics to match the neon-red theme\n\n## Testing\n- [x] Verified route transitions\n- [x] Checked responsive layout on mobile`
+        starterCode: `## 🚀 PR: Refactor Vault Authorization\n\n### Resolves Issue\n<!-- Link the issue using GitHub keywords (e.g., Fixes #123) -->\nFixes #\n\n### Architectural Changes\n- Migrated from generic \`Address\` checks to strict \`require_auth()\` enforcement.\n- Separated instance storage limits from temporary computation bounds.\n\n### Testing & Verification\n- [ ] Unit tests pass via \`cargo test\`\n- [ ] Checked for arithmetic overflows\n\n### Review Focus\n<!-- Direct the reviewers to specific lines or concepts -->\nPlease pay special attention to the state rollback logic in \`src/vault.rs:45\`.`
       },
     ],
   },
