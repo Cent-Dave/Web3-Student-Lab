@@ -86,13 +86,13 @@ export function LearningDashboard() {
             const done = item.lessons.filter((entry) => completedSet.has(`${item.id}:${entry.id}`)).length;
             const isActive = item.id === course.id;
             return (
-              <button key={item.id} onClick={() => { setCourseId(item.id); setLessonId(item.lessons[0].id); }} className={`group relative overflow-hidden rounded-3xl border p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_15px_40px_rgba(220,38,38,0.15)] ${isActive ? "border-red-500/40 bg-red-500/10 shadow-[0_0_30px_rgba(220,38,38,0.1)]" : "border-white/5 bg-white/[0.02] hover:bg-white/5"}`}>
+              <button key={item.id} onClick={() => { setCourseId(item.id); setLessonId(item.lessons[0].id); }} className={`group relative overflow-hidden rounded-3xl border p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_15px_40px_rgba(220,38,38,0.15)] ${isActive ? "border-red-500/40 bg-red-500/10 shadow-[0_0_30px_rgba(220,38,38,0.1)]" : "border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10"}`}>
                 {isActive && <div className="absolute inset-0 bg-gradient-to-br from-red-600/10 to-transparent" />}
                 <div className="relative z-10">
-                  <ProgressRing percentage={(done / item.lessons.length) * 100} accent={isActive ? "text-red-500" : "text-red-500/50"} />
+                  <ProgressRing percentage={(done / item.lessons.length) * 100} accent={isActive ? "stroke-red-500" : "stroke-red-900/50"} />
                   <h2 className="mt-5 text-2xl font-black tracking-tight text-white">{item.title}</h2>
-                  <p className="mt-2 text-sm text-gray-400 leading-relaxed">{item.description}</p>
-                  <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-xs font-bold uppercase tracking-widest text-gray-300">
+                  <p className="mt-2 text-sm text-gray-400 leading-relaxed group-hover:text-gray-300 transition-colors">{item.description}</p>
+                  <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-gray-200">
                     <span className={isActive ? "text-red-400" : "text-gray-500"}>{done}/{item.lessons.length}</span> lessons
                   </div>
                 </div>
