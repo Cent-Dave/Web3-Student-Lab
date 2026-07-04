@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 import { ErrorBoundary, ErrorFallback, CourseDetailSkeleton } from '@/components/ui';
+import { courses as curriculumCourses, storageKeys } from '@/app/curriculum-data';
 
 export default function CourseDetailPage() {
   const params = useParams();
@@ -22,6 +23,15 @@ export default function CourseDetailPage() {
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [isMinting, setIsMinting] = useState(false);
   const [mintSuccess, setMintSuccess] = useState(false);
+  const [completedLessons, setCompletedLessons] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        setCompletedLessons(JSON.parse(window.localStorage.getItem(storageKeys.completed) || '[]'));
+      } catch {}
+    }
+  }, []);
 
   const loadCourse = useCallback(async () => {
     if (!params?.id) return;
@@ -120,6 +130,10 @@ export default function CourseDetailPage() {
   }
 
   const courseContent = getTranslatedCourseContent(course, tn);
+  const curriculumCourse = curriculumCourses.find(c => c.id === course?.id);
+  const totalLessons = curriculumCourse?.lessons.length || 0;
+  const completedCount = curriculumCourse?.lessons.filter(l => completedLessons.includes(`${course?.id}:${l.id}`)).length || 0;
+  const isCourseCompleted = totalLessons > 0 && completedCount === totalLessons;
 
   return (
     <ErrorBoundary>
@@ -313,7 +327,7 @@ export default function CourseDetailPage() {
                           {t('courses.detail.redirecting')}
                         </p>
                       </div>
-                    ) : (
+                    ) : isCourseCompleted ? (
                       <button
                         onClick={handleMintCertificate}
                         disabled={isMinting}
@@ -325,6 +339,13 @@ export default function CourseDetailPage() {
                       >
                         {isMinting ? t('courses.detail.compiling_tx') : t('courses.detail.extract_certificate')}
                       </button>
+                    ) : (
+                      <Link
+                        href={`/lessons/${course.id}/${curriculumCourse?.lessons[0]?.id}`}
+                        className="flex w-full items-center justify-center rounded-xl border border-red-500/30 bg-red-500/10 py-4 font-black tracking-widest text-red-400 uppercase transition-all hover:bg-red-500/20"
+                      >
+                        Continue Lessons ({completedCount}/{totalLessons})
+                      </Link>
                     )}
                   </div>
                 </div>
