@@ -1,8 +1,7 @@
-import { PrismaClient, NotificationPreferences as PrismaNotificationPreferences } from '@prisma/client';
+import { NotificationPreferences as PrismaNotificationPreferences } from '@prisma/client';
 import { redisConnection } from '../utils/redis.js';
 import logger from '../utils/logger.js';
-
-const prisma = new PrismaClient();
+import prisma from '../db/index.js';
 
 export interface NotificationPreferences {
   id: string;
