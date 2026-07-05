@@ -18,7 +18,7 @@ export const requireWorkspaceMiddleware = (
   if (!workspaceId && req.query.state && typeof req.query.state === 'string') {
     const parts = req.query.state.split('__');
     if (parts.length === 2) {
-      workspaceId = parts[0];
+      workspaceId = parts[0] as string;
     }
   }
 
@@ -49,7 +49,7 @@ export const optionalWorkspaceMiddleware = (
   if (!workspaceId && req.query.state && typeof req.query.state === 'string') {
     const parts = req.query.state.split('__');
     if (parts.length === 2) {
-      workspaceId = parts[0];
+      workspaceId = parts[0] as string;
     }
   }
 
