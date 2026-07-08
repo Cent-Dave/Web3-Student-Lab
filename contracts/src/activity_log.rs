@@ -274,7 +274,7 @@ mod tests {
         std::env::remove_var("SOROBAN_TEST_SNAPSHOT_FILE");
         let env = Env::default();
         let admin_a = Address::generate(&env);
-        let contract_id = env.register(crate::CertificateContract, ());
+        let contract_id = env.register(crate::token::RsTokenContract, ());
         env.as_contract(&contract_id, || {
             let activity_mgr = ActivityLogManager::new(&env);
 
@@ -294,7 +294,7 @@ mod tests {
         std::env::remove_var("SOROBAN_TEST_SNAPSHOT_FILE");
         let env = Env::default();
         let admin_a = Address::generate(&env);
-        let contract_id = env.register(crate::CertificateContract, ());
+        let contract_id = env.register(crate::token::RsTokenContract, ());
         env.as_contract(&contract_id, || {
             let activity_mgr = ActivityLogManager::new(&env);
 
@@ -308,7 +308,7 @@ mod tests {
         std::env::remove_var("SOROBAN_TEST_SNAPSHOT_FILE");
         let env = Env::default();
         let admin_a = Address::generate(&env);
-        let contract_id = env.register(crate::CertificateContract, ());
+        let contract_id = env.register(crate::token::RsTokenContract, ());
         env.as_contract(&contract_id, || {
             let activity_mgr = ActivityLogManager::new(&env);
 
@@ -328,7 +328,7 @@ mod tests {
         std::env::remove_var("SOROBAN_TEST_SNAPSHOT_FILE");
         let env = Env::default();
         let admin_a = Address::generate(&env);
-        let contract_id = env.register(crate::CertificateContract, ());
+        let contract_id = env.register(crate::token::RsTokenContract, ());
         env.as_contract(&contract_id, || {
             let activity_mgr = ActivityLogManager::new(&env);
 

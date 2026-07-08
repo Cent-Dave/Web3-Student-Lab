@@ -18,6 +18,9 @@
 //! Computed metric results are cached to avoid recalculation.
 //! Supports 1,000+ concurrent metric definitions without prohibitive storage cost.
 
+#![no_std]
+extern crate alloc;
+
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, Address, Env, String,
     Symbol, Vec,
@@ -660,9 +663,10 @@ mod tests {
             &Vec::new(&env),
         );
 
-        let now = env.ledger().timestamp();
+        let start = 0u64;
+        let end = 86400u64;
         let timeseries =
-            client.export_metric_timeseries(&metric_id, &(now - 86400), &now, &3600u64);
+            client.export_metric_timeseries(&metric_id, &start, &end, &3600u64);
 
         assert!(timeseries.len() > 0);
     }
@@ -677,7 +681,7 @@ mod tests {
         for i in 0..5 {
             client.define_metric(
                 &admin,
-                &String::from_str(&env, &format!("metric_{}", i)),
+                &String::from_str(&env, &alloc::format!("metric_{}", i)),
                 &MetricType::Count,
                 &String::from_str(&env, "cert_minted"),
                 &String::from_str(&env, "token_id"),

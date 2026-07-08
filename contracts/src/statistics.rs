@@ -275,7 +275,7 @@ mod tests {
     fn test_initial_statistics_are_zero() {
         std::env::remove_var("SOROBAN_TEST_SNAPSHOT_FILE");
         let env = Env::default();
-        let contract_id = env.register(crate::CertificateContract, ());
+        let contract_id = env.register(crate::token::RsTokenContract, ());
         env.as_contract(&contract_id, || {
             let stats_mgr = StatisticsManager::new(&env);
             let stats = stats_mgr.get_statistics();
@@ -291,7 +291,7 @@ mod tests {
     fn test_increment_minted_updates_stats_and_holder_count() {
         std::env::remove_var("SOROBAN_TEST_SNAPSHOT_FILE");
         let env = Env::default();
-        let contract_id = env.register(crate::CertificateContract, ());
+        let contract_id = env.register(crate::token::RsTokenContract, ());
         env.as_contract(&contract_id, || {
             let stats_mgr = StatisticsManager::new(&env);
             let recipient = Address::generate(&env);
@@ -316,7 +316,7 @@ mod tests {
     fn test_multiple_holders_increase_unique_count() {
         std::env::remove_var("SOROBAN_TEST_SNAPSHOT_FILE");
         let env = Env::default();
-        let contract_id = env.register(crate::CertificateContract, ());
+        let contract_id = env.register(crate::token::RsTokenContract, ());
         env.as_contract(&contract_id, || {
             let stats_mgr = StatisticsManager::new(&env);
             let course_id = BytesN::from_array(&env, &[1u8; 32]);
@@ -337,7 +337,7 @@ mod tests {
     fn test_increment_revoked_updates_stats() {
         std::env::remove_var("SOROBAN_TEST_SNAPSHOT_FILE");
         let env = Env::default();
-        let contract_id = env.register(crate::CertificateContract, ());
+        let contract_id = env.register(crate::token::RsTokenContract, ());
         env.as_contract(&contract_id, || {
             let stats_mgr = StatisticsManager::new(&env);
             let course_id = BytesN::from_array(&env, &[1u8; 32]);
@@ -356,7 +356,7 @@ mod tests {
     fn test_course_statistics_tracking() {
         std::env::remove_var("SOROBAN_TEST_SNAPSHOT_FILE");
         let env = Env::default();
-        let contract_id = env.register(crate::CertificateContract, ());
+        let contract_id = env.register(crate::token::RsTokenContract, ());
         env.as_contract(&contract_id, || {
             let stats_mgr = StatisticsManager::new(&env);
             let course_id = BytesN::from_array(&env, &[1u8; 32]);
@@ -375,7 +375,7 @@ mod tests {
     fn test_renewal_increments_renewed_counter() {
         std::env::remove_var("SOROBAN_TEST_SNAPSHOT_FILE");
         let env = Env::default();
-        let contract_id = env.register(crate::CertificateContract, ());
+        let contract_id = env.register(crate::token::RsTokenContract, ());
         env.as_contract(&contract_id, || {
             let stats_mgr = StatisticsManager::new(&env);
             stats_mgr.increment_renewed();
@@ -388,7 +388,7 @@ mod tests {
     fn test_transfer_increments_counter() {
         std::env::remove_var("SOROBAN_TEST_SNAPSHOT_FILE");
         let env = Env::default();
-        let contract_id = env.register(crate::CertificateContract, ());
+        let contract_id = env.register(crate::token::RsTokenContract, ());
         env.as_contract(&contract_id, || {
             let stats_mgr = StatisticsManager::new(&env);
             stats_mgr.increment_transferred();
@@ -401,7 +401,7 @@ mod tests {
     fn test_statistics_persist_across_instances() {
         std::env::remove_var("SOROBAN_TEST_SNAPSHOT_FILE");
         let env = Env::default();
-        let contract_id = env.register(crate::CertificateContract, ());
+        let contract_id = env.register(crate::token::RsTokenContract, ());
         env.as_contract(&contract_id, || {
             let stats_mgr1 = StatisticsManager::new(&env);
             stats_mgr1.increment_minted(

@@ -7,6 +7,7 @@ import { KeyboardShortcutsProvider } from '@/components/keyboard/KeyboardShortcu
 import Navbar from '@/components/layout/Navbar';
 import ResiliencyBanner from '@/components/layout/ResiliencyBanner';
 import RenderWarningModal from '@/components/layout/RenderWarningModal';
+import WalletGate from '@/components/layout/WalletGate';
 import { CourseNotificationListener, ToastContainer } from '@/components/notifications';
 import { OfflineSyncHandler } from '@/components/OfflineSyncHandler';
 import { NotificationProvider } from '@/contexts/NotificationContext';
@@ -74,7 +75,7 @@ export default function RootLayout({
                         <RenderWarningModal />
                         <OfflineSyncHandler />
                         <main id="main-content" className="flex-grow outline-none" tabIndex={-1}>
-                          {children}
+                          <WalletGate>{children}</WalletGate>
                         </main>
                         <ToastContainer />
                       </TutorialProvider>

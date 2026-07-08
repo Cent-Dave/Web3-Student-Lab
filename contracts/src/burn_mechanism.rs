@@ -357,32 +357,40 @@ impl TokenBurnMechanism {
 #[cfg(test)]
 mod test {
     use super::*;
-    use soroban_sdk::testutils::{Address as _, Env as _};
+    use soroban_sdk::testutils::Address as _;
+    use soroban_sdk::Env;
 
     #[test]
     fn test_burn_init() {
         let env = Env::default();
-        let admin = Address::random(&env);
-        let token = Address::random(&env);
+        let admin = soroban_sdk::Address::generate(&env);
+        let token = soroban_sdk::Address::generate(&env);
 
-        TokenBurnMechanism::init(env.clone(), admin, token, 1_000_000);
+        let contract_id = env.register_contract(None, TokenBurnMechanism);
+        let client = TokenBurnMechanismClient::new(&env, &contract_id);
+        env.mock_all_auths();
 
-        let current_supply = TokenBurnMechanism::get_current_supply(env);
+        client.init(&admin, &token, &1_000_000);
+
+        let current_supply = client.get_current_supply();
         assert_eq!(current_supply, 1_000_000);
     }
 
     #[test]
     fn test_burn_tokens() {
         let env = Env::default();
-        let admin = Address::random(&env);
-        let token = Address::random(&env);
+        let admin = soroban_sdk::Address::generate(&env);
+        let token = soroban_sdk::Address::generate(&env);
 
-        TokenBurnMechanism::init(env.clone(), admin.clone(), token, 1_000_000);
+        let contract_id = env.register_contract(None, TokenBurnMechanism);
+        let client = TokenBurnMechanismClient::new(&env, &contract_id);
+        env.mock_all_auths();
 
-        let _cert =
-            TokenBurnMechanism::burn_tokens(env.clone(), 100_000, Symbol::new(&env, "buyback"));
+        client.init(&admin, &token, &1_000_000);
 
-        let current_supply = TokenBurnMechanism::get_current_supply(env);
+        let _cert = client.burn_tokens(&100_000, &Symbol::new(&env, "buyback"));
+
+        let current_supply = client.get_current_supply();
         assert_eq!(current_supply, 900_000);
     }
 }

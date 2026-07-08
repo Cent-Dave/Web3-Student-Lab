@@ -590,7 +590,7 @@ mod tests {
 
         let now = env.ledger().timestamp();
         let events =
-            client.query_events_by_type_and_time(&event_type, &(now - 1000), &(now + 1000), &10);
+            client.query_events_by_type_and_time(&event_type, &(now.saturating_sub(1000)), &(now + 1000), &10);
 
         assert_eq!(events.len(), 1);
     }
@@ -674,7 +674,7 @@ mod tests {
         let aggregates = client.compute_time_bucketed_aggregates(
             &event_type,
             &3600u64,
-            &(now - 7200),
+            &(now.saturating_sub(7200)),
             &(now + 3600),
         );
 
