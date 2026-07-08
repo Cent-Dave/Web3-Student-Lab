@@ -22,6 +22,16 @@ export const primaryNav: NavItem[] = [
     description: 'Browse guided learning modules and beginner tracks.',
   },
   {
+    label: 'Dashboard',
+    href: '/dashboard',
+    description: 'Track progress, enrollments, and issued credentials.',
+  },
+  {
+    label: 'Collaborative Lab',
+    href: '/collaborative-lab',
+    description: 'Work on hackathons, design architecture, and build your decentralized reputation.',
+  },
+  {
     label: 'Roadmap',
     href: '/roadmap',
     description: 'See the step-by-step path from beginner to builder.',
@@ -40,11 +50,6 @@ export const primaryNav: NavItem[] = [
     label: 'Gas Auction',
     href: '/mempool-auction',
     description: 'Simulate a mempool fee market where the highest bidders are mined first.',
-  },
-  {
-    label: 'Dashboard',
-    href: '/dashboard',
-    description: 'Track progress, enrollments, and issued credentials.',
   },
 ];
 
