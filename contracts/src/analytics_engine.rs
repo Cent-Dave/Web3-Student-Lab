@@ -665,8 +665,7 @@ mod tests {
 
         let start = 0u64;
         let end = 86400u64;
-        let timeseries =
-            client.export_metric_timeseries(&metric_id, &start, &end, &3600u64);
+        let timeseries = client.export_metric_timeseries(&metric_id, &start, &end, &3600u64);
 
         assert!(timeseries.len() > 0);
     }

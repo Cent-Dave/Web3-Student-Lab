@@ -589,8 +589,12 @@ mod tests {
         );
 
         let now = env.ledger().timestamp();
-        let events =
-            client.query_events_by_type_and_time(&event_type, &(now.saturating_sub(1000)), &(now + 1000), &10);
+        let events = client.query_events_by_type_and_time(
+            &event_type,
+            &(now.saturating_sub(1000)),
+            &(now + 1000),
+            &10,
+        );
 
         assert_eq!(events.len(), 1);
     }
