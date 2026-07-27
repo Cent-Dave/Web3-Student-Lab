@@ -18,6 +18,7 @@ import { dbRoutingMiddleware } from './middleware/dbRouting.js';
 import { decryptionMiddleware } from './middleware/encryptionMiddleware.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { createI18nMiddleware } from './middleware/i18n.js';
+import { graphqlQueryComplexityLimiter } from './middleware/graphqlRateLimiter.js';
 import { rateLimiter } from './middleware/rateLimiter.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { requireWorkspaceMiddleware } from './middleware/WorkspaceContext.js';
@@ -170,6 +171,7 @@ async function setupGraphQL() {
       '/graphql',
       express.json(),
       cors<cors.CorsRequest>({ origin: true }),
+      graphqlQueryComplexityLimiter,
       expressMiddleware(graphqlServer, {
         context: async () => ({ prisma, redis: redisConnection }),
       })

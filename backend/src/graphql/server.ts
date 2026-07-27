@@ -5,6 +5,7 @@ import { json } from 'express';
 import { typeDefs } from './schema.js';
 import { resolvers } from './resolvers.js';
 import { createGraphQLContext } from './context.js';
+import { graphqlQueryComplexityLimiter } from '../middleware/graphqlRateLimiter.js';
 import logger from '../utils/logger.js';
 
 export const createGraphQLServer = async () => {
@@ -36,6 +37,7 @@ export const graphQLMiddleware = async () => {
   return [
     json(),
     cors<cors.CorsRequest>({ origin: true }),
+    graphqlQueryComplexityLimiter,
     expressMiddleware(server, {
       context: createGraphQLContext,
     }),
