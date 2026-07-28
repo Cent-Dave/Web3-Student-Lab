@@ -1,7 +1,6 @@
 // @ts-nocheck
-import { Queue } from 'bullmq';
 import type { JobsOptions } from 'bullmq';
-import { redisConnection } from '../../utils/redis.js';
+import { Queue } from 'bullmq';
 import type { StorageGcJobData, StoragePinJobData } from './types.js';
 
 export const STORAGE_PIN_QUEUE_NAME = 'storage-pin-queue';
@@ -32,8 +31,10 @@ const createQueue = <T>(name: string, defaultJobOptions?: JobsOptions) => {
     } as unknown as Queue<T>;
   }
 
-  const redisUrl = new URL(process.env.REDIS_URL || 'redis://localhost:6379');
-  
+  const redisUrl = new URL(process.env.REDIS_URL || (() => {
+    throw new Error('REDIS_URL environment variable is required');
+  })());
+
   return new Queue<T>(name, {
     connection: {
       host: redisUrl.hostname,

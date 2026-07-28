@@ -1,9 +1,10 @@
 import { Queue } from 'bullmq';
-import { redisConnection } from '../utils/redis.js';
 
 export const EXPORT_QUEUE_NAME = 'export-queue';
 
-const redisUrl = new URL(process.env.REDIS_URL || 'redis://localhost:6379');
+const redisUrl = new URL(process.env.REDIS_URL || (() => {
+  throw new Error('REDIS_URL environment variable is required');
+})());
 
 export const exportQueue = new Queue(EXPORT_QUEUE_NAME, {
   connection: {
@@ -13,4 +14,3 @@ export const exportQueue = new Queue(EXPORT_QUEUE_NAME, {
     maxRetriesPerRequest: null,
   },
 });
-

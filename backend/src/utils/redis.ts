@@ -1,9 +1,11 @@
-import dotenv from 'dotenv';
 import { Redis } from 'ioredis';
 
 // dotenv.config(); // Skip in Docker Compose - use environment variables instead
 
-const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+const redisUrl = process.env.REDIS_URL;
+if (!redisUrl) {
+  throw new Error('REDIS_URL environment variable is required');
+}
 
 const createTestRedisClient = () => {
   const memoryStore = new Map<string, string>();
