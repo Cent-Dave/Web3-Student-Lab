@@ -23,6 +23,7 @@ import { requestLogger } from './middleware/requestLogger.js';
 import { requireWorkspaceMiddleware } from './middleware/WorkspaceContext.js';
 import freelanceRoute from './routes/freelance.js';
 import routes from './routes/index.js';
+import apiRouter from './routes/api.js';
 import { startWebhookWorker, stopWebhookWorker } from './services/webhooks/index.js';
 import { startBackupWorker, stopBackupWorker, scheduleBackupCron } from './jobs/backup.worker.js';
 import logger from './utils/logger.js';
@@ -184,6 +185,7 @@ setupGraphQL().catch(() => {});
 
 // API Routes - with workspace isolation
 app.use('/api/v1', requireWorkspaceMiddleware, createI18nMiddleware(), routes);
+app.use('/api', requireWorkspaceMiddleware, createI18nMiddleware(), apiRouter);
 
 // Swagger Documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {

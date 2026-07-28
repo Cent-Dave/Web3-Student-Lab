@@ -39,6 +39,7 @@ import simulatorRouter from '../simulator/simulator.routes.js';
 
 import webhooksRouter from './webhooks.js';
 import adminDLQRouter from './admin/dlq.routes.js';
+import apiRouter from './api.js';
 
 const router = Router();
 
@@ -79,5 +80,6 @@ router.use('/roadmap/tos', termsOfServiceRouter);
 router.use('/playground', playgroundRouter);
 router.use('/playground/privacy-policy', privacyPolicyRouter);
 router.use('/oauth', oauthRouter);
+router.use('/', apiRouter);
 
 export default router;
