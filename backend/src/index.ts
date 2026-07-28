@@ -21,6 +21,7 @@ import { createI18nMiddleware } from './middleware/i18n.js';
 import { rateLimiter } from './middleware/rateLimiter.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { requireWorkspaceMiddleware } from './middleware/WorkspaceContext.js';
+import { validateInput } from './middleware/validation.js';
 import freelanceRoute from './routes/freelance.js';
 import routes from './routes/index.js';
 import { startWebhookWorker, stopWebhookWorker } from './services/webhooks/index.js';
@@ -94,6 +95,9 @@ setRateLimitEnvOverrides({
 
 app.use(cors());
 app.use(express.json());
+// Global input sanitisation: strips HTML from all string inputs and rejects
+// non-object bodies before any route handler runs.
+app.use(validateInput);
 app.use(decryptionMiddleware);
 app.use(dbRoutingMiddleware);
 
