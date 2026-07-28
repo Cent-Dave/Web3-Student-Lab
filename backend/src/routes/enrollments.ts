@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import prisma from '../db/index.js';
+import { idempotency } from '../middleware/idempotency.js';
 
 const router = Router();
 
@@ -91,7 +92,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/enrollments - Enroll a student in a course
-router.post('/', async (req, res) => {
+router.post('/', idempotency(), async (req, res) => {
   try {
     const { studentId, courseId } = req.body;
 

@@ -37,6 +37,12 @@ export interface WebhookDeliveryRequest {
 
 export interface WebhookDeliveryJobData extends WebhookDeliveryRequest {
   deliveryId: string;
+  /**
+   * traceId from the HTTP request that triggered this job (Issue #981).
+   * Workers call logWithTraceId(traceId, …) so job logs are correlated
+   * with the originating request.
+   */
+  traceId?: string;
 }
 
 export interface DeadLetterWebhookJob extends WebhookDeliveryJobData {

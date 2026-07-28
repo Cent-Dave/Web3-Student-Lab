@@ -1,6 +1,7 @@
 import { Request, Response, Router } from 'express';
 import { normalizeSorobanDid } from '../auth/auth.service.js';
 import { auditAction } from '../middleware/audit.js';
+import { idempotency } from '../middleware/idempotency.js';
 
 const router = Router();
 
@@ -62,6 +63,7 @@ router.get('/student/:studentId', async (req: Request, res: Response) => {
 // POST /api/certificates - Issue a new certificate
 router.post(
   '/',
+  idempotency(),
   auditAction('ISSUE_CERTIFICATE', 'Certificate'),
   async (req: Request, res: Response) => {
     try {

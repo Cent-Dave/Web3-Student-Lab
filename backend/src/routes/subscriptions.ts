@@ -1,4 +1,5 @@
 import { Request, Response, Router } from 'express';
+import { idempotency } from '../middleware/idempotency.js';
 
 const router = Router();
 
@@ -59,7 +60,7 @@ router.get('/plans', async (req: Request, res: Response) => {
 });
 
 // POST /api/subscriptions/plans - Create a new plan
-router.post('/plans', async (req: Request, res: Response) => {
+router.post('/plans', idempotency(), async (req: Request, res: Response) => {
   try {
     const { merchant, name, description, amount, frequency, token } = req.body;
 
@@ -98,7 +99,7 @@ router.get('/user/:userKey', async (req: Request, res: Response) => {
 });
 
 // POST /api/subscriptions/subscribe - Subscribe to a plan
-router.post('/subscribe', async (req: Request, res: Response) => {
+router.post('/subscribe', idempotency(), async (req: Request, res: Response) => {
   try {
     const { subscriber, plan_id } = req.body;
 
