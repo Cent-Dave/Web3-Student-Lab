@@ -1,18 +1,17 @@
 // @ts-nocheck
 import { Job, Worker } from 'bullmq';
 import logger from '../../utils/logger.js';
-import { redisConnection } from '../../utils/redis.js';
 import * as defaultRepository from './asset.repository.js';
 import { createStorageProvider } from './provider.js';
-import { buildGatewayUrl, buildIpfsUri } from './utils.js';
 import { STORAGE_GC_QUEUE_NAME, STORAGE_PIN_QUEUE_NAME, storageGcQueue } from './queue.js';
 import type {
-  StorageAssetRecord,
-  StorageGcJobData,
-  StoragePinJobData,
-  StoragePinResult,
-  StorageProvider,
+    StorageAssetRecord,
+    StorageGcJobData,
+    StoragePinJobData,
+    StoragePinResult,
+    StorageProvider,
 } from './types.js';
+import { buildGatewayUrl, buildIpfsUri } from './utils.js';
 
 const provider = createStorageProvider();
 const retentionDays = Number(process.env.STORAGE_GC_RETENTION_DAYS || '30');

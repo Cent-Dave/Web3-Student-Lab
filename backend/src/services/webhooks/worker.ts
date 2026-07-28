@@ -1,11 +1,10 @@
 import { Job, Worker } from 'bullmq';
 import logger from '../../utils/logger.js';
-import { redisConnection } from '../../utils/redis.js';
-import { canonicalizeWebhookPayload, buildSignedWebhookHeaders } from './signature.js';
 import {
-  webhookDeadLetterQueue,
-  WEBHOOK_DELIVERY_QUEUE_NAME,
+    WEBHOOK_DELIVERY_QUEUE_NAME,
+    webhookDeadLetterQueue,
 } from './queue.js';
+import { buildSignedWebhookHeaders, canonicalizeWebhookPayload } from './signature.js';
 import type { DeadLetterWebhookJob, WebhookDeliveryJobData } from './types.js';
 
 const requestTimeoutMs = Number(process.env.WEBHOOK_REQUEST_TIMEOUT_MS || '10000');
