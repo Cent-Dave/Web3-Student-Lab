@@ -1,9 +1,12 @@
-import dotenv from 'dotenv';
 import { Redis } from 'ioredis';
+import { getEnvVar } from './checkEnv.js';
+import logger from './logger.js';
 
-// dotenv.config(); // Skip in Docker Compose - use environment variables instead
+const redisUrl = getEnvVar('REDIS_URL', 'redis://localhost:6379');
 
-const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+if (!process.env.REDIS_URL) {
+  logger.warn('⚠️  REDIS_URL is not set, defaulting to redis://localhost:6379. Cache will not work if Redis is not running locally.');
+}
 
 const createTestRedisClient = () => {
   const memoryStore = new Map<string, string>();
