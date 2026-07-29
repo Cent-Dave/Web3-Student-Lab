@@ -4,7 +4,6 @@ import { Parser } from 'json2csv';
 import path from 'path';
 import prisma from '../db/index.js';
 import logger from '../utils/logger.js';
-import { redisConnection } from '../utils/redis.js';
 import { broadcastEvent } from '../websocket/gateway.js';
 
 const EXPORTS_DIR = path.join(process.cwd(), 'exports');
