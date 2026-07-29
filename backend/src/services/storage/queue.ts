@@ -34,6 +34,7 @@ const createQueue = <T>(name: string, defaultJobOptions?: JobsOptions) => {
   const redisUrl = new URL(process.env.REDIS_URL || (() => {
     throw new Error('REDIS_URL environment variable is required');
   })());
+  const redisUrl = new URL(process.env.REDIS_URL || 'redis://localhost:6379');
 
   return new Queue<T>(name, {
     connection: {
