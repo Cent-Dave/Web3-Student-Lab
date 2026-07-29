@@ -1,4 +1,3 @@
-// @ts-nocheck
 interface ValidationDiagnostic {
   line: number;
   column: number;
@@ -24,7 +23,9 @@ export class RustValidationService {
     lines.forEach((line, index) => {
       const lineNumber = index + 1;
       for (let columnIndex = 0; columnIndex < line.length; columnIndex += 1) {
-        const char = line[columnIndex];
+        const char = line[columnIndex] ?? '';
+        if (!char) continue;
+
         if (Object.prototype.hasOwnProperty.call(pairs, char)) {
           stack.push({ char, line: lineNumber, column: columnIndex + 1 });
           continue;
@@ -43,7 +44,7 @@ export class RustValidationService {
             continue;
           }
 
-          const expected = pairs[opener.char];
+          const expected = pairs[opener.char] ?? '';
           if (expected !== char) {
             diagnostics.push({
               line: lineNumber,

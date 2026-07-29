@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Router, Request, Response } from 'express';
 import {
   filterTransactions,
@@ -6,6 +5,7 @@ import {
   buildExplorerLink,
 } from '../../services/blockExplorer.service.js';
 import logger from '../../utils/logger.js';
+import { getQueryString, getQueryInt } from '../../utils/queryParams.js';
 
 const router = Router();
 
@@ -15,9 +15,13 @@ const router = Router();
  */
 router.get('/explorer/snapshot', async (req: Request, res: Response) => {
   try {
-    const limit = req.query.limit ? Number(req.query.limit) : 25;
-    const seed = req.query.seed ? Number(req.query.seed) : undefined;
-    const snapshot = await getExplorerSnapshot({ limit, seed });
+    const limit = req.query.limit !== undefined ? getQueryInt(req.query.limit, 25) : 25;
+    const seed =
+      req.query.seed !== undefined ? getQueryInt(req.query.seed, NaN) : undefined;
+    const snapshot = await getExplorerSnapshot({
+      limit,
+      seed: seed !== undefined && !Number.isNaN(seed) ? seed : undefined,
+    });
     res.json({ status: 'success', data: snapshot });
   } catch (error) {
     logger.error('Block explorer snapshot failed', { error });
@@ -31,7 +35,7 @@ router.get('/explorer/snapshot', async (req: Request, res: Response) => {
  */
 router.get('/explorer/search', async (req: Request, res: Response) => {
   try {
-    const query = String(req.query.q ?? '');
+    const query = getQueryString(req.query.q);
     const snapshot = await getExplorerSnapshot({ limit: 50 });
     const filtered = filterTransactions(snapshot.transactions, query);
     res.json({
@@ -53,8 +57,9 @@ router.get('/explorer/search', async (req: Request, res: Response) => {
  * @desc Build external explorer URL for a transaction hash
  */
 router.get('/explorer/link/:hash', (req: Request, res: Response) => {
-  const network = req.query.network === 'public' ? 'public' : 'testnet';
-  const link = buildExplorerLink(req.params.hash, network);
+  const network = getQueryString(req.query.network) === 'public' ? 'public' : 'testnet';
+  const hash = getQueryString(req.params.hash);
+  const link = buildExplorerLink(hash, network);
   res.json({ status: 'success', data: { link } });
 });
 

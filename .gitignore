@@ -51,3 +51,11 @@ frontend/tsc_errors.log
 frontend/tsc_errors_new.log
 frontend/tsc_errors_new2.log
 contracts/test_output_activity.txt
+
+# build / compiler scratch output (do not commit)
+*.log
+backend/ts_errors.txt
+contracts/check_output*.json
+contracts/errors*.json
+contracts/test_output*.txt
+contracts/check_errors.txt

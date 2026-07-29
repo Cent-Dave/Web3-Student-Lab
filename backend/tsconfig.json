@@ -40,16 +40,11 @@
   "include": ["src/**/*", "src/generated/**/*"],
   "exclude": [
     "node_modules",
+    // Follow-up: these still depend on missing Prisma User/Subscription* models.
+    // Files also marked // @ts-nocheck temporarily until schema support lands.
     "src/controllers/subscription.controller.ts",
     "src/routes/subscriptions.routes.ts",
     "src/services/subscription.service.ts",
-    "src/middleware/auth.ts",
-    "src/routes/canvas.routes.ts",
-    "src/routes/courses.ts",
-    "src/routes/freelance.ts",
-    "src/routes/subscriptions.ts",
-    "src/routes/search/**/*",
-    "src/search/**/*",
-    "src/services/bff.service.ts"
+    "src/middleware/auth.ts"
   ]
 }

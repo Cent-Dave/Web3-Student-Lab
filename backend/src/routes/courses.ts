@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Router } from 'express';
 import { cacheMiddleware } from '../cache/CacheMiddleware.js';
 import { invalidateAllCourses, invalidateCourseCache } from '../cache/CacheInvalidation.js';
@@ -6,11 +5,22 @@ import { cacheTTL } from '../config/redis.config.js';
 import prisma from '../db/index.js';
 import { auditAction } from '../middleware/audit.js';
 import { createNotification } from '../notifications/index.js';
+import { getQueryString } from '../utils/queryParams.js';
 
 const router = Router();
 
+type CourseView = {
+  id: string;
+  title: string;
+  description: string;
+  instructor: string;
+  credits: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 // Robust Mock Database for 100% Demo Uptime
-let courses = [
+let courses: CourseView[] = [
   {
     id: 'cm1yxxxx-intro',
     title: 'Introduction to Web3 and Stellar',
@@ -43,6 +53,28 @@ let courses = [
   },
 ];
 
+function toCourseView(course: {
+  id: string;
+  title: string;
+  description: string | null;
+  instructor: string;
+  credits: number;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}): CourseView {
+  return {
+    id: course.id,
+    title: course.title,
+    description: course.description ?? '',
+    instructor: course.instructor,
+    credits: course.credits,
+    createdAt:
+      typeof course.createdAt === 'string' ? course.createdAt : course.createdAt.toISOString(),
+    updatedAt:
+      typeof course.updatedAt === 'string' ? course.updatedAt : course.updatedAt.toISOString(),
+  };
+}
+
 async function ensureSeedCourses() {
   try {
     const count = await prisma.course.count();
@@ -52,11 +84,7 @@ async function ensureSeedCourses() {
           createdAt: 'asc',
         },
       });
-      courses = persistedCourses.map((course) => ({
-        ...course,
-        createdAt: course.createdAt.toISOString(),
-        updatedAt: course.updatedAt.toISOString(),
-      }));
+      courses = persistedCourses.map(toCourseView);
       return courses;
     }
 
@@ -79,7 +107,7 @@ async function ensureSeedCourses() {
 }
 
 // GET /api/courses - Get all courses
-router.get('/', cacheMiddleware({ ttl: cacheTTL.courses.list }), async (req, res) => {
+router.get('/', cacheMiddleware({ ttl: cacheTTL.courses.list }), async (_req, res) => {
   try {
     res.json(await ensureSeedCourses());
   } catch {
@@ -92,11 +120,11 @@ router.get(
   '/:id',
   cacheMiddleware({
     ttl: cacheTTL.courses.detail,
-    keyGenerator: (req) => `course:${req.params.id}`,
+    keyGenerator: (req) => `course:${getQueryString(req.params.id)}`,
   }),
   async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = getQueryString(req.params.id);
       const availableCourses = await ensureSeedCourses();
       const course = availableCourses.find((c) => c.id === id);
 
@@ -120,10 +148,10 @@ router.post('/', auditAction('CREATE_COURSE', 'Course'), async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const newCourse = {
+    const newCourse: CourseView = {
       id: `course-${Date.now()}`,
       title,
-      description,
+      description: description ?? '',
       instructor,
       credits: credits || 3,
       createdAt: new Date().toISOString(),
@@ -140,11 +168,7 @@ router.post('/', auditAction('CREATE_COURSE', 'Course'), async (req, res) => {
       },
     });
 
-    courses.push({
-      ...createdCourse,
-      createdAt: createdCourse.createdAt.toISOString(),
-      updatedAt: createdCourse.updatedAt.toISOString(),
-    });
+    courses.push(toCourseView(createdCourse));
     await invalidateAllCourses();
 
     // Notify students about the new course
@@ -166,7 +190,7 @@ router.post('/', auditAction('CREATE_COURSE', 'Course'), async (req, res) => {
 // PUT /api/courses/:id - Update a course
 router.put('/:id', auditAction('UPDATE_COURSE', 'Course'), async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = getQueryString(req.params.id);
     const { title, description, instructor, credits } = req.body;
 
     await ensureSeedCourses();
@@ -224,7 +248,7 @@ router.put('/:id', auditAction('UPDATE_COURSE', 'Course'), async (req, res) => {
 // DELETE /api/courses/:id - Delete a course
 router.delete('/:id', auditAction('DELETE_COURSE', 'Course'), async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = getQueryString(req.params.id);
 
     courses = courses.filter((c) => c.id !== id);
     await prisma.course.delete({

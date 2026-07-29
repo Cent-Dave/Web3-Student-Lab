@@ -157,6 +157,9 @@ router.post('/cancel', async (req: Request, res: Response) => {
     }
 
     const subscription = subscriptions[subIndex];
+    if (!subscription) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
     if (subscription.status === 'Cancelled') {
       return res.status(400).json({ error: 'Already cancelled' });
     }
@@ -170,11 +173,12 @@ router.post('/cancel', async (req: Request, res: Response) => {
           )
         : 0;
 
-    subscriptions[subIndex] = {
+    const cancelled: MockSubscription = {
       ...subscription,
       status: 'Cancelled',
       cancelled_at: now,
     };
+    subscriptions[subIndex] = cancelled;
 
     res.json({ refund_amount: refund });
   } catch {
@@ -196,17 +200,21 @@ router.post('/pause', async (req: Request, res: Response) => {
     }
 
     const subscription = subscriptions[subIndex];
+    if (!subscription) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
     if (subscription.status === 'Paused') {
       return res.status(400).json({ error: 'Already paused' });
     }
 
     const now = Math.floor(Date.now() / 1000);
 
-    subscriptions[subIndex] = {
+    const paused: MockSubscription = {
       ...subscription,
       status: 'Paused',
       pause_start: now,
     };
+    subscriptions[subIndex] = paused;
 
     res.json(subscriptions[subIndex]);
   } catch {
@@ -228,6 +236,9 @@ router.post('/resume', async (req: Request, res: Response) => {
     }
 
     const subscription = subscriptions[subIndex];
+    if (!subscription) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
     if (subscription.status !== 'Paused') {
       return res.status(400).json({ error: 'Subscription is not paused' });
     }
@@ -239,12 +250,13 @@ router.post('/resume', async (req: Request, res: Response) => {
       subscription.frequency +
       pauseDuration;
 
-    subscriptions[subIndex] = {
+    const resumed: MockSubscription = {
       ...subscription,
       status: 'Active',
       next_payment: nextPayment,
       pause_start: 0,
     };
+    subscriptions[subIndex] = resumed;
 
     res.json(subscriptions[subIndex]);
   } catch {
