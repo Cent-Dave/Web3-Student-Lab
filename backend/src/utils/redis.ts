@@ -1,3 +1,4 @@
+import { Redis } from 'ioredis';
 /**
  * Centralized Redis client exports.
  *
@@ -9,6 +10,10 @@
 
 import redisClient from '../cache/RedisClient.js';
 
+const redisUrl = process.env.REDIS_URL;
+if (!redisUrl) {
+  throw new Error('REDIS_URL environment variable is required');
+}
 // Re-export the main client for backward compatibility
 export const redisConnection = redisClient.getClient();
 

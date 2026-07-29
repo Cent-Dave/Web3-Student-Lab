@@ -38,7 +38,10 @@ export const deliverWebhook = async (
 
   const serializedPayload = canonicalizeWebhookPayload(payload);
   const timestamp = new Date().toISOString();
-  const secret = job.data.destination.secret || process.env.WEBHOOK_SIGNING_SECRET || 'webhook-secret';
+  const secret = job.data.destination.secret || process.env.WEBHOOK_SIGNING_SECRET;
+  if (!secret) {
+    throw new Error('WEBHOOK_SIGNING_SECRET environment variable is required');
+  }
   const headers = buildSignedWebhookHeaders({
     deliveryId: job.data.deliveryId,
     eventType: job.data.event.type,
@@ -152,9 +155,15 @@ export const startWebhookWorker = (): Worker<WebhookDeliveryJobData> | null => {
     },
     {
       connection: {
-        host: new URL(process.env.REDIS_URL || 'redis://localhost:6379').hostname,
-        port: Number(new URL(process.env.REDIS_URL || 'redis://localhost:6379').port) || 6379,
-        password: new URL(process.env.REDIS_URL || 'redis://localhost:6379').password || undefined,
+        host: new URL(process.env.REDIS_URL || (() => {
+          throw new Error('REDIS_URL environment variable is required');
+        })()).hostname,
+        port: Number(new URL(process.env.REDIS_URL || (() => {
+          throw new Error('REDIS_URL environment variable is required');
+        })()).port) || 6379,
+        password: new URL(process.env.REDIS_URL || (() => {
+          throw new Error('REDIS_URL environment variable is required');
+        })()).password || undefined,
         maxRetriesPerRequest: null,
       },
       concurrency: Number(process.env.WEBHOOK_WORKER_CONCURRENCY || '25'),
