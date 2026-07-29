@@ -109,7 +109,10 @@ jobs:
         run: cargo fmt --check
       - name: Clippy Check
         working-directory: ./contracts
-        run: cargo clippy
+        run: cargo clippy --workspace
+      - name: Workspace Check
+        working-directory: ./contracts
+        run: cargo check --workspace
       - name: Build
         working-directory: ./contracts
-        run: cargo build
+        run: cargo build --workspace

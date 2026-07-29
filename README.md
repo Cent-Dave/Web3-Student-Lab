@@ -52,7 +52,7 @@ The application is fully deployed and accessible online:
 
 ```text
 web3-student-lab/
-├── contracts/            # Platform smart contracts (e.g., on-chain certificates)
+├── contracts/            # Soroban Cargo workspace (see docs/contracts/WORKSPACE.md)
 ├── frontend/             # Next.js/React frontend application
 │   └── src/app/
 │       ├── simulator/    # Visual blockchain tools

@@ -1,8 +1,8 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, panic_with_error, Address, Bytes, BytesN,
-    Env,
+    contract, contracterror, contractimpl, contracttype, panic_with_error, xdr::ToXdr, Address,
+    Bytes, BytesN, Env,
 };
 
 #[contracttype]
@@ -72,7 +72,7 @@ impl ZkProofVerifierContract {
         }
 
         let expected = expected_proof_hash(&env, &student, &public_input_hash, &nullifier);
-        let provided = env.crypto().sha256(&proof);
+        let provided: BytesN<32> = env.crypto().sha256(&proof).into();
 
         if provided != expected {
             panic_with_error!(&env, VerifierError::InvalidProof);
@@ -126,7 +126,7 @@ fn expected_proof_hash(
     payload.append(&Bytes::from_array(env, &vk_hash.to_array()));
     payload.append(&Bytes::from_array(env, &public_input_hash.to_array()));
     payload.append(&Bytes::from_array(env, &nullifier.to_array()));
-    payload.append(&student.serialize(env));
+    payload.append(&student.clone().to_xdr(env));
 
     env.crypto().sha256(&payload).into()
 }
@@ -147,7 +147,7 @@ mod tests {
         payload.append(&Bytes::from_array(env, &vk_hash.to_array()));
         payload.append(&Bytes::from_array(env, &public_input_hash.to_array()));
         payload.append(&Bytes::from_array(env, &nullifier.to_array()));
-        payload.append(&student.serialize(env));
+        payload.append(&student.clone().to_xdr(env));
         payload
     }
 
