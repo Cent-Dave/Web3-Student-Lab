@@ -181,8 +181,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # Liveness probe — lightweight, no dependency calls
+    # In Kubernetes, use separate livenessProbe (on /health/live) and
+    # readinessProbe (on /health/ready)
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/health/ready', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
       interval: 30s
       timeout: 10s
       retries: 3
