@@ -138,7 +138,14 @@ impl<'a> Setup<'a> {
         let sc = StateChannelContractClient::new(&env, &sc_id);
         sc.initialize(&admin);
 
-        Setup { env, sc, token: token_id, admin, a, b }
+        Setup {
+            env,
+            sc,
+            token: token_id,
+            admin,
+            a,
+            b,
+        }
     }
 
     /// Open a channel with 10_000 each, 60-second challenge period. Returns channel ID.
@@ -202,9 +209,14 @@ fn test_open_channel_increments_ids() {
 fn test_open_channel_negative_deposit_panics() {
     let s = Setup::new();
     s.sc.open_channel(
-        &s.a.address, &s.b.address,
-        &s.a.pubkey(&s.env), &s.b.pubkey(&s.env),
-        &s.token, &-1_i128, &10_000_i128, &60_u64,
+        &s.a.address,
+        &s.b.address,
+        &s.a.pubkey(&s.env),
+        &s.b.pubkey(&s.env),
+        &s.token,
+        &-1_i128,
+        &10_000_i128,
+        &60_u64,
     );
 }
 
@@ -217,7 +229,15 @@ fn test_submit_state_valid_transitions_to_closing() {
     let s = Setup::new();
     let id = s.open();
     let (sig_a, sig_b) = sign_state(&s.env, &s.a, &s.b, id, 1, 12_000, 8_000);
-    s.sc.submit_state(&s.a.address, &id, &1_u64, &12_000_i128, &8_000_i128, &sig_a, &sig_b);
+    s.sc.submit_state(
+        &s.a.address,
+        &id,
+        &1_u64,
+        &12_000_i128,
+        &8_000_i128,
+        &sig_a,
+        &sig_b,
+    );
     let ch = s.sc.get_channel(&id);
     assert_eq!(ch.status, ChannelStatus::Closing);
     assert_eq!(ch.nonce, 1);
@@ -232,7 +252,15 @@ fn test_submit_state_bad_signature_panics() {
     let id = s.open();
     // Sign with wrong nonce so sig is invalid for the submitted state.
     let (sig_a, sig_b) = sign_state(&s.env, &s.a, &s.b, id, 99, 12_000, 8_000);
-    s.sc.submit_state(&s.a.address, &id, &1_u64, &12_000_i128, &8_000_i128, &sig_a, &sig_b);
+    s.sc.submit_state(
+        &s.a.address,
+        &id,
+        &1_u64,
+        &12_000_i128,
+        &8_000_i128,
+        &sig_a,
+        &sig_b,
+    );
 }
 
 #[test]
@@ -242,7 +270,15 @@ fn test_submit_state_balance_invariant_panics() {
     let id = s.open();
     // bal_a + bal_b = 21_000 ≠ 20_000
     let (sig_a, sig_b) = sign_state(&s.env, &s.a, &s.b, id, 1, 12_000, 9_000);
-    s.sc.submit_state(&s.a.address, &id, &1_u64, &12_000_i128, &9_000_i128, &sig_a, &sig_b);
+    s.sc.submit_state(
+        &s.a.address,
+        &id,
+        &1_u64,
+        &12_000_i128,
+        &9_000_i128,
+        &sig_a,
+        &sig_b,
+    );
 }
 
 #[test]
@@ -252,7 +288,15 @@ fn test_submit_state_non_participant_panics() {
     let id = s.open();
     let (sig_a, sig_b) = sign_state(&s.env, &s.a, &s.b, id, 1, 10_000, 10_000);
     let rogue = Address::generate(&s.env);
-    s.sc.submit_state(&rogue, &id, &1_u64, &10_000_i128, &10_000_i128, &sig_a, &sig_b);
+    s.sc.submit_state(
+        &rogue,
+        &id,
+        &1_u64,
+        &10_000_i128,
+        &10_000_i128,
+        &sig_a,
+        &sig_b,
+    );
 }
 
 #[test]
@@ -261,7 +305,15 @@ fn test_submit_state_on_settled_channel_panics() {
     let s = Setup::new();
     let id = s.open();
     let (sig_a, sig_b) = sign_state(&s.env, &s.a, &s.b, id, 1, 10_000, 10_000);
-    s.sc.submit_state(&s.a.address, &id, &1_u64, &10_000_i128, &10_000_i128, &sig_a, &sig_b);
+    s.sc.submit_state(
+        &s.a.address,
+        &id,
+        &1_u64,
+        &10_000_i128,
+        &10_000_i128,
+        &sig_a,
+        &sig_b,
+    );
     // Advance past challenge period and settle.
     s.env.ledger().set(LedgerInfo {
         timestamp: s.env.ledger().timestamp() + 120,
@@ -276,7 +328,15 @@ fn test_submit_state_on_settled_channel_panics() {
     s.sc.settle(&id);
     // Now try to submit again — must panic.
     let (sig_a2, sig_b2) = sign_state(&s.env, &s.a, &s.b, id, 2, 10_000, 10_000);
-    s.sc.submit_state(&s.a.address, &id, &2_u64, &10_000_i128, &10_000_i128, &sig_a2, &sig_b2);
+    s.sc.submit_state(
+        &s.a.address,
+        &id,
+        &2_u64,
+        &10_000_i128,
+        &10_000_i128,
+        &sig_a2,
+        &sig_b2,
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -290,11 +350,27 @@ fn test_challenge_with_higher_nonce_overrides() {
 
     // Party A submits nonce=1 (possibly stale).
     let (sig_a1, sig_b1) = sign_state(&s.env, &s.a, &s.b, id, 1, 15_000, 5_000);
-    s.sc.submit_state(&s.a.address, &id, &1_u64, &15_000_i128, &5_000_i128, &sig_a1, &sig_b1);
+    s.sc.submit_state(
+        &s.a.address,
+        &id,
+        &1_u64,
+        &15_000_i128,
+        &5_000_i128,
+        &sig_a1,
+        &sig_b1,
+    );
 
     // Party B challenges with nonce=2 (the real latest state).
     let (sig_a2, sig_b2) = sign_state(&s.env, &s.a, &s.b, id, 2, 12_000, 8_000);
-    s.sc.challenge(&s.b.address, &id, &2_u64, &12_000_i128, &8_000_i128, &sig_a2, &sig_b2);
+    s.sc.challenge(
+        &s.b.address,
+        &id,
+        &2_u64,
+        &12_000_i128,
+        &8_000_i128,
+        &sig_a2,
+        &sig_b2,
+    );
 
     let ch = s.sc.get_channel(&id);
     assert_eq!(ch.nonce, 2);
@@ -308,10 +384,26 @@ fn test_challenge_with_same_nonce_panics() {
     let s = Setup::new();
     let id = s.open();
     let (sig_a, sig_b) = sign_state(&s.env, &s.a, &s.b, id, 1, 10_000, 10_000);
-    s.sc.submit_state(&s.a.address, &id, &1_u64, &10_000_i128, &10_000_i128, &sig_a, &sig_b);
+    s.sc.submit_state(
+        &s.a.address,
+        &id,
+        &1_u64,
+        &10_000_i128,
+        &10_000_i128,
+        &sig_a,
+        &sig_b,
+    );
     // Same nonce — must be rejected.
     let (sig_a2, sig_b2) = sign_state(&s.env, &s.a, &s.b, id, 1, 10_000, 10_000);
-    s.sc.challenge(&s.b.address, &id, &1_u64, &10_000_i128, &10_000_i128, &sig_a2, &sig_b2);
+    s.sc.challenge(
+        &s.b.address,
+        &id,
+        &1_u64,
+        &10_000_i128,
+        &10_000_i128,
+        &sig_a2,
+        &sig_b2,
+    );
 }
 
 #[test]
@@ -320,9 +412,25 @@ fn test_challenge_with_lower_nonce_panics() {
     let s = Setup::new();
     let id = s.open();
     let (sig_a, sig_b) = sign_state(&s.env, &s.a, &s.b, id, 5, 10_000, 10_000);
-    s.sc.submit_state(&s.a.address, &id, &5_u64, &10_000_i128, &10_000_i128, &sig_a, &sig_b);
+    s.sc.submit_state(
+        &s.a.address,
+        &id,
+        &5_u64,
+        &10_000_i128,
+        &10_000_i128,
+        &sig_a,
+        &sig_b,
+    );
     let (sig_a2, sig_b2) = sign_state(&s.env, &s.a, &s.b, id, 3, 10_000, 10_000);
-    s.sc.challenge(&s.b.address, &id, &3_u64, &10_000_i128, &10_000_i128, &sig_a2, &sig_b2);
+    s.sc.challenge(
+        &s.b.address,
+        &id,
+        &3_u64,
+        &10_000_i128,
+        &10_000_i128,
+        &sig_a2,
+        &sig_b2,
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -334,7 +442,15 @@ fn test_settle_after_challenge_period_pays_balances() {
     let s = Setup::new();
     let id = s.open();
     let (sig_a, sig_b) = sign_state(&s.env, &s.a, &s.b, id, 1, 14_000, 6_000);
-    s.sc.submit_state(&s.a.address, &id, &1_u64, &14_000_i128, &6_000_i128, &sig_a, &sig_b);
+    s.sc.submit_state(
+        &s.a.address,
+        &id,
+        &1_u64,
+        &14_000_i128,
+        &6_000_i128,
+        &sig_a,
+        &sig_b,
+    );
 
     s.env.ledger().set(LedgerInfo {
         timestamp: s.env.ledger().timestamp() + 120,
@@ -349,8 +465,14 @@ fn test_settle_after_challenge_period_pays_balances() {
 
     s.sc.settle(&id);
     assert_eq!(s.sc.get_channel(&id).status, ChannelStatus::Settled);
-    assert_eq!(token::Client::new(&s.env, &s.token).balance(&s.a.address), 54_000); // 50_000 - 10_000 + 14_000
-    assert_eq!(token::Client::new(&s.env, &s.token).balance(&s.b.address), 46_000); // 50_000 - 10_000 + 6_000
+    assert_eq!(
+        token::Client::new(&s.env, &s.token).balance(&s.a.address),
+        54_000
+    ); // 50_000 - 10_000 + 14_000
+    assert_eq!(
+        token::Client::new(&s.env, &s.token).balance(&s.b.address),
+        46_000
+    ); // 50_000 - 10_000 + 6_000
 }
 
 #[test]
@@ -359,7 +481,15 @@ fn test_settle_before_challenge_expiry_panics() {
     let s = Setup::new();
     let id = s.open();
     let (sig_a, sig_b) = sign_state(&s.env, &s.a, &s.b, id, 1, 10_000, 10_000);
-    s.sc.submit_state(&s.a.address, &id, &1_u64, &10_000_i128, &10_000_i128, &sig_a, &sig_b);
+    s.sc.submit_state(
+        &s.a.address,
+        &id,
+        &1_u64,
+        &10_000_i128,
+        &10_000_i128,
+        &sig_a,
+        &sig_b,
+    );
     s.sc.settle(&id); // challenge period not expired
 }
 
@@ -382,8 +512,14 @@ fn test_cooperative_close_settles_immediately() {
     let (sig_a, sig_b) = sign_state(&s.env, &s.a, &s.b, id, 7, 11_000, 9_000);
     s.sc.cooperative_close(&id, &7_u64, &11_000_i128, &9_000_i128, &sig_a, &sig_b);
     assert_eq!(s.sc.get_channel(&id).status, ChannelStatus::Settled);
-    assert_eq!(token::Client::new(&s.env, &s.token).balance(&s.a.address), 51_000);
-    assert_eq!(token::Client::new(&s.env, &s.token).balance(&s.b.address), 49_000);
+    assert_eq!(
+        token::Client::new(&s.env, &s.token).balance(&s.a.address),
+        51_000
+    );
+    assert_eq!(
+        token::Client::new(&s.env, &s.token).balance(&s.b.address),
+        49_000
+    );
 }
 
 #[test]
@@ -412,7 +548,8 @@ fn test_cooperative_close_balance_invariant_panics() {
 #[test]
 fn test_compute_state_hash_matches_off_chain() {
     let s = Setup::new();
-    let on_chain = s.sc.compute_state_hash(&1_u32, &5_u64, &12_000_i128, &8_000_i128);
+    let on_chain =
+        s.sc.compute_state_hash(&1_u32, &5_u64, &12_000_i128, &8_000_i128);
     let off_chain = state_hash(&s.env, 1, 5, 12_000, 8_000);
     assert_eq!(on_chain, off_chain);
 }
@@ -425,7 +562,8 @@ fn test_domain_tag_changes_hash_output() {
     // different domain/version can't be replayed as a valid state-channel
     // signature here.
     let s = Setup::new();
-    let tagged = s.sc.compute_state_hash(&1_u32, &5_u64, &12_000_i128, &8_000_i128);
+    let tagged =
+        s.sc.compute_state_hash(&1_u32, &5_u64, &12_000_i128, &8_000_i128);
     let untagged = state_hash_without_domain_tag(&s.env, 1, 5, 12_000, 8_000);
     assert_ne!(tagged, untagged);
 }
@@ -442,5 +580,13 @@ fn test_signature_over_untagged_payload_rejected() {
     let bad_hash = state_hash_without_domain_tag(&s.env, id, 1, 12_000, 8_000);
     let sig_a = s.a.sign_with_env(&s.env, &bad_hash);
     let sig_b = s.b.sign_with_env(&s.env, &bad_hash);
-    s.sc.submit_state(&s.a.address, &id, &1_u64, &12_000_i128, &8_000_i128, &sig_a, &sig_b);
+    s.sc.submit_state(
+        &s.a.address,
+        &id,
+        &1_u64,
+        &12_000_i128,
+        &8_000_i128,
+        &sig_a,
+        &sig_b,
+    );
 }
