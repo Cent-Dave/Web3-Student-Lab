@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import config from '../config/env.config.js';
 import { getWorkspaceId } from '../middleware/WorkspaceContext.js';
 import { getDatabaseRoleForOperation } from './requestContext.js';
+import logger from '../utils/logger.js';
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -135,7 +136,14 @@ const routingExtension = {
         if (dbRole === 'read') {
           const modelClient = readPrisma[model as keyof typeof readPrisma];
           if (modelClient && typeof modelClient[operation as keyof typeof modelClient] === 'function') {
-            return (modelClient[operation as keyof typeof modelClient] as any)(args);
+            try {
+              return (modelClient[operation as keyof typeof modelClient] as any)(args);
+            } catch (error) {
+              logger.warn(
+                `Read replica query failed for ${model}.${operation}, falling back to primary:`,
+                error
+              );
+            }
           }
         }
 
