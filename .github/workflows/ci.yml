@@ -113,3 +113,12 @@ jobs:
       - name: Build
         working-directory: ./contracts
         run: cargo build
+      - name: Test (unit + property/fuzz)
+        working-directory: ./contracts
+        # Property tests use a fixed, bounded case count (see
+        # ProptestConfig::with_cases in payment_gateway.rs) so CI runtime
+        # stays short and predictable. A failing case is persisted by
+        # proptest to contracts/proptest-regressions/*.txt, which must
+        # be committed so the failure is deterministically reproducible;
+        # see docs/contracts/FUZZING.md.
+        run: cargo test --lib

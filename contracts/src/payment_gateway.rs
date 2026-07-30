@@ -311,6 +311,8 @@ mod tests {
         Address, BytesN, Env, String,
     };
 
+    extern crate std;
+
     struct Fixture {
         env: Env,
         admin: Address,
@@ -553,5 +555,132 @@ mod tests {
         );
         f.client
             .open_dispute(&id, &stranger, &String::from_str(&f.env, "invalid"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Property test: accounting invariant (#904)
+    //
+    // For any escrowed amount and any dispute resolution, the gateway must
+    // neither create nor destroy tokens: whatever enters escrow must end up
+    // with exactly one of the payer or merchant, and the contract's own
+    // balance must return to zero. See docs/contracts/FUZZING.md for how to
+    // reproduce a failing case locally.
+    // -----------------------------------------------------------------------
+
+    proptest::proptest! {
+        #![proptest_config(proptest::prelude::ProptestConfig::with_cases(32))]
+
+        #[test]
+        fn prop_dispute_resolution_conserves_tokens(
+            amount in 1_i128..=4_000_i128,
+            refund_to_payer in proptest::bool::ANY,
+        ) {
+            let f = setup();
+            let id = payment_id(&f.env, 42);
+            let token = TokenClient::new(&f.env, &f.token);
+
+            let payer_before = token.balance(&f.payer);
+            let merchant_before = token.balance(&f.merchant);
+
+            f.client.process_payment(
+                &id,
+                &f.payer,
+                &f.merchant,
+                &amount,
+                &String::from_str(&f.env, "prop"),
+            );
+            proptest::prop_assert_eq!(token.balance(&f.client.address), amount);
+            proptest::prop_assert_eq!(token.balance(&f.payer), payer_before - amount);
+
+            f.client
+                .open_dispute(&id, &f.payer, &String::from_str(&f.env, "prop dispute"));
+
+            let decision = if refund_to_payer {
+                DisputeDecision::RefundPayer
+            } else {
+                DisputeDecision::ReleaseMerchant
+            };
+            f.client
+                .resolve_dispute(&id, &decision, &String::from_str(&f.env, "prop resolved"));
+
+            let payer_after = token.balance(&f.payer);
+            let merchant_after = token.balance(&f.merchant);
+
+            // No funds created or destroyed by the escrow round-trip.
+            proptest::prop_assert_eq!(token.balance(&f.client.address), 0);
+            proptest::prop_assert_eq!(
+                payer_after + merchant_after,
+                payer_before + merchant_before
+            );
+
+            // Exactly the disputed amount moved to the correct party.
+            if refund_to_payer {
+                proptest::prop_assert_eq!(payer_after, payer_before);
+                proptest::prop_assert_eq!(merchant_after, merchant_before);
+            } else {
+                proptest::prop_assert_eq!(payer_after, payer_before - amount);
+                proptest::prop_assert_eq!(merchant_after, merchant_before + amount);
+            }
+
+            let record = f.client.get_payment(&id).unwrap();
+            proptest::prop_assert_eq!(
+                record.status,
+                if refund_to_payer {
+                    PaymentStatus::Refunded
+                } else {
+                    PaymentStatus::Released
+                }
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Property test: authorization invariant (#904)
+    //
+    // For any escrowed amount, only the actual payer or merchant on that
+    // specific payment may open a dispute; every other address must be
+    // rejected, regardless of amount. See docs/contracts/FUZZING.md for how
+    // to reproduce a failing case locally.
+    // -----------------------------------------------------------------------
+
+    proptest::proptest! {
+        #![proptest_config(proptest::prelude::ProptestConfig::with_cases(32))]
+
+        #[test]
+        fn prop_only_payer_or_merchant_can_open_dispute(amount in 1_i128..=4_000_i128) {
+            let f = setup();
+            let id = payment_id(&f.env, 99);
+            f.client.process_payment(
+                &id,
+                &f.payer,
+                &f.merchant,
+                &amount,
+                &String::from_str(&f.env, "prop-auth"),
+            );
+
+            let stranger = Address::generate(&f.env);
+            let stranger_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                f.client
+                    .open_dispute(&id, &stranger, &String::from_str(&f.env, "should fail"))
+            }));
+            proptest::prop_assert!(
+                stranger_result.is_err(),
+                "non-party address was able to open a dispute"
+            );
+
+            // The legitimate payer, on a fresh payment, is always allowed.
+            let id2 = payment_id(&f.env, 100);
+            f.client.process_payment(
+                &id2,
+                &f.payer,
+                &f.merchant,
+                &amount,
+                &String::from_str(&f.env, "prop-auth-2"),
+            );
+            let record = f
+                .client
+                .open_dispute(&id2, &f.payer, &String::from_str(&f.env, "legit dispute"));
+            proptest::prop_assert_eq!(record.status, PaymentStatus::Disputed);
+        }
     }
 }
