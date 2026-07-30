@@ -15,6 +15,7 @@ members = [
     "commit_reveal_rng",
     "quadratic_funding",
     "multisig_wallet_timelock",
+    "did_registry",
     "course_proxy",
     "auth_checker",
     "cross_chain_client",

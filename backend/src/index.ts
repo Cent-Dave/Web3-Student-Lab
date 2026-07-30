@@ -14,6 +14,7 @@ import { setRateLimitEnvOverrides } from './config/rateLimit.config.js';
 import { swaggerSpec } from './config/swagger.js';
 import prisma from './db/index.js';
 import { createGraphQLServer } from './graphql/server.js';
+import { scheduleBackupCron, startBackupWorker, stopBackupWorker } from './jobs/backup.worker.js';
 import { dbRoutingMiddleware } from './middleware/dbRouting.js';
 import { decryptionMiddleware } from './middleware/encryptionMiddleware.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -25,9 +26,7 @@ import { requireWorkspaceMiddleware } from './middleware/WorkspaceContext.js';
 import freelanceRoute from './routes/freelance.js';
 import routes from './routes/index.js';
 import { startWebhookWorker, stopWebhookWorker } from './services/webhooks/index.js';
-import { startBackupWorker, stopBackupWorker, scheduleBackupCron } from './jobs/backup.worker.js';
 import logger from './utils/logger.js';
-import { pubClient, redisConnection, subClient } from './utils/redis.js';
 import { getSentryErrorHandler, getSentryRequestHandler, initializeSentry } from './utils/sentry.js';
 import { initializeWebSocket } from './websocket/WebSocketServer.js';
 
@@ -173,7 +172,7 @@ async function setupGraphQL() {
       cors<cors.CorsRequest>({ origin: true }),
       graphqlQueryComplexityLimiter,
       expressMiddleware(graphqlServer, {
-        context: async () => ({ prisma, redis: redisConnection }),
+        context: async () => ({ prisma, redis: redisClient.getClient() }),
       })
     );
     logger.info('GraphQL server initialized at /graphql');
@@ -218,7 +217,6 @@ if (config.app.env !== 'test') {
     // Clean up connections
     await redisClient.disconnect();
     await prisma.$disconnect();
-    await Promise.all([redisConnection.quit(), pubClient.quit(), subClient.quit()]);
 
     server?.close(() => {
       logger.info('Server closed');
@@ -239,7 +237,6 @@ if (config.app.env !== 'test') {
     // Clean up connections
     await redisClient.disconnect();
     await prisma.$disconnect();
-    await Promise.all([redisConnection.quit(), pubClient.quit(), subClient.quit()]);
 
     server?.close(() => {
       logger.info('Server closed');

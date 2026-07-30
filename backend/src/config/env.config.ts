@@ -36,7 +36,7 @@ export const config = {
     readReplicaUrl: getEnvVar('DATABASE_READ_REPLICA_URL', ''),
   },
   redis: {
-    url: getEnvVar('REDIS_URL', 'redis://localhost:6379'),
+    url: getEnvVar('REDIS_URL'), // Required
   },
   security: {
     jwtSecret: getEnvVar('JWT_SECRET'), // Required

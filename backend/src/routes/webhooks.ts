@@ -14,7 +14,11 @@ import logger from '../utils/logger.js';
 const router = Router();
 
 const getIngestSecret = (): string => {
-  return process.env.WEBHOOK_INGEST_SECRET || process.env.WEBHOOK_SIGNING_SECRET || 'webhook-secret';
+  const secret = process.env.WEBHOOK_INGEST_SECRET || process.env.WEBHOOK_SIGNING_SECRET;
+  if (!secret) {
+    throw new Error('WEBHOOK_INGEST_SECRET or WEBHOOK_SIGNING_SECRET environment variable is required');
+  }
+  return secret;
 };
 
 const extractBody = (body: unknown): {
