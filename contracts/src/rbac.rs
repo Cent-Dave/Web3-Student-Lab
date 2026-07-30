@@ -1,5 +1,5 @@
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, Address, Env, Map, Symbol, Vec,
+    contract, contractimpl, contracttype, symbol_short, token, Address, Env, Map, Symbol, Vec,
 };
 
 #[contracttype]
@@ -12,6 +12,18 @@ pub enum DataKey {
     Delegation(Address, Permission),
     UserTemporaryPermissions(Address),
     TemporaryPermission(Address, Permission),
+    /// Distinct addresses that have co-signed off on `user` currently
+    /// satisfying a `RequireMultiSig` access condition.
+    ConditionApprovals(Address),
+    /// Verifier rating for `RequireVerifierRating`, set by an account
+    /// holding `Permission::UpdateVerifierRating`.
+    VerifierRating(Address),
+    /// Whether `user` has completed `course`, for `RequireCourseCompletion`.
+    CourseCompletion(Address, Symbol),
+    /// Token used for `RequireStakeAmount` deposits (admin-configured).
+    StakeToken,
+    /// Amount of `StakeToken` currently deposited by `user`.
+    StakedAmount(Address),
 }
 
 // Role hierarchy levels (higher number = more permissions)
@@ -134,7 +146,7 @@ impl RBACContract {
         }
 
         // Define default roles
-        let roles = Self::get_default_roles();
+        let roles = Self::get_default_roles(&env);
 
         // Store role definitions
         for (role_level, role) in roles.iter() {
@@ -475,14 +487,151 @@ impl RBACContract {
             .set(&DataKey::UserTemporaryPermissions(user), &active_temp_perms);
     }
 
+    /// Co-sign a `RequireMultiSig` condition attached to `user`'s role.
+    ///
+    /// `approver` must hold an active role of at least `Instructor` and
+    /// cannot approve their own conditions. Approvals accumulate as a set
+    /// of distinct addresses; `check_access_condition` compares the count
+    /// against the condition's required minimum.
+    pub fn approve_condition(env: Env, approver: Address, user: Address) {
+        approver.require_auth();
+
+        if approver == user {
+            panic!("Cannot approve your own condition");
+        }
+
+        let approver_role = Self::get_user_role(env.clone(), approver.clone());
+        if (approver_role.role.clone() as u32) < (RoleLevel::Instructor as u32) {
+            panic!("Approver role is insufficient to co-sign conditions");
+        }
+
+        let mut approvals = Self::get_condition_approvals(&env, &user);
+        if !approvals.contains(&approver) {
+            approvals.push_back(approver);
+        }
+        env.storage()
+            .persistent()
+            .set(&DataKey::ConditionApprovals(user), &approvals);
+    }
+
+    /// Clear accumulated multisig approvals for `user` (e.g. after a role
+    /// change, so stale approvals cannot silently carry over).
+    pub fn reset_condition_approvals(env: Env, caller: Address, user: Address) {
+        Self::require_permission(env.clone(), caller, Permission::GrantRole);
+        env.storage()
+            .persistent()
+            .remove(&DataKey::ConditionApprovals(user));
+    }
+
+    /// Set a user's verifier rating, used by `RequireVerifierRating`.
+    /// Restricted to callers holding `Permission::UpdateVerifierRating`.
+    pub fn set_verifier_rating(env: Env, caller: Address, user: Address, rating: u32) {
+        caller.require_auth();
+        Self::require_permission(env.clone(), caller, Permission::UpdateVerifierRating);
+        env.storage()
+            .persistent()
+            .set(&DataKey::VerifierRating(user), &rating);
+    }
+
+    /// Record whether `user` has completed `course`, used by
+    /// `RequireCourseCompletion`. Restricted to Instructor+ roles.
+    pub fn set_course_completion(
+        env: Env,
+        granter: Address,
+        user: Address,
+        course: Symbol,
+        completed: bool,
+    ) {
+        granter.require_auth();
+        let granter_role = Self::get_user_role(env.clone(), granter.clone());
+        if (granter_role.role.clone() as u32) < (RoleLevel::Instructor as u32) {
+            panic!("Only Instructor+ roles can record course completion");
+        }
+        env.storage()
+            .persistent()
+            .set(&DataKey::CourseCompletion(user, course), &completed);
+    }
+
+    /// Configure the token used for `RequireStakeAmount` deposits.
+    /// SuperAdmin only; may be called once.
+    pub fn configure_stake_token(env: Env, admin: Address, token: Address) {
+        admin.require_auth();
+        let admin_role = Self::get_user_role(env.clone(), admin);
+        if admin_role.role != RoleLevel::SuperAdmin {
+            panic!("Only SuperAdmin can configure the stake token");
+        }
+        if env.storage().instance().has(&DataKey::StakeToken) {
+            panic!("Stake token already configured");
+        }
+        env.storage().instance().set(&DataKey::StakeToken, &token);
+    }
+
+    /// Deposit `amount` of the configured stake token, increasing the
+    /// caller's staked balance checked by `RequireStakeAmount`.
+    pub fn deposit_stake(env: Env, user: Address, amount: i128) {
+        user.require_auth();
+        if amount <= 0 {
+            panic!("Stake amount must be positive");
+        }
+        let token_id: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::StakeToken)
+            .unwrap_or_else(|| panic!("Stake token not configured"));
+
+        token::Client::new(&env, &token_id).transfer(
+            &user,
+            &env.current_contract_address(),
+            &amount,
+        );
+
+        let staked: i128 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::StakedAmount(user.clone()))
+            .unwrap_or(0);
+        env.storage()
+            .persistent()
+            .set(&DataKey::StakedAmount(user), &(staked + amount));
+    }
+
+    /// Withdraw `amount` of previously staked tokens back to the caller.
+    pub fn withdraw_stake(env: Env, user: Address, amount: i128) {
+        user.require_auth();
+        if amount <= 0 {
+            panic!("Withdraw amount must be positive");
+        }
+        let staked: i128 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::StakedAmount(user.clone()))
+            .unwrap_or(0);
+        if amount > staked {
+            panic!("Insufficient staked balance");
+        }
+        let token_id: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::StakeToken)
+            .unwrap_or_else(|| panic!("Stake token not configured"));
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::StakedAmount(user.clone()), &(staked - amount));
+        token::Client::new(&env, &token_id).transfer(
+            &env.current_contract_address(),
+            &user,
+            &amount,
+        );
+    }
+
     // Private helper methods
 
-    fn get_default_roles() -> Map<RoleLevel, Role> {
-        let env = Env::default();
-        let mut roles = Map::new(&env);
+    fn get_default_roles(env: &Env) -> Map<RoleLevel, Role> {
+        let mut roles = Map::new(env);
 
         // Student role
-        let student_permissions = Vec::from_array(&env, []);
+        let student_permissions = Vec::from_array(env, []);
         roles.set(
             RoleLevel::Student,
             Role {
@@ -496,7 +645,7 @@ impl RBACContract {
 
         // Verifier role
         let verifier_permissions = Vec::from_array(
-            &env,
+            env,
             [Permission::VerifyCertificate, Permission::ViewAuditLogs],
         );
         roles.set(
@@ -512,7 +661,7 @@ impl RBACContract {
 
         // Instructor role
         let instructor_permissions = Vec::from_array(
-            &env,
+            env,
             [
                 Permission::MintCertificate,
                 Permission::UpdateMetadata,
@@ -533,7 +682,7 @@ impl RBACContract {
 
         // Auditor role
         let auditor_permissions = Vec::from_array(
-            &env,
+            env,
             [
                 Permission::ViewAuditLogs,
                 Permission::ExportData,
@@ -554,7 +703,7 @@ impl RBACContract {
 
         // Admin role
         let admin_permissions = Vec::from_array(
-            &env,
+            env,
             [
                 Permission::MintCertificate,
                 Permission::RevokeCertificate,
@@ -587,7 +736,7 @@ impl RBACContract {
 
         // SuperAdmin role
         let super_admin_permissions = Vec::from_array(
-            &env,
+            env,
             [
                 Permission::MintCertificate,
                 Permission::RevokeCertificate,
@@ -630,7 +779,7 @@ impl RBACContract {
 
         // Check conditions
         for condition in user_role.conditions.iter() {
-            if !Self::check_access_condition(env, user, &condition) {
+            if !Self::check_access_condition(env, user, &condition, user_role.granted_at) {
                 return false;
             }
         }
@@ -662,34 +811,49 @@ impl RBACContract {
         false
     }
 
-    fn check_access_condition(env: &Env, user: &Address, condition: &AccessCondition) -> bool {
+    fn check_access_condition(
+        env: &Env,
+        user: &Address,
+        condition: &AccessCondition,
+        granted_at: u64,
+    ) -> bool {
         match condition {
-            AccessCondition::RequireMultiSig(_min_sigs) => {
-                // Implementation would check if user has required multisig setup
-                // For now, return true as placeholder
-                true
+            AccessCondition::RequireMultiSig(min_sigs) => {
+                let approvals = Self::get_condition_approvals(env, user);
+                approvals.len() >= *min_sigs
             }
-            AccessCondition::RequireTimeDelay(_delay) => {
-                // Implementation would check if sufficient time has passed
-                // For now, return true as placeholder
-                true
+            AccessCondition::RequireTimeDelay(delay) => {
+                (env.ledger().sequence() as u64) >= granted_at.saturating_add(*delay)
             }
             AccessCondition::RequireVerifierRating(min_rating) => {
-                // Check verifier rating from verification system
-                // Placeholder implementation
-                true
+                let rating: u32 = env
+                    .storage()
+                    .persistent()
+                    .get(&DataKey::VerifierRating(user.clone()))
+                    .unwrap_or(0);
+                rating >= *min_rating
             }
-            AccessCondition::RequireCourseCompletion(_course) => {
-                // Check if user has completed required course
-                // Placeholder implementation
-                true
-            }
-            AccessCondition::RequireStakeAmount(_amount) => {
-                // Check if user has staked required amount
-                // Placeholder implementation
-                true
+            AccessCondition::RequireCourseCompletion(course) => env
+                .storage()
+                .persistent()
+                .get(&DataKey::CourseCompletion(user.clone(), course.clone()))
+                .unwrap_or(false),
+            AccessCondition::RequireStakeAmount(amount) => {
+                let staked: i128 = env
+                    .storage()
+                    .persistent()
+                    .get(&DataKey::StakedAmount(user.clone()))
+                    .unwrap_or(0);
+                staked >= *amount
             }
         }
+    }
+
+    fn get_condition_approvals(env: &Env, user: &Address) -> Vec<Address> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::ConditionApprovals(user.clone()))
+            .unwrap_or_else(|| Vec::new(env))
     }
 
     fn calculate_delegation_depth(env: &Env, user: &Address, permission: &Permission) -> u32 {
@@ -730,5 +894,273 @@ impl RBACContract {
                 env.storage().persistent().set(&delegation_key, &delegation);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use soroban_sdk::testutils::{Address as _, Ledger, LedgerInfo};
+    use soroban_sdk::token;
+
+    fn setup() -> (Env, RBACContractClient<'static>, Address) {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register(RBACContract, ());
+        let client = RBACContractClient::new(&env, &contract_id);
+
+        let super_admin = Address::generate(&env);
+        client.init_rbac(&super_admin);
+
+        (env, client, super_admin)
+    }
+
+    fn bump_sequence(env: &Env, by: u32) {
+        let current = env.ledger().sequence();
+        env.ledger().set(LedgerInfo {
+            timestamp: env.ledger().timestamp(),
+            protocol_version: 22,
+            sequence_number: current + by,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 1,
+            min_persistent_entry_ttl: 1,
+            max_entry_ttl: 6_312_000,
+        });
+    }
+
+    #[test]
+    fn test_unconditional_role_grants_permission_immediately() {
+        let (env, client, super_admin) = setup();
+        let user = Address::generate(&env);
+
+        client.grant_role(
+            &super_admin,
+            &user,
+            &RoleLevel::Instructor,
+            &None,
+            &Vec::new(&env),
+        );
+
+        assert!(client.has_permission(&user, &Permission::MintCertificate));
+    }
+
+    #[test]
+    #[should_panic(expected = "Insufficient permissions")]
+    fn test_unauthorized_call_fails() {
+        let (env, client, _super_admin) = setup();
+        let rando = Address::generate(&env);
+
+        // Default (Student) role has no permissions at all.
+        client.require_permission(&rando, &Permission::GrantRole);
+    }
+
+    #[test]
+    fn test_stake_condition_denies_until_real_stake_deposited() {
+        let (env, client, super_admin) = setup();
+        let user = Address::generate(&env);
+
+        let token_admin = Address::generate(&env);
+        let token_id = env
+            .register_stellar_asset_contract_v2(token_admin.clone())
+            .address();
+        token::StellarAssetClient::new(&env, &token_id).mint(&user, &10_000);
+
+        client.configure_stake_token(&super_admin, &token_id);
+
+        let mut conditions = Vec::new(&env);
+        conditions.push_back(AccessCondition::RequireStakeAmount(1_000));
+        client.grant_role(
+            &super_admin,
+            &user,
+            &RoleLevel::Instructor,
+            &None,
+            &conditions,
+        );
+
+        // Condition unmet: no real stake backing the role yet.
+        assert!(!client.has_permission(&user, &Permission::MintCertificate));
+
+        client.deposit_stake(&user, &500);
+        assert!(!client.has_permission(&user, &Permission::MintCertificate));
+
+        client.deposit_stake(&user, &500);
+        assert!(client.has_permission(&user, &Permission::MintCertificate));
+        assert_eq!(
+            token::Client::new(&env, &token_id).balance(&user),
+            10_000 - 1_000
+        );
+
+        // Withdrawing back below the threshold revokes the condition again.
+        client.withdraw_stake(&user, &200);
+        assert!(!client.has_permission(&user, &Permission::MintCertificate));
+    }
+
+    #[test]
+    fn test_verifier_rating_condition_denies_until_rated() {
+        let (env, client, super_admin) = setup();
+        let user = Address::generate(&env);
+
+        let mut conditions = Vec::new(&env);
+        conditions.push_back(AccessCondition::RequireVerifierRating(80));
+        client.grant_role(
+            &super_admin,
+            &user,
+            &RoleLevel::Verifier,
+            &None,
+            &conditions,
+        );
+
+        assert!(!client.has_permission(&user, &Permission::VerifyCertificate));
+
+        client.set_verifier_rating(&super_admin, &user, &50);
+        assert!(!client.has_permission(&user, &Permission::VerifyCertificate));
+
+        client.set_verifier_rating(&super_admin, &user, &80);
+        assert!(client.has_permission(&user, &Permission::VerifyCertificate));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_unrated_verifier_cannot_set_own_rating() {
+        let (env, client, super_admin) = setup();
+        let user = Address::generate(&env);
+        client.grant_role(
+            &super_admin,
+            &user,
+            &RoleLevel::Verifier,
+            &None,
+            &Vec::new(&env),
+        );
+
+        // A plain Verifier lacks Permission::UpdateVerifierRating.
+        client.set_verifier_rating(&user, &user, &100);
+    }
+
+    #[test]
+    fn test_course_completion_condition_denies_until_recorded() {
+        let (env, client, super_admin) = setup();
+        let user = Address::generate(&env);
+        let course = symbol_short!("RUST101");
+
+        let mut conditions = Vec::new(&env);
+        conditions.push_back(AccessCondition::RequireCourseCompletion(course.clone()));
+        client.grant_role(
+            &super_admin,
+            &user,
+            &RoleLevel::Instructor,
+            &None,
+            &conditions,
+        );
+
+        assert!(!client.has_permission(&user, &Permission::MintCertificate));
+
+        client.set_course_completion(&super_admin, &user, &course, &true);
+        assert!(client.has_permission(&user, &Permission::MintCertificate));
+    }
+
+    #[test]
+    fn test_time_delay_condition_denies_until_delay_elapses() {
+        let (env, client, super_admin) = setup();
+        let user = Address::generate(&env);
+
+        let mut conditions = Vec::new(&env);
+        conditions.push_back(AccessCondition::RequireTimeDelay(50));
+        client.grant_role(
+            &super_admin,
+            &user,
+            &RoleLevel::Instructor,
+            &None,
+            &conditions,
+        );
+
+        assert!(!client.has_permission(&user, &Permission::MintCertificate));
+
+        bump_sequence(&env, 49);
+        assert!(!client.has_permission(&user, &Permission::MintCertificate));
+
+        bump_sequence(&env, 1);
+        assert!(client.has_permission(&user, &Permission::MintCertificate));
+    }
+
+    #[test]
+    fn test_multisig_condition_requires_distinct_approvers() {
+        let (env, client, super_admin) = setup();
+        let user = Address::generate(&env);
+        let approver1 = Address::generate(&env);
+        let approver2 = Address::generate(&env);
+
+        client.grant_role(
+            &super_admin,
+            &approver1,
+            &RoleLevel::Instructor,
+            &None,
+            &Vec::new(&env),
+        );
+        client.grant_role(
+            &super_admin,
+            &approver2,
+            &RoleLevel::Instructor,
+            &None,
+            &Vec::new(&env),
+        );
+
+        let mut conditions = Vec::new(&env);
+        conditions.push_back(AccessCondition::RequireMultiSig(2));
+        client.grant_role(
+            &super_admin,
+            &user,
+            &RoleLevel::Instructor,
+            &None,
+            &conditions,
+        );
+
+        assert!(!client.has_permission(&user, &Permission::MintCertificate));
+
+        client.approve_condition(&approver1, &user);
+        // Re-approving with the same signer must not count twice.
+        client.approve_condition(&approver1, &user);
+        assert!(!client.has_permission(&user, &Permission::MintCertificate));
+
+        client.approve_condition(&approver2, &user);
+        assert!(client.has_permission(&user, &Permission::MintCertificate));
+    }
+
+    #[test]
+    #[should_panic(expected = "Cannot approve your own condition")]
+    fn test_cannot_self_approve_multisig_condition() {
+        let (env, client, super_admin) = setup();
+        let user = Address::generate(&env);
+        client.grant_role(
+            &super_admin,
+            &user,
+            &RoleLevel::Instructor,
+            &None,
+            &Vec::new(&env),
+        );
+
+        client.approve_condition(&user, &user);
+    }
+
+    #[test]
+    #[should_panic(expected = "User role is inactive")]
+    fn test_revoked_role_loses_access() {
+        let (env, client, super_admin) = setup();
+        let user = Address::generate(&env);
+        client.grant_role(
+            &super_admin,
+            &user,
+            &RoleLevel::Instructor,
+            &None,
+            &Vec::new(&env),
+        );
+        assert!(client.has_permission(&user, &Permission::MintCertificate));
+
+        client.revoke_role(&super_admin, &user);
+
+        // A revoked role surfaces as an error (existing get_user_role
+        // behavior) rather than silently falling back to Student.
+        client.has_permission(&user, &Permission::MintCertificate);
     }
 }
