@@ -72,6 +72,18 @@ jobs:
           GITHUB_REDIRECT_URI: http://localhost:8080/api/v1/oauth/github/callback
           FRONTEND_URL: http://localhost:3000
         run: npm run test:coverage || true
+      - name: Dependency audit (backend)
+        working-directory: ./backend
+        run: npm audit --audit-level=high
+      - name: Generate SBOM (backend)
+        working-directory: ./backend
+        run: npm sbom --output sbom.backend.json
+      - name: Upload backend SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-backend
+          path: backend/sbom.backend.json
+          retention-days: 90
 
   frontend:
     name: Frontend Build & Test
@@ -91,6 +103,18 @@ jobs:
       - name: Build
         working-directory: ./frontend
         run: npm run build
+      - name: Dependency audit (frontend)
+        working-directory: ./frontend
+        run: npm audit --audit-level=high
+      - name: Generate SBOM (frontend)
+        working-directory: ./frontend
+        run: npm sbom --output sbom.frontend.json
+      - name: Upload frontend SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-frontend
+          path: frontend/sbom.frontend.json
+          retention-days: 90
 
   contracts:
     name: Contracts Build
@@ -113,3 +137,17 @@ jobs:
       - name: Build
         working-directory: ./contracts
         run: cargo build
+      - name: Install cargo-audit
+        uses: taiki-e/cargo-audit@main
+      - name: Dependency audit (contracts)
+        working-directory: ./contracts
+        run: cargo audit --deny warnings
+      - name: Generate SBOM (contracts)
+        working-directory: ./contracts
+        run: cargo sbom --output sbom.contracts.json 2>/dev/null || echo "SBOM generation skipped (install cargo-sbom via 'cargo install cargo-sbom')"
+      - name: Upload contracts SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-contracts
+          path: contracts/sbom.contracts.json
+          retention-days: 90
