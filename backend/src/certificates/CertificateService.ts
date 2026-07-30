@@ -1,8 +1,15 @@
-// @ts-nocheck
+/**
+ * CertificateService — issuance, verification and reporting for course
+ * certificates. Fully type-checked: request, response and domain shapes are
+ * declared explicitly instead of being suppressed.
+ */
+
+
 import prisma from '../db/index.js';
 import {
   Certificate,
   CertificateMetadata,
+  CertificateStatus,
   MintCertificateRequest,
   VerificationResult,
 } from '../types/certificate.types.js';
@@ -90,8 +97,6 @@ export class CertificateService {
       },
     });
 
-    let metadata: CertificateMetadata | undefined;
-
     try {
       // Generate and pin the certificate image and metadata to decentralized storage
       const imageBuffer = await certificateImageGenerator.generateCertificateImage({
@@ -110,7 +115,7 @@ export class CertificateService {
         mimeType: 'image/svg+xml',
       });
 
-      metadata = this.metadataGenerator.generate(certificate, course, student, {
+      const metadata = this.metadataGenerator.generate(certificate, course, student, {
         imageUri: imageAsset.ipfsUri,
         externalUrl: `${process.env.API_BASE_URL || 'http://localhost:8080'}/api/v1/certificates/${
           certificate.tokenId || tokenIdValue
@@ -119,7 +124,7 @@ export class CertificateService {
 
       const metadataAsset = await storageService.pinCertificateMetadata({
         certificateId: certificateId,
-        content: metadata,
+        content: { ...metadata },
       });
 
       // Call blockchain service to mint actual NFT
@@ -140,7 +145,7 @@ export class CertificateService {
       // Update returned certificate
       certificate.certificateHash = mintResult.transactionHash;
       certificate.contractAddress = mintResult.contractAddress;
-      certificate.status = 'ACTIVE' as any;
+      certificate.status = CertificateStatus.ACTIVE;
       certificate.tokenId = mintResult.tokenId || tokenIdValue;
 
       logger.info(`Certificate minted on-chain: ${certificateId} -> token ${mintResult.tokenId}`, {
@@ -148,6 +153,9 @@ export class CertificateService {
         tokenId: mintResult.tokenId,
         txHash: mintResult.transactionHash,
       });
+
+      // Return certificate with metadata
+      return { ...certificate, metadata };
     } catch (error) {
       logger.error(`Certificate issuance failed for ${certificateId}:`, error);
       await prisma.certificate.update({
@@ -161,9 +169,6 @@ export class CertificateService {
         `Failed to mint certificate: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
-
-    // Return certificate with metadata
-    return { ...certificate, metadata };
   }
 
   /**
@@ -226,7 +231,7 @@ export class CertificateService {
       return {
         isValid: false,
         certificate: null,
-        status: 'invalid' as any,
+        status: CertificateStatus.INVALID,
         onChainData: null,
         message: 'Certificate not found',
       };
@@ -250,13 +255,13 @@ export class CertificateService {
     };
 
     const result: VerificationResult = {
-      isValid: certificate.status === 'ACTIVE',
+      isValid: certificate.status === CertificateStatus.ACTIVE,
       certificate: metadata,
-      status: certificate.status as any,
+      status: this.toCertificateStatus(certificate.status),
       onChainData,
     };
 
-    if (certificate.status === 'REVOKED') {
+    if (certificate.status === CertificateStatus.REVOKED) {
       result.revocationInfo = {
         revokedAt: certificate.revokedAt!,
         reason: certificate.revocationReason!,
@@ -305,7 +310,7 @@ export class CertificateService {
         results.push({
           isValid: false,
           certificate: null,
-          status: 'invalid' as any,
+          status: CertificateStatus.INVALID,
           onChainData: null,
           message: 'Certificate not found',
         });
@@ -326,9 +331,9 @@ export class CertificateService {
       };
 
       results.push({
-        isValid: cert.status === 'ACTIVE',
+        isValid: cert.status === CertificateStatus.ACTIVE,
         certificate: metadata,
-        status: cert.status as any,
+        status: this.toCertificateStatus(cert.status),
         onChainData,
       });
     }
@@ -550,6 +555,16 @@ export class CertificateService {
       newGrade,
       issuedBy,
     });
+  }
+
+  /**
+   * Narrows a persisted status string to the CertificateStatus union.
+   * Unknown values (legacy rows, manual edits) resolve to INVALID rather
+   * than being cast blindly.
+   */
+  private toCertificateStatus(status: string): CertificateStatus {
+    const known = Object.values(CertificateStatus) as string[];
+    return known.includes(status) ? (status as CertificateStatus) : CertificateStatus.INVALID;
   }
 
   /**
