@@ -48,6 +48,9 @@ jobs:
       - name: Build
         working-directory: ./backend
         run: npm run build
+      - name: Validate curriculum content
+        working-directory: ./backend
+        run: npm run validate:curriculum
       - name: Create shadow database
         # Rollback verification and drift detection (below) both need a
         # scratch "shadow" database distinct from test_db, on the same

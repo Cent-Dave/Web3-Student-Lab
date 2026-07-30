@@ -11,6 +11,7 @@
     "test": "jest --runInBand --forceExit",
     "test:coverage": "jest --coverage --runInBand --forceExit",
     "test:migrations": "bash scripts/test-migration-rollback.sh",
+    "validate:curriculum": "tsx scripts/validate-curriculum.ts",
 
     "bench": "tsx benchmarks/runBenchmarks.ts",
     "collaboration": "tsx src/collaborationServer.ts",
