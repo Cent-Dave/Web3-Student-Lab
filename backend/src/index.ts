@@ -1,5 +1,4 @@
 // @ts-nocheck
-import cors from 'cors';
 import express, { Request, Response } from 'express';
 import { createServer } from 'http';
 import swaggerUi from 'swagger-ui-express';
@@ -10,8 +9,10 @@ import distributedCacheManager from './cache/DistributedCacheManager.js';
 import redisClient from './cache/RedisClient.js';
 import { rpcCacheHeadersMiddleware, rpcCacheMiddleware } from './cache/RPCInterceptor.js';
 import config from './config/env.config.js';
+import { createCorsMiddleware } from './config/cors.config.js';
 import { setRateLimitEnvOverrides } from './config/rateLimit.config.js';
 import { swaggerSpec } from './config/swagger.js';
+import type { CorsRequest } from 'cors';
 import prisma from './db/index.js';
 import { createGraphQLServer } from './graphql/server.js';
 import { scheduleBackupCron, startBackupWorker, stopBackupWorker } from './jobs/backup.worker.js';
@@ -91,7 +92,7 @@ setRateLimitEnvOverrides({
   },
 });
 
-app.use(cors());
+app.use(createCorsMiddleware());
 app.use(express.json());
 app.use(decryptionMiddleware);
 app.use(dbRoutingMiddleware);
