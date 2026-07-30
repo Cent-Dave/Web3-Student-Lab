@@ -11,6 +11,8 @@ use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, Address, Env, Symbol,
 };
 
+use crate::events::EventPublisher;
+
 /// Enrollment status for a student in a course
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -170,9 +172,10 @@ impl EnrollmentContract {
             .set(&version_key, &(current_version + 1));
 
         // Publish enrollment event
-        env.events().publish(
-            (Symbol::new(&env, "student_enrolled"), student, course_id),
-            (),
+        EventPublisher::new(&env, env.current_contract_address()).publish_enrollment_created(
+            &student,
+            &course_id,
+            &instructor,
         );
     }
 
@@ -238,13 +241,10 @@ impl EnrollmentContract {
         env.storage().instance().set(&version_key, &(version + 1));
 
         // Publish completion event
-        env.events().publish(
-            (
-                Symbol::new(&env, "enrollment_completed"),
-                student,
-                course_id,
-            ),
-            (),
+        EventPublisher::new(&env, env.current_contract_address()).publish_enrollment_completed(
+            &student,
+            &course_id,
+            &instructor,
         );
     }
 
@@ -311,9 +311,10 @@ impl EnrollmentContract {
         env.storage().instance().set(&version_key, &(version + 1));
 
         // Publish drop event
-        env.events().publish(
-            (Symbol::new(&env, "enrollment_dropped"), student, course_id),
-            (),
+        EventPublisher::new(&env, env.current_contract_address()).publish_enrollment_dropped(
+            &student,
+            &course_id,
+            &instructor,
         );
     }
 
@@ -795,5 +796,70 @@ mod tests {
         assert_eq!(client.get_completed_count(&course1), 1);
         assert_eq!(client.get_active_count(&course2), 1);
         assert_eq!(client.get_completed_count(&course2), 0);
+    }
+
+    #[test]
+    fn test_enrollment_events_carry_versioned_topics_and_full_fields() {
+        use crate::events::{
+            EnrollmentCompletedEvent, EnrollmentCreatedEvent, EnrollmentDroppedEvent,
+        };
+        use soroban_sdk::testutils::Events;
+        use soroban_sdk::{FromVal, TryFromVal};
+
+        let env = Env::default();
+        env.mock_all_auths();
+        let student = Address::generate(&env);
+        let instructor = Address::generate(&env);
+        let course_id = Symbol::new(&env, "RUST101");
+
+        let contract_id = env.register_contract(None, EnrollmentContract);
+        let client = EnrollmentContractClient::new(&env, &contract_id);
+
+        // `env.events().all()` only retains events from the most recent
+        // top-level invocation, so each event is captured right after the
+        // call that emits it rather than batched at the end.
+        let find = |events: &soroban_sdk::Vec<(
+            Address,
+            soroban_sdk::Vec<soroban_sdk::Val>,
+            soroban_sdk::Val,
+        )>,
+                    name: &str| {
+            events
+                .iter()
+                .find(|(addr, topics, _)| {
+                    *addr == contract_id
+                        && Symbol::from_val(&env, &topics.get(0).unwrap())
+                            == Symbol::new(&env, name)
+                        && Symbol::from_val(&env, &topics.get(1).unwrap())
+                            == Symbol::new(&env, "v1")
+                })
+                .map(|(_, _, data)| data.clone())
+        };
+
+        client.enroll_student(&student, &course_id, &instructor);
+        let created_data = find(&env.events().all(), "student_enrolled")
+            .expect("student_enrolled v1 event missing");
+        let created = EnrollmentCreatedEvent::try_from_val(&env, &created_data).unwrap();
+        assert_eq!(created.student, student);
+        assert_eq!(created.course_id, course_id);
+        assert_eq!(created.instructor, instructor);
+
+        client.complete_enrollment(&student, &course_id, &instructor);
+        let completed_data = find(&env.events().all(), "enrollment_completed")
+            .expect("enrollment_completed v1 event missing");
+        let completed = EnrollmentCompletedEvent::try_from_val(&env, &completed_data).unwrap();
+        assert_eq!(completed.student, student);
+        assert_eq!(completed.course_id, course_id);
+        assert_eq!(completed.instructor, instructor);
+
+        let student2 = Address::generate(&env);
+        client.enroll_student(&student2, &course_id, &instructor);
+        client.drop_enrollment(&student2, &course_id, &instructor);
+        let dropped_data = find(&env.events().all(), "enrollment_dropped")
+            .expect("enrollment_dropped v1 event missing");
+        let dropped = EnrollmentDroppedEvent::try_from_val(&env, &dropped_data).unwrap();
+        assert_eq!(dropped.student, student2);
+        assert_eq!(dropped.course_id, course_id);
+        assert_eq!(dropped.instructor, instructor);
     }
 }

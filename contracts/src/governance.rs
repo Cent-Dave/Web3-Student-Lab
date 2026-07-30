@@ -29,6 +29,7 @@ use soroban_sdk::{
     Address, Bytes, Env, String,
 };
 
+use crate::events::EventPublisher;
 use crate::security_primitives::{isqrt, nonreentrant_acquire, nonreentrant_release, safe_add};
 
 // ---------------------------------------------------------------------------
@@ -183,7 +184,8 @@ impl GovernanceContract {
         env.storage()
             .instance()
             .set(&GovKey::VotingPeriod, &DEFAULT_VOTING_PERIOD);
-        env.events().publish((symbol_short!("gov_init"),), admin);
+        EventPublisher::new(&env, env.current_contract_address())
+            .publish_governance_initialized(&admin);
     }
 
     // -----------------------------------------------------------------------
@@ -218,8 +220,8 @@ impl GovernanceContract {
             &GovKey::Credits(depositor.clone()),
             &safe_add(&env, prev, amount),
         );
-        env.events()
-            .publish((symbol_short!("crd_dep"),), (depositor, amount));
+        EventPublisher::new(&env, env.current_contract_address())
+            .publish_credits_deposited(&depositor, amount);
     }
 
     /// Query remaining governance credits for a voter.
@@ -295,8 +297,12 @@ impl GovernanceContract {
         env.storage()
             .persistent()
             .set(&GovKey::Proposal(id), &proposal);
-        env.events()
-            .publish((symbol_short!("prop_crt"), id), creator);
+        EventPublisher::new(&env, env.current_contract_address()).publish_proposal_created(
+            &creator,
+            id,
+            proposal.title.clone(),
+            proposal.deadline,
+        );
 
         id
     }
@@ -377,9 +383,11 @@ impl GovernanceContract {
         };
         env.storage().persistent().set(&vote_key, &record);
 
-        env.events().publish(
-            (symbol_short!("vote_cst"), proposal_id),
-            (voter, vote_weight, support),
+        EventPublisher::new(&env, env.current_contract_address()).publish_vote_cast(
+            &record.voter,
+            proposal_id,
+            record.vote_weight,
+            record.support,
         );
     }
 
@@ -409,10 +417,8 @@ impl GovernanceContract {
         env.storage()
             .persistent()
             .set(&GovKey::Proposal(proposal_id), &proposal);
-        env.events().publish(
-            (symbol_short!("prop_fin"), proposal_id),
-            proposal.status.clone(),
-        );
+        EventPublisher::new(&env, env.current_contract_address())
+            .publish_proposal_finalized(proposal_id, proposal.status.clone() as u32);
     }
 
     /// Execute the action of a `Passed` proposal.
@@ -451,8 +457,8 @@ impl GovernanceContract {
 
         nonreentrant_release(&env, symbol_short!("gov_lock"));
 
-        env.events()
-            .publish((symbol_short!("prop_exe"), proposal_id), ());
+        EventPublisher::new(&env, env.current_contract_address())
+            .publish_proposal_executed(proposal_id);
     }
 
     // -----------------------------------------------------------------------
@@ -514,3 +520,7 @@ impl GovernanceContract {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "governance_test.rs"]
+mod governance_test;

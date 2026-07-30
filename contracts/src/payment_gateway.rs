@@ -6,8 +6,10 @@
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, token, Address, BytesN,
-    Env, String, Symbol,
+    Env, String,
 };
+
+use crate::events::EventPublisher;
 
 /// Payment lifecycle states used by the gateway.
 #[contracttype]
@@ -134,10 +136,8 @@ impl PaymentGatewayContract {
             memo,
         };
         env.storage().persistent().set(&key, &record);
-        env.events().publish(
-            (Symbol::new(&env, "payment_processed"), merchant),
-            (payment_id, payer, amount),
-        );
+        EventPublisher::new(&env, env.current_contract_address())
+            .publish_payment_processed(payment_id, &payer, &merchant, amount);
         record
     }
 
@@ -153,12 +153,10 @@ impl PaymentGatewayContract {
         record.status = PaymentStatus::Released;
         record.updated_at = env.ledger().timestamp();
         Self::store_payment(&env, &record);
-        env.events().publish(
-            (
-                Symbol::new(&env, "payment_released"),
-                record.merchant.clone(),
-            ),
-            (payment_id, record.amount),
+        EventPublisher::new(&env, env.current_contract_address()).publish_payment_released(
+            payment_id,
+            &record.merchant,
+            record.amount,
         );
         record
     }
@@ -176,9 +174,10 @@ impl PaymentGatewayContract {
         record.updated_at = env.ledger().timestamp();
         record.memo = reason;
         Self::store_payment(&env, &record);
-        env.events().publish(
-            (Symbol::new(&env, "payment_refunded"), record.payer.clone()),
-            (payment_id, record.amount),
+        EventPublisher::new(&env, env.current_contract_address()).publish_payment_refunded(
+            payment_id,
+            &record.payer,
+            record.amount,
         );
         record
     }
@@ -206,9 +205,10 @@ impl PaymentGatewayContract {
         record.updated_at = env.ledger().timestamp();
         record.memo = reason;
         Self::store_payment(&env, &record);
-        env.events().publish(
-            (Symbol::new(&env, "payment_disputed"), opened_by),
-            (payment_id, record.amount),
+        EventPublisher::new(&env, env.current_contract_address()).publish_payment_disputed(
+            payment_id,
+            &opened_by,
+            record.amount,
         );
         record
     }
@@ -228,22 +228,26 @@ impl PaymentGatewayContract {
             panic_with_error!(&env, GatewayError::InvalidState);
         }
 
-        match decision {
+        let refunded_to_payer = match decision {
             DisputeDecision::RefundPayer => {
                 Self::transfer_from_escrow(&env, &record.payer, record.amount);
                 record.status = PaymentStatus::Refunded;
+                true
             }
             DisputeDecision::ReleaseMerchant => {
                 Self::transfer_from_escrow(&env, &record.merchant, record.amount);
                 record.status = PaymentStatus::Released;
+                false
             }
-        }
+        };
         record.updated_at = env.ledger().timestamp();
         record.memo = note;
         Self::store_payment(&env, &record);
-        env.events().publish(
-            (Symbol::new(&env, "dispute_resolved"), admin),
-            (payment_id, record.amount),
+        EventPublisher::new(&env, env.current_contract_address()).publish_dispute_resolved(
+            payment_id,
+            &admin,
+            refunded_to_payer,
+            record.amount,
         );
         record
     }
@@ -553,5 +557,85 @@ mod tests {
         );
         f.client
             .open_dispute(&id, &stranger, &String::from_str(&f.env, "invalid"));
+    }
+
+    #[test]
+    fn payment_events_carry_versioned_topics_and_full_fields() {
+        use crate::events::{
+            DisputeResolvedEvent, PaymentDisputedEvent, PaymentProcessedEvent, PaymentReleasedEvent,
+        };
+        use soroban_sdk::testutils::Events;
+        use soroban_sdk::{FromVal, Symbol, TryFromVal};
+
+        let f = setup();
+
+        // `env.events().all()` only retains events from the most recent
+        // top-level invocation, so each event is captured right after the
+        // call that emits it rather than batched at the end.
+        let find_one = |name: &str| -> soroban_sdk::Val {
+            f.env
+                .events()
+                .all()
+                .iter()
+                .find(|(addr, topics, _)| {
+                    *addr == f.client.address
+                        && Symbol::from_val(&f.env, &topics.get(0).unwrap())
+                            == Symbol::new(&f.env, name)
+                        && Symbol::from_val(&f.env, &topics.get(1).unwrap())
+                            == Symbol::new(&f.env, "v1")
+                })
+                .unwrap_or_else(|| panic!("{name} v1 event missing"))
+                .2
+        };
+
+        let id = payment_id(&f.env, 10);
+        f.client.process_payment(
+            &id,
+            &f.payer,
+            &f.merchant,
+            &1_000,
+            &String::from_str(&f.env, "order"),
+        );
+        let processed =
+            PaymentProcessedEvent::try_from_val(&f.env, &find_one("payment_processed")).unwrap();
+        assert_eq!(processed.payment_id, id);
+        assert_eq!(processed.payer, f.payer);
+        assert_eq!(processed.merchant, f.merchant);
+        assert_eq!(processed.amount, 1_000);
+
+        f.client.release_payment(&id);
+        let released =
+            PaymentReleasedEvent::try_from_val(&f.env, &find_one("payment_released")).unwrap();
+        assert_eq!(released.payment_id, id);
+        assert_eq!(released.merchant, f.merchant);
+        assert_eq!(released.amount, 1_000);
+
+        let id2 = payment_id(&f.env, 11);
+        f.client.process_payment(
+            &id2,
+            &f.payer,
+            &f.merchant,
+            &500,
+            &String::from_str(&f.env, "order-2"),
+        );
+        f.client
+            .open_dispute(&id2, &f.payer, &String::from_str(&f.env, "wrong item"));
+        let disputed =
+            PaymentDisputedEvent::try_from_val(&f.env, &find_one("payment_disputed")).unwrap();
+        assert_eq!(disputed.payment_id, id2);
+        assert_eq!(disputed.opened_by, f.payer);
+        assert_eq!(disputed.amount, 500);
+
+        f.client.resolve_dispute(
+            &id2,
+            &DisputeDecision::RefundPayer,
+            &String::from_str(&f.env, "resolved"),
+        );
+        let resolved =
+            DisputeResolvedEvent::try_from_val(&f.env, &find_one("dispute_resolved")).unwrap();
+        assert_eq!(resolved.payment_id, id2);
+        assert_eq!(resolved.admin, f.admin);
+        assert!(resolved.refunded_to_payer);
+        assert_eq!(resolved.amount, 500);
     }
 }

@@ -2,6 +2,8 @@ use soroban_sdk::{
     contract, contractimpl, contracttype, symbol_short, Address, Env, Map, Symbol, Vec,
 };
 
+use crate::events::EventPublisher;
+
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DataKey {
@@ -134,7 +136,7 @@ impl RBACContract {
         }
 
         // Define default roles
-        let roles = Self::get_default_roles();
+        let roles = Self::get_default_roles(&env);
 
         // Store role definitions
         for (role_level, role) in roles.iter() {
@@ -164,7 +166,12 @@ impl RBACContract {
             .set(&DataKey::RBACInitialized, &true);
 
         // Publish initialization event
-        // publish_role_granted_event(&env, &super_admin, &RoleLevel::SuperAdmin, &super_admin);
+        let super_admin_def = Self::get_role_definition(env.clone(), RoleLevel::SuperAdmin);
+        EventPublisher::new(&env, env.current_contract_address()).publish_rbac_role_granted(
+            &super_admin,
+            super_admin_def.description,
+            &super_admin,
+        );
     }
 
     /// Grant role to user with optional conditions and expiry
@@ -204,7 +211,12 @@ impl RBACContract {
             .set(&DataKey::UserRole(user.clone()), &user_role);
 
         // Publish event
-        // publish_role_granted_event(&env, &user, &role, &granter);
+        let role_def = Self::get_role_definition(env.clone(), role);
+        EventPublisher::new(&env, env.current_contract_address()).publish_rbac_role_granted(
+            &user,
+            role_def.description,
+            &granter,
+        );
     }
 
     /// Revoke role from user
@@ -233,9 +245,11 @@ impl RBACContract {
         Self::revoke_all_delegations_by_user(&env, &user);
 
         // Publish event
-        env.events().publish(
-            (soroban_sdk::symbol_short!("role_rev"), user.clone()),
-            (user_role.role, revoker.clone()),
+        let role_def = Self::get_role_definition(env.clone(), user_role.role);
+        EventPublisher::new(&env, env.current_contract_address()).publish_rbac_role_revoked(
+            &user,
+            role_def.description,
+            &revoker,
         );
     }
 
@@ -477,12 +491,11 @@ impl RBACContract {
 
     // Private helper methods
 
-    fn get_default_roles() -> Map<RoleLevel, Role> {
-        let env = Env::default();
-        let mut roles = Map::new(&env);
+    fn get_default_roles(env: &Env) -> Map<RoleLevel, Role> {
+        let mut roles = Map::new(env);
 
         // Student role
-        let student_permissions = Vec::from_array(&env, []);
+        let student_permissions = Vec::from_array(env, []);
         roles.set(
             RoleLevel::Student,
             Role {
@@ -496,7 +509,7 @@ impl RBACContract {
 
         // Verifier role
         let verifier_permissions = Vec::from_array(
-            &env,
+            env,
             [Permission::VerifyCertificate, Permission::ViewAuditLogs],
         );
         roles.set(
@@ -512,7 +525,7 @@ impl RBACContract {
 
         // Instructor role
         let instructor_permissions = Vec::from_array(
-            &env,
+            env,
             [
                 Permission::MintCertificate,
                 Permission::UpdateMetadata,
@@ -533,7 +546,7 @@ impl RBACContract {
 
         // Auditor role
         let auditor_permissions = Vec::from_array(
-            &env,
+            env,
             [
                 Permission::ViewAuditLogs,
                 Permission::ExportData,
@@ -554,7 +567,7 @@ impl RBACContract {
 
         // Admin role
         let admin_permissions = Vec::from_array(
-            &env,
+            env,
             [
                 Permission::MintCertificate,
                 Permission::RevokeCertificate,
@@ -587,7 +600,7 @@ impl RBACContract {
 
         // SuperAdmin role
         let super_admin_permissions = Vec::from_array(
-            &env,
+            env,
             [
                 Permission::MintCertificate,
                 Permission::RevokeCertificate,
@@ -730,5 +743,69 @@ impl RBACContract {
                 env.storage().persistent().set(&delegation_key, &delegation);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::events::{RoleGrantedEvent, RoleRevokedEvent};
+    use soroban_sdk::testutils::{Address as _, Events};
+    use soroban_sdk::{FromVal, TryFromVal};
+
+    fn setup() -> (Env, RBACContractClient<'static>, Address) {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register(RBACContract, ());
+        let client = RBACContractClient::new(&env, &contract_id);
+
+        let super_admin = Address::generate(&env);
+        client.init_rbac(&super_admin);
+
+        (env, client, super_admin)
+    }
+
+    #[test]
+    fn test_role_events_carry_versioned_topics_and_full_fields() {
+        let (env, client, super_admin) = setup();
+        let user = Address::generate(&env);
+
+        // `env.events().all()` only retains events from the most recent
+        // top-level invocation, so each event is captured right after the
+        // call that emits it rather than batched at the end.
+        let find_one = |name: &str| -> soroban_sdk::Val {
+            env.events()
+                .all()
+                .iter()
+                .find(|(addr, topics, _)| {
+                    *addr == client.address
+                        && Symbol::from_val(&env, &topics.get(0).unwrap())
+                            == Symbol::new(&env, name)
+                        && Symbol::from_val(&env, &topics.get(1).unwrap())
+                            == Symbol::new(&env, "v1")
+                })
+                .unwrap_or_else(|| panic!("{name} v1 event missing"))
+                .2
+        };
+
+        client.grant_role(
+            &super_admin,
+            &user,
+            &RoleLevel::Instructor,
+            &None,
+            &Vec::new(&env),
+        );
+        let user_grant =
+            RoleGrantedEvent::try_from_val(&env, &find_one("rbac_role_granted")).unwrap();
+        assert_eq!(user_grant.user, user);
+        assert_eq!(user_grant.role, symbol_short!("INSTRCTR"));
+        assert_eq!(user_grant.granted_by, super_admin);
+
+        client.revoke_role(&super_admin, &user);
+        let revoked = RoleRevokedEvent::try_from_val(&env, &find_one("rbac_role_revoked")).unwrap();
+        assert_eq!(revoked.user, user);
+        assert_eq!(revoked.role, symbol_short!("INSTRCTR"));
+        assert_eq!(revoked.revoked_by, super_admin);
     }
 }

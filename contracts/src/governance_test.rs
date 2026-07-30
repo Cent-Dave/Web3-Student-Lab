@@ -13,12 +13,7 @@ use soroban_sdk::{
 // Test helpers
 // ---------------------------------------------------------------------------
 
-fn setup() -> (
-    Env,
-    Address,
-    Address,
-    GovernanceContractClient<'static>,
-) {
+fn setup() -> (Env, Address, Address, GovernanceContractClient<'static>) {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -218,7 +213,7 @@ fn test_quadratic_voting_prevents_whale_dominance() {
     }
 
     let p = client.get_proposal(&id);
-    assert_eq!(p.for_votes, 100);    // whale: isqrt(10000)
+    assert_eq!(p.for_votes, 100); // whale: isqrt(10000)
     assert_eq!(p.against_votes, 100); // 10 × isqrt(100)
 }
 
@@ -457,4 +452,72 @@ fn test_get_vote_record() {
     // isqrt(225) = 15
     assert_eq!(record.vote_weight, 15);
     assert!(record.support);
+}
+
+// ---------------------------------------------------------------------------
+// Event schema
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_governance_events_carry_versioned_topics_and_full_fields() {
+    use crate::events::{ProposalCreatedEvent, ProposalFinalizedEvent, VoteCastEvent};
+    use soroban_sdk::testutils::Events;
+    use soroban_sdk::{FromVal, Symbol, TryFromVal};
+
+    let (env, _, gov_token, client) = setup();
+    let proposer = Address::generate(&env);
+    let voter = Address::generate(&env);
+
+    fund_voter(&env, &gov_token, &client.address, &proposer, 200);
+    fund_voter(&env, &gov_token, &client.address, &voter, 100);
+
+    // `env.events().all()` only retains events from the most recent
+    // top-level invocation, so each event is captured right after the call
+    // that emits it rather than batched at the end.
+    let find = |events: &soroban_sdk::Vec<(
+        Address,
+        soroban_sdk::Vec<soroban_sdk::Val>,
+        soroban_sdk::Val,
+    )>,
+                name: &str| {
+        events
+            .iter()
+            .find(|(addr, topics, _)| {
+                *addr == client.address
+                    && Symbol::from_val(&env, &topics.get(0).unwrap()) == Symbol::new(&env, name)
+                    && Symbol::from_val(&env, &topics.get(1).unwrap()) == Symbol::new(&env, "v1")
+            })
+            .map(|(_, _, data)| data.clone())
+    };
+
+    env.ledger().set_timestamp(0);
+    let title = make_title(&env, "Add a new elective");
+    let id = client.create_proposal(
+        &proposer,
+        &title,
+        &make_title(&env, "D"),
+        &ExecutableAction::NoOp,
+    );
+    let created_data =
+        find(&env.events().all(), "proposal_created").expect("proposal_created v1 event missing");
+    let created = ProposalCreatedEvent::try_from_val(&env, &created_data).unwrap();
+    assert_eq!(created.creator, proposer);
+    assert_eq!(created.proposal_id, id);
+    assert_eq!(created.title, title);
+
+    client.cast_vote(&voter, &id, &100, &true);
+    let vote_data = find(&env.events().all(), "vote_cast").expect("vote_cast v1 event missing");
+    let vote = VoteCastEvent::try_from_val(&env, &vote_data).unwrap();
+    assert_eq!(vote.voter, voter);
+    assert_eq!(vote.proposal_id, id);
+    assert_eq!(vote.vote_weight, 10); // isqrt(100)
+    assert!(vote.support);
+
+    env.ledger().set_timestamp(604_801);
+    client.finalize_proposal(&id);
+    let finalized_data = find(&env.events().all(), "proposal_finalized")
+        .expect("proposal_finalized v1 event missing");
+    let finalized = ProposalFinalizedEvent::try_from_val(&env, &finalized_data).unwrap();
+    assert_eq!(finalized.proposal_id, id);
+    assert_eq!(finalized.status, ProposalStatus::Passed as u32);
 }

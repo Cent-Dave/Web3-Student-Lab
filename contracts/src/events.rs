@@ -2,6 +2,31 @@
 //!
 //! This module defines structured events for all certificate operations,
 //! optimized for gas efficiency and easy parsing by indexers.
+//!
+//! # Stable event schema
+//!
+//! Every event emitted by this codebase's certificate, payment, enrollment,
+//! and governance actions follows the same shape:
+//!
+//! ```text
+//! topics: (event_name: Symbol, schema_version: Symbol, ..indexed fields)
+//! data:   a single #[contracttype] struct (e.g. `PaymentProcessedEvent`)
+//!         containing every field of the event, including a timestamp.
+//! ```
+//!
+//! - `event_name` is a short, stable identifier (e.g. `"payment_processed"`)
+//!   and never changes once shipped.
+//! - `schema_version` (`"v1"`, `"v2"`, ...) is bumped only when a *breaking*
+//!   change is made to the data struct — a field is removed, renamed, or its
+//!   type/meaning changes. Adding a new field to the end of a struct is
+//!   non-breaking and does not require a version bump. This lets indexers
+//!   detect breaking changes by watching the version topic instead of
+//!   guessing from payload shape.
+//! - The data struct's field list *is* the documented, required-fields
+//!   contract for that event — see the `*Event` structs below and their
+//!   doc comments for the certificate/payment/enrollment/governance
+//!   domains. Tests in each module assert on these fields via
+//!   `env.events().all()`.
 
 use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, String, Symbol, Vec};
 
@@ -97,6 +122,167 @@ pub struct CertificateRenewedEvent {
     pub renewed_by: Address,
     pub renewed_at: u64,
     pub new_expiry: u64,
+}
+
+/// Event data for a student enrolling in a course.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EnrollmentCreatedEvent {
+    pub student: Address,
+    pub course_id: Symbol,
+    pub instructor: Address,
+    pub enrolled_at: u64,
+}
+
+/// Event data for a student completing a course.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EnrollmentCompletedEvent {
+    pub student: Address,
+    pub course_id: Symbol,
+    pub instructor: Address,
+    pub completed_at: u64,
+}
+
+/// Event data for a student dropping a course.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EnrollmentDroppedEvent {
+    pub student: Address,
+    pub course_id: Symbol,
+    pub instructor: Address,
+    pub dropped_at: u64,
+}
+
+/// Event data for a payment entering escrow.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PaymentProcessedEvent {
+    pub payment_id: BytesN<32>,
+    pub payer: Address,
+    pub merchant: Address,
+    pub amount: i128,
+    pub processed_at: u64,
+}
+
+/// Event data for escrowed funds released to the merchant.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PaymentReleasedEvent {
+    pub payment_id: BytesN<32>,
+    pub merchant: Address,
+    pub amount: i128,
+    pub released_at: u64,
+}
+
+/// Event data for escrowed funds refunded to the payer.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PaymentRefundedEvent {
+    pub payment_id: BytesN<32>,
+    pub payer: Address,
+    pub amount: i128,
+    pub refunded_at: u64,
+}
+
+/// Event data for a payment dispute being opened.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PaymentDisputedEvent {
+    pub payment_id: BytesN<32>,
+    pub opened_by: Address,
+    pub amount: i128,
+    pub disputed_at: u64,
+}
+
+/// Event data for an administrator resolving a payment dispute.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DisputeResolvedEvent {
+    pub payment_id: BytesN<32>,
+    pub admin: Address,
+    /// `true` if the payer was refunded, `false` if the merchant was paid.
+    pub refunded_to_payer: bool,
+    pub amount: i128,
+    pub resolved_at: u64,
+}
+
+/// Event data for an RBAC role grant.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RoleGrantedEvent {
+    pub user: Address,
+    pub role: Symbol,
+    pub granted_by: Address,
+    pub granted_at: u64,
+}
+
+/// Event data for an RBAC role revocation.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RoleRevokedEvent {
+    pub user: Address,
+    pub role: Symbol,
+    pub revoked_by: Address,
+    pub revoked_at: u64,
+}
+
+/// Event data for the governance module being initialized.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GovernanceInitializedEvent {
+    pub admin: Address,
+    pub initialized_at: u64,
+}
+
+/// Event data for a governance-credit deposit.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CreditsDepositedEvent {
+    pub depositor: Address,
+    pub amount: i128,
+    pub deposited_at: u64,
+}
+
+/// Event data for a new governance proposal.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProposalCreatedEvent {
+    pub creator: Address,
+    pub proposal_id: u64,
+    pub title: String,
+    pub deadline: u64,
+    pub created_at: u64,
+}
+
+/// Event data for a quadratic vote cast on a proposal.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VoteCastEvent {
+    pub voter: Address,
+    pub proposal_id: u64,
+    pub vote_weight: i128,
+    pub support: bool,
+    pub cast_at: u64,
+}
+
+/// Event data for a proposal's voting period ending.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProposalFinalizedEvent {
+    pub proposal_id: u64,
+    /// Discriminant of `governance::ProposalStatus` (Active=0, Passed=1,
+    /// Failed=2, Executed=3).
+    pub status: u32,
+    pub finalized_at: u64,
+}
+
+/// Event data for a passed proposal's action being executed.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProposalExecutedEvent {
+    pub proposal_id: u64,
+    pub executed_at: u64,
 }
 
 /// Event publisher helper functions.
@@ -368,36 +554,117 @@ impl<'a> EventPublisher<'a> {
         );
     }
 
+    /// Publish a governance-module-initialized event.
+    pub fn publish_governance_initialized(&self, admin: &Address) {
+        let event = GovernanceInitializedEvent {
+            admin: admin.clone(),
+            initialized_at: self.env.ledger().timestamp(),
+        };
+        self.env.events().publish(
+            (
+                Symbol::new(self.env, "gov_initialized"),
+                Symbol::new(self.env, "v1"),
+            ),
+            event,
+        );
+    }
+
+    /// Publish a governance-credits-deposited event.
+    pub fn publish_credits_deposited(&self, depositor: &Address, amount: i128) {
+        let event = CreditsDepositedEvent {
+            depositor: depositor.clone(),
+            amount,
+            deposited_at: self.env.ledger().timestamp(),
+        };
+        self.env.events().publish(
+            (
+                Symbol::new(self.env, "credits_deposited"),
+                Symbol::new(self.env, "v1"),
+            ),
+            event,
+        );
+    }
+
     /// Publish a proposal created event.
-    pub fn publish_proposal_created(&self, creator: &Address, proposal_id: u64, title: &String) {
+    pub fn publish_proposal_created(
+        &self,
+        creator: &Address,
+        proposal_id: u64,
+        title: String,
+        deadline: u64,
+    ) {
+        let event = ProposalCreatedEvent {
+            creator: creator.clone(),
+            proposal_id,
+            title,
+            deadline,
+            created_at: self.env.ledger().timestamp(),
+        };
         self.env.events().publish(
             (
                 Symbol::new(self.env, "proposal_created"),
-                Symbol::new(self.env, "v2"),
+                Symbol::new(self.env, "v1"),
+                proposal_id,
             ),
-            (creator.clone(), proposal_id, title.clone()),
+            event,
         );
     }
 
     /// Publish a vote cast event.
-    pub fn publish_vote_cast(&self, user: &Address, proposal_id: u64, votes: i128, cost: u128) {
+    pub fn publish_vote_cast(
+        &self,
+        voter: &Address,
+        proposal_id: u64,
+        vote_weight: i128,
+        support: bool,
+    ) {
+        let event = VoteCastEvent {
+            voter: voter.clone(),
+            proposal_id,
+            vote_weight,
+            support,
+            cast_at: self.env.ledger().timestamp(),
+        };
         self.env.events().publish(
             (
                 Symbol::new(self.env, "vote_cast"),
-                Symbol::new(self.env, "v2"),
+                Symbol::new(self.env, "v1"),
+                proposal_id,
             ),
-            (user.clone(), proposal_id, votes, cost),
+            event,
+        );
+    }
+
+    /// Publish a proposal finalized event.
+    pub fn publish_proposal_finalized(&self, proposal_id: u64, status: u32) {
+        let event = ProposalFinalizedEvent {
+            proposal_id,
+            status,
+            finalized_at: self.env.ledger().timestamp(),
+        };
+        self.env.events().publish(
+            (
+                Symbol::new(self.env, "proposal_finalized"),
+                Symbol::new(self.env, "v1"),
+                proposal_id,
+            ),
+            event,
         );
     }
 
     /// Publish a proposal executed event.
-    pub fn publish_proposal_executed(&self, proposal_id: u64, status: u32) {
+    pub fn publish_proposal_executed(&self, proposal_id: u64) {
+        let event = ProposalExecutedEvent {
+            proposal_id,
+            executed_at: self.env.ledger().timestamp(),
+        };
         self.env.events().publish(
             (
                 Symbol::new(self.env, "proposal_executed"),
-                Symbol::new(self.env, "v2"),
+                Symbol::new(self.env, "v1"),
+                proposal_id,
             ),
-            (proposal_id, status),
+            event,
         );
     }
 
@@ -464,6 +731,215 @@ impl<'a> EventPublisher<'a> {
                 Symbol::new(self.env, "v2"),
             ),
             (caller.clone(), new_owner.clone()),
+        );
+    }
+
+    /// Publish a student-enrolled event.
+    pub fn publish_enrollment_created(
+        &self,
+        student: &Address,
+        course_id: &Symbol,
+        instructor: &Address,
+    ) {
+        let event = EnrollmentCreatedEvent {
+            student: student.clone(),
+            course_id: course_id.clone(),
+            instructor: instructor.clone(),
+            enrolled_at: self.env.ledger().timestamp(),
+        };
+        self.env.events().publish(
+            (
+                Symbol::new(self.env, "student_enrolled"),
+                Symbol::new(self.env, "v1"),
+            ),
+            event,
+        );
+    }
+
+    /// Publish an enrollment-completed event.
+    pub fn publish_enrollment_completed(
+        &self,
+        student: &Address,
+        course_id: &Symbol,
+        instructor: &Address,
+    ) {
+        let event = EnrollmentCompletedEvent {
+            student: student.clone(),
+            course_id: course_id.clone(),
+            instructor: instructor.clone(),
+            completed_at: self.env.ledger().timestamp(),
+        };
+        self.env.events().publish(
+            (
+                Symbol::new(self.env, "enrollment_completed"),
+                Symbol::new(self.env, "v1"),
+            ),
+            event,
+        );
+    }
+
+    /// Publish an enrollment-dropped event.
+    pub fn publish_enrollment_dropped(
+        &self,
+        student: &Address,
+        course_id: &Symbol,
+        instructor: &Address,
+    ) {
+        let event = EnrollmentDroppedEvent {
+            student: student.clone(),
+            course_id: course_id.clone(),
+            instructor: instructor.clone(),
+            dropped_at: self.env.ledger().timestamp(),
+        };
+        self.env.events().publish(
+            (
+                Symbol::new(self.env, "enrollment_dropped"),
+                Symbol::new(self.env, "v1"),
+            ),
+            event,
+        );
+    }
+
+    /// Publish a payment-processed (escrowed) event.
+    pub fn publish_payment_processed(
+        &self,
+        payment_id: BytesN<32>,
+        payer: &Address,
+        merchant: &Address,
+        amount: i128,
+    ) {
+        let event = PaymentProcessedEvent {
+            payment_id,
+            payer: payer.clone(),
+            merchant: merchant.clone(),
+            amount,
+            processed_at: self.env.ledger().timestamp(),
+        };
+        self.env.events().publish(
+            (
+                Symbol::new(self.env, "payment_processed"),
+                Symbol::new(self.env, "v1"),
+            ),
+            event,
+        );
+    }
+
+    /// Publish a payment-released event.
+    pub fn publish_payment_released(
+        &self,
+        payment_id: BytesN<32>,
+        merchant: &Address,
+        amount: i128,
+    ) {
+        let event = PaymentReleasedEvent {
+            payment_id,
+            merchant: merchant.clone(),
+            amount,
+            released_at: self.env.ledger().timestamp(),
+        };
+        self.env.events().publish(
+            (
+                Symbol::new(self.env, "payment_released"),
+                Symbol::new(self.env, "v1"),
+            ),
+            event,
+        );
+    }
+
+    /// Publish a payment-refunded event.
+    pub fn publish_payment_refunded(&self, payment_id: BytesN<32>, payer: &Address, amount: i128) {
+        let event = PaymentRefundedEvent {
+            payment_id,
+            payer: payer.clone(),
+            amount,
+            refunded_at: self.env.ledger().timestamp(),
+        };
+        self.env.events().publish(
+            (
+                Symbol::new(self.env, "payment_refunded"),
+                Symbol::new(self.env, "v1"),
+            ),
+            event,
+        );
+    }
+
+    /// Publish a payment-disputed event.
+    pub fn publish_payment_disputed(
+        &self,
+        payment_id: BytesN<32>,
+        opened_by: &Address,
+        amount: i128,
+    ) {
+        let event = PaymentDisputedEvent {
+            payment_id,
+            opened_by: opened_by.clone(),
+            amount,
+            disputed_at: self.env.ledger().timestamp(),
+        };
+        self.env.events().publish(
+            (
+                Symbol::new(self.env, "payment_disputed"),
+                Symbol::new(self.env, "v1"),
+            ),
+            event,
+        );
+    }
+
+    /// Publish a dispute-resolved event.
+    pub fn publish_dispute_resolved(
+        &self,
+        payment_id: BytesN<32>,
+        admin: &Address,
+        refunded_to_payer: bool,
+        amount: i128,
+    ) {
+        let event = DisputeResolvedEvent {
+            payment_id,
+            admin: admin.clone(),
+            refunded_to_payer,
+            amount,
+            resolved_at: self.env.ledger().timestamp(),
+        };
+        self.env.events().publish(
+            (
+                Symbol::new(self.env, "dispute_resolved"),
+                Symbol::new(self.env, "v1"),
+            ),
+            event,
+        );
+    }
+
+    /// Publish an RBAC role-granted event with full role/grantor context.
+    pub fn publish_rbac_role_granted(&self, user: &Address, role: Symbol, granted_by: &Address) {
+        let event = RoleGrantedEvent {
+            user: user.clone(),
+            role,
+            granted_by: granted_by.clone(),
+            granted_at: self.env.ledger().timestamp(),
+        };
+        self.env.events().publish(
+            (
+                Symbol::new(self.env, "rbac_role_granted"),
+                Symbol::new(self.env, "v1"),
+            ),
+            event,
+        );
+    }
+
+    /// Publish an RBAC role-revoked event with full role/revoker context.
+    pub fn publish_rbac_role_revoked(&self, user: &Address, role: Symbol, revoked_by: &Address) {
+        let event = RoleRevokedEvent {
+            user: user.clone(),
+            role,
+            revoked_by: revoked_by.clone(),
+            revoked_at: self.env.ledger().timestamp(),
+        };
+        self.env.events().publish(
+            (
+                Symbol::new(self.env, "rbac_role_revoked"),
+                Symbol::new(self.env, "v1"),
+            ),
+            event,
         );
     }
 }
