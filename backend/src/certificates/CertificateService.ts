@@ -10,7 +10,6 @@ import { MetadataGenerator } from './MetadataGenerator.js';
 import { certificateBlockchainService } from '../blockchain/CertificateBlockchainService.js';
 import logger from '../utils/logger.js';
 import { certificateImageGenerator } from '../utils/certificateImageGenerator.js';
-import { storageService } from '../services/storage/index.js';
 
 export class CertificateService {
   private metadataGenerator: MetadataGenerator;
@@ -93,6 +92,8 @@ export class CertificateService {
     let metadata: CertificateMetadata | undefined;
 
     try {
+      const { storageService } = await import('../services/storage/index.js');
+
       // Generate and pin the certificate image and metadata to decentralized storage
       const imageBuffer = await certificateImageGenerator.generateCertificateImage({
         studentName: `${student.firstName || ''} ${student.lastName || ''}`.trim() || 'Student',
@@ -478,44 +479,8 @@ export class CertificateService {
    * Get analytics for certificates
    */
   async getAnalytics() {
-    const totalCertificates = await prisma.certificate.count();
-    const byStatusRaw = await prisma.certificate.groupBy({
-      by: ['status'],
-      _count: { status: true },
-    });
-
-    const byStatus = byStatusRaw.reduce(
-      (acc, item) => {
-        acc[item.status] = item._count.status;
-        return acc;
-      },
-      {} as Record<string, number>
-    );
-
-    const uniqueStudents = await prisma.certificate.groupBy({
-      by: ['studentId'],
-      _count: { studentId: true },
-    });
-
-    const uniqueCourses = await prisma.certificate.groupBy({
-      by: ['courseId'],
-      _count: { courseId: true },
-    });
-
-    const revokedCount = byStatus['REVOKED'] || 0;
-    const revocationRate = totalCertificates > 0 ? revokedCount / totalCertificates : 0;
-
-    return {
-      totalCertificates,
-      byStatus,
-      totalVerifications: 0,
-      uniqueStudents: uniqueStudents.length,
-      uniqueCourses: uniqueCourses.length,
-      revocationRate,
-      issuedThisMonth: 0,
-      issuedThisWeek: 0,
-      issuedToday: 0,
-    };
+    const { certificateAnalytics } = await import('./CertificateAnalytics.js');
+    return certificateAnalytics.getAnalytics();
   }
 
   /**

@@ -319,6 +319,11 @@ The database includes the following models:
 - **Course**: Course details (id, title, description, instructor, credits)
 - **Certificate**: Certificates issued to students (id, studentId, courseId, certificateHash,
   status)
+- **CertificateVerificationEvent**: Privacy-minimal verification analytics events. Each event stores
+  the workspace, certificate id when found, public token id, and timestamp. It intentionally does not
+  store requester IP addresses, user agents, names, emails, wallet addresses, or other verifier
+  personal data. These events are retained for aggregate analytics and can be pruned by timestamp if
+  a deployment adopts a shorter retention policy.
 - **Enrollment**: Student course enrollments (id, studentId, courseId, status)
 
 ## Troubleshooting
