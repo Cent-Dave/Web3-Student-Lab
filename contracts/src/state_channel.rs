@@ -23,7 +23,12 @@
 //!
 //! ## Signature scheme
 //! The canonical state message is:
-//!   `sha256( channel_id ‖ nonce ‖ balance_a ‖ balance_b )`
+//!   `sha256( DOMAIN_TAG ‖ channel_id ‖ nonce ‖ balance_a ‖ balance_b )`
+//! `DOMAIN_TAG` (`"YVSC_STATE_V1"`) is a fixed byte-string prefix that scopes
+//! the hash to this contract and message type. Without it, a signature over
+//! a same-shaped-but-differently-purposed payload elsewhere in the system
+//! (or a future v2 message layout) could be replayed here; the tag makes
+//! that cross-context/cross-version reuse fail signature verification.
 //! Both parties must sign this hash with their Ed25519 keys.
 //! `env.crypto().ed25519_verify` is used — the same primitive used by the
 //! cross-chain messaging module in this codebase.
@@ -51,6 +56,12 @@ use crate::security_primitives::{nonreentrant_acquire, nonreentrant_release, saf
 // ---------------------------------------------------------------------------
 
 const LOCK: soroban_sdk::Symbol = symbol_short!("sc_lk");
+
+/// Domain-separation tag mixed into every state hash. Scopes signatures to
+/// this contract and message version so they cannot be replayed against a
+/// different contract or a future payload layout that happens to encode to
+/// the same bytes.
+const DOMAIN_TAG: &[u8] = b"YVSC_STATE_V1";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -457,10 +468,13 @@ impl StateChannelContract {
     // Internal helpers
     // -----------------------------------------------------------------------
 
-    /// Canonical state hash: sha256(channel_id ‖ nonce ‖ balance_a ‖ balance_b).
+    /// Canonical state hash:
+    /// `sha256(DOMAIN_TAG ‖ channel_id ‖ nonce ‖ balance_a ‖ balance_b)`.
     ///
-    /// All fields are encoded as big-endian fixed-width bytes to prevent
-    /// length-extension / ambiguity attacks.
+    /// All numeric fields are encoded as big-endian fixed-width bytes to
+    /// prevent length-extension / ambiguity attacks. The leading
+    /// `DOMAIN_TAG` provides explicit domain separation from other
+    /// signed-payload schemes in this codebase.
     fn state_hash(
         env: &Env,
         channel_id: u32,
@@ -468,12 +482,14 @@ impl StateChannelContract {
         balance_a: i128,
         balance_b: i128,
     ) -> BytesN<32> {
-        // 4 + 8 + 16 + 16 = 44 bytes
-        let mut buf = [0u8; 44];
-        buf[0..4].copy_from_slice(&channel_id.to_be_bytes());
-        buf[4..12].copy_from_slice(&nonce.to_be_bytes());
-        buf[12..28].copy_from_slice(&balance_a.to_be_bytes());
-        buf[28..44].copy_from_slice(&balance_b.to_be_bytes());
+        // DOMAIN_TAG(13) + 4 + 8 + 16 + 16 = 57 bytes
+        let mut buf = [0u8; DOMAIN_TAG.len() + 44];
+        let tag_len = DOMAIN_TAG.len();
+        buf[0..tag_len].copy_from_slice(DOMAIN_TAG);
+        buf[tag_len..tag_len + 4].copy_from_slice(&channel_id.to_be_bytes());
+        buf[tag_len + 4..tag_len + 12].copy_from_slice(&nonce.to_be_bytes());
+        buf[tag_len + 12..tag_len + 28].copy_from_slice(&balance_a.to_be_bytes());
+        buf[tag_len + 28..tag_len + 44].copy_from_slice(&balance_b.to_be_bytes());
         env.crypto().sha256(&Bytes::from_array(env, &buf)).into()
     }
 
@@ -490,3 +506,7 @@ impl StateChannelContract {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "state_channel_tests.rs"]
+mod state_channel_tests;

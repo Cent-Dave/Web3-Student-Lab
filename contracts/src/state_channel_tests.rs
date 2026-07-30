@@ -22,7 +22,7 @@ use soroban_sdk::{
     token, Address, Bytes, BytesN, Env,
 };
 
-use crate::state_channel::{ChannelStatus, StateChannelClient};
+use crate::state_channel::{ChannelStatus, StateChannelContractClient, DOMAIN_TAG};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -70,6 +70,25 @@ impl Party {
 
 /// Compute the canonical state hash off-chain (mirrors the contract's `state_hash`).
 fn state_hash(env: &Env, channel_id: u32, nonce: u64, bal_a: i128, bal_b: i128) -> BytesN<32> {
+    let tag_len = DOMAIN_TAG.len();
+    let mut buf = [0u8; 57];
+    buf[0..tag_len].copy_from_slice(DOMAIN_TAG);
+    buf[tag_len..tag_len + 4].copy_from_slice(&channel_id.to_be_bytes());
+    buf[tag_len + 4..tag_len + 12].copy_from_slice(&nonce.to_be_bytes());
+    buf[tag_len + 12..tag_len + 28].copy_from_slice(&bal_a.to_be_bytes());
+    buf[tag_len + 28..tag_len + 44].copy_from_slice(&bal_b.to_be_bytes());
+    env.crypto().sha256(&Bytes::from_array(env, &buf)).into()
+}
+
+/// Same field layout but WITHOUT the domain tag — used to prove the tag is
+/// actually mixed into the hash (i.e. that domain separation is real).
+fn state_hash_without_domain_tag(
+    env: &Env,
+    channel_id: u32,
+    nonce: u64,
+    bal_a: i128,
+    bal_b: i128,
+) -> BytesN<32> {
     let mut buf = [0u8; 44];
     buf[0..4].copy_from_slice(&channel_id.to_be_bytes());
     buf[4..12].copy_from_slice(&nonce.to_be_bytes());
@@ -93,7 +112,7 @@ fn sign_state(
 
 struct Setup<'a> {
     env: Env,
-    sc: StateChannelClient<'a>,
+    sc: StateChannelContractClient<'a>,
     token: Address,
     admin: Address,
     a: Party,
@@ -116,7 +135,7 @@ impl<'a> Setup<'a> {
         token::StellarAssetClient::new(&env, &token_id).mint(&b.address, &50_000);
 
         let sc_id = env.register(crate::state_channel::StateChannelContract, ());
-        let sc = StateChannelClient::new(&env, &sc_id);
+        let sc = StateChannelContractClient::new(&env, &sc_id);
         sc.initialize(&admin);
 
         Setup { env, sc, token: token_id, admin, a, b }
@@ -396,4 +415,32 @@ fn test_compute_state_hash_matches_off_chain() {
     let on_chain = s.sc.compute_state_hash(&1_u32, &5_u64, &12_000_i128, &8_000_i128);
     let off_chain = state_hash(&s.env, 1, 5, 12_000, 8_000);
     assert_eq!(on_chain, off_chain);
+}
+
+#[test]
+fn test_domain_tag_changes_hash_output() {
+    // Proves DOMAIN_TAG is actually mixed into the hash: the same
+    // (channel_id, nonce, balances) tuple must hash differently depending
+    // on whether the domain tag is present, so a signature produced for a
+    // different domain/version can't be replayed as a valid state-channel
+    // signature here.
+    let s = Setup::new();
+    let tagged = s.sc.compute_state_hash(&1_u32, &5_u64, &12_000_i128, &8_000_i128);
+    let untagged = state_hash_without_domain_tag(&s.env, 1, 5, 12_000, 8_000);
+    assert_ne!(tagged, untagged);
+}
+
+#[test]
+#[should_panic]
+fn test_signature_over_untagged_payload_rejected() {
+    // A signature computed over the old (pre-domain-tag) message layout
+    // must NOT verify against the current contract, proving the domain
+    // tag provides real cross-version replay protection rather than just
+    // being documentation.
+    let s = Setup::new();
+    let id = s.open();
+    let bad_hash = state_hash_without_domain_tag(&s.env, id, 1, 12_000, 8_000);
+    let sig_a = s.a.sign_with_env(&s.env, &bad_hash);
+    let sig_b = s.b.sign_with_env(&s.env, &bad_hash);
+    s.sc.submit_state(&s.a.address, &id, &1_u64, &12_000_i128, &8_000_i128, &sig_a, &sig_b);
 }
