@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { storageGcQueue, storagePinQueue } from './queue.js';
 import { createStorageProvider } from './provider.js';
 import { buildGatewayUrl, buildIpfsUri } from './utils.js';
@@ -133,7 +132,7 @@ export class StorageService {
 
   async pinCertificateMetadata(request: {
     certificateId: string;
-    content: Record<string, unknown>;
+    content: unknown;
   }): Promise<StoragePinResult> {
     return this.pinJsonNow({
       resourceType: 'certificate',
@@ -150,7 +149,7 @@ export class StorageService {
 
   async pinProjectIdea(request: {
     projectId: string;
-    content: Record<string, unknown>;
+    content: unknown;
     queued?: boolean;
   }): Promise<StoragePinResult | { jobId?: string | number }> {
     if (request.queued) {
