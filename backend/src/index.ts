@@ -111,6 +111,7 @@ app.use(getSentryRequestHandler());
  *     summary: Health check endpoint
  *     description: Returns the health status of the API and its dependencies
  *     tags: [System]
+ *     security: []
  *     responses:
  *       200:
  *         description: API is healthy
