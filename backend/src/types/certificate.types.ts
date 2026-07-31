@@ -74,6 +74,7 @@ export interface Certificate {
   revocationReason?: string | null;
   revokedBy?: string | null;
   previousVersionId?: string | null;
+  contentHash?: string | null;
   createdAt: Date;
   updatedAt: Date;
   // Relations

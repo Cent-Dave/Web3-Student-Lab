@@ -1,5 +1,6 @@
 import redisClient from '../cache/RedisClient.js';
 import logger from '../utils/logger.js';
+import redisClient from '../cache/RedisClient.js';
 import {
     CourseNotification,
     CreateCourseNotificationDto,
