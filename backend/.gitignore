@@ -10,3 +10,7 @@ node_modules
 coverage/
 dist/
 *.log
+
+# generated build artifacts committed by mistake
+*.js.map
+*.d.ts.map
