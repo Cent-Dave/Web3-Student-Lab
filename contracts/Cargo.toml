@@ -25,7 +25,7 @@ members = [
     "content_management_system",
     "testnet_faucet_integration",
     "automated_testing_suite",
-    "cicd_pipeline"
+    "cicd_pipeline",
 ]
 
 [lib]
