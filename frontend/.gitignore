@@ -14,6 +14,8 @@
 /coverage
 /playwright-report/
 /test-results/
+**/__snapshots__/
+*.snap
 
 # next.js
 /.next/
