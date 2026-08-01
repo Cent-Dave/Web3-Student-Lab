@@ -1,12 +1,12 @@
 import { Job, Worker } from 'bullmq';
 import logger from '../../utils/logger.js';
-import { redisConnection } from '../../utils/redis.js';
-import { canonicalizeWebhookPayload, buildSignedWebhookHeaders } from './signature.js';
 import {
-  webhookDeadLetterQueue,
-  WEBHOOK_DELIVERY_QUEUE_NAME,
+    WEBHOOK_DELIVERY_QUEUE_NAME,
+    webhookDeadLetterQueue,
 } from './queue.js';
+import { buildSignedWebhookHeaders, canonicalizeWebhookPayload } from './signature.js';
 import type { DeadLetterWebhookJob, WebhookDeliveryJobData } from './types.js';
+import { recordDeliveryState } from './dispatcher.js';
 
 const requestTimeoutMs = Number(process.env.WEBHOOK_REQUEST_TIMEOUT_MS || '10000');
 
@@ -39,7 +39,10 @@ export const deliverWebhook = async (
 
   const serializedPayload = canonicalizeWebhookPayload(payload);
   const timestamp = new Date().toISOString();
-  const secret = job.data.destination.secret || process.env.WEBHOOK_SIGNING_SECRET || 'webhook-secret';
+  const secret = job.data.destination.secret || process.env.WEBHOOK_SIGNING_SECRET;
+  if (!secret) {
+    throw new Error('WEBHOOK_SIGNING_SECRET environment variable is required');
+  }
   const headers = buildSignedWebhookHeaders({
     deliveryId: job.data.deliveryId,
     eventType: job.data.event.type,
@@ -69,6 +72,14 @@ export const deliverWebhook = async (
     logger.info(
       `Delivered webhook ${job.data.deliveryId} to ${job.data.destination.url} with status ${response.status}`
     );
+    recordDeliveryState(
+      job.data.idempotencyKey ?? `${job.data.event.id}:${job.data.destination.url}`,
+      'delivered',
+      job.data.deliveryId,
+      job.data.event,
+      job.data.destination,
+      { attemptsMade: job.attemptsMade }
+    );
     return {
       statusCode: response.status,
       deliveryId: job.data.deliveryId,
@@ -76,8 +87,9 @@ export const deliverWebhook = async (
   }
 
   if (!isRetryableStatusCode(response.status)) {
+    const errorMessage = `Webhook delivery rejected with status ${response.status}`;
     throw new PermanentWebhookDeliveryError(
-      `Webhook delivery rejected with status ${response.status}`,
+      errorMessage,
       response.status
     );
   }
@@ -87,6 +99,8 @@ export const deliverWebhook = async (
     `Retryable webhook delivery failure (${response.status}): ${responseBody || response.statusText}`
   );
 };
+
+import { enqueueToDLQ } from '../dlq.service.js';
 
 const moveToDeadLetterQueue = async (
   job: Job<WebhookDeliveryJobData>,
@@ -101,6 +115,16 @@ const moveToDeadLetterQueue = async (
   await webhookDeadLetterQueue.add(job.data.event.type, deadLetterJob, {
     removeOnComplete: true,
     removeOnFail: false,
+  });
+
+  await enqueueToDLQ({
+    originalQueue: WEBHOOK_DELIVERY_QUEUE_NAME,
+    jobName: job.data.event.type,
+    data: job.data as any,
+    opts: job.opts as any,
+    error: error.message,
+    traceId: (job.data as any).traceId || job.data.deliveryId || job.data.event.id,
+    attemptsMade: job.attemptsMade || 1,
   });
 };
 
@@ -141,9 +165,15 @@ export const startWebhookWorker = (): Worker<WebhookDeliveryJobData> | null => {
     },
     {
       connection: {
-        host: new URL(process.env.REDIS_URL || 'redis://localhost:6379').hostname,
-        port: Number(new URL(process.env.REDIS_URL || 'redis://localhost:6379').port) || 6379,
-        password: new URL(process.env.REDIS_URL || 'redis://localhost:6379').password || undefined,
+        host: new URL(process.env.REDIS_URL || (() => {
+          throw new Error('REDIS_URL environment variable is required');
+        })()).hostname,
+        port: Number(new URL(process.env.REDIS_URL || (() => {
+          throw new Error('REDIS_URL environment variable is required');
+        })()).port) || 6379,
+        password: new URL(process.env.REDIS_URL || (() => {
+          throw new Error('REDIS_URL environment variable is required');
+        })()).password || undefined,
         maxRetriesPerRequest: null,
       },
       concurrency: Number(process.env.WEBHOOK_WORKER_CONCURRENCY || '25'),
@@ -160,6 +190,15 @@ export const startWebhookWorker = (): Worker<WebhookDeliveryJobData> | null => {
 
     logger.warn(
       `Webhook delivery ${job.data.deliveryId} failed on attempt ${job.attemptsMade}/${maxAttempts}: ${error.message}`
+    );
+
+    recordDeliveryState(
+      job.data.idempotencyKey ?? `${job.data.event.id}:${job.data.destination.url}`,
+      exhausted ? 'dead-letted' : 'failed',
+      job.data.deliveryId,
+      job.data.event,
+      job.data.destination,
+      { attemptsMade: job.attemptsMade, error: error.message }
     );
 
     if (exhausted) {

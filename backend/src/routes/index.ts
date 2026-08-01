@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Router } from 'express';
 import dashboardRoutes from '../dashboard/dashboard.routes.js';
 import activityLogRouter from '../dashboard/activityLog.routes.js';
@@ -27,7 +26,7 @@ import studentsRouter from './students.js';
 import simulatorErrorsRouter from './simulatorErrors.routes.js';
 import termsOfServiceRouter from './termsOfService.routes.js';
 import privacyPolicyRouter from './privacyPolicy.routes.js';
-import playgroundRouter from './playground.routes.js';
+import playgroundValidateRouter from './playground.routes.js';
 import oauthRouter from './oauth.routes.js';
 
 import notificationRouter from '../notifications/notification.routes.js';
@@ -35,9 +34,10 @@ import notificationPreferencesRouter from '../notifications/preferences.routes.j
 import metricsRouter from './metrics.routes.js';
 import dependenciesRouter from './dependencies.routes.js';
 import infrastructureRouter from '../infrastructure/infrastructure.routes.js';
-import simulatorRouter from '../simulator/simulator.routes.js';
+import simulatorIdeasRouter from '../simulator/simulator.routes.js';
 
 import webhooksRouter from './webhooks.js';
+import adminDLQRouter from './admin/dlq.routes.js';
 
 const router = Router();
 
@@ -67,14 +67,15 @@ router.use('/simulator', simulatorRouter);
 router.use('/playground', playgroundRouter);
 router.use('/export', exportRouter);
 router.use('/webhooks', webhooksRouter);
+router.use('/admin/dlq', adminDLQRouter);
 router.use('/user', userRouter);
 router.use('/metrics', metricsRouter);
 router.use('/dependencies', dependenciesRouter);
 router.use('/infrastructure', infrastructureRouter);
-router.use('/simulator', simulatorRouter);
+router.use('/simulator', simulatorIdeasRouter);
 router.use('/simulator/errors', simulatorErrorsRouter);
 router.use('/roadmap/tos', termsOfServiceRouter);
-router.use('/playground', playgroundRouter);
+router.use('/playground', playgroundValidateRouter);
 router.use('/playground/privacy-policy', privacyPolicyRouter);
 router.use('/oauth', oauthRouter);
 
