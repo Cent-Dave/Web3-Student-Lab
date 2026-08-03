@@ -36,6 +36,7 @@ import dependenciesRouter from './dependencies.routes.js';
 import infrastructureRouter from '../infrastructure/infrastructure.routes.js';
 import simulatorIdeasRouter from '../simulator/simulator.routes.js';
 
+import deployRouter from './deploy.routes.js';
 import webhooksRouter from './webhooks.js';
 import adminDLQRouter from './admin/dlq.routes.js';
 
@@ -66,6 +67,7 @@ router.use('/osct', osctRouter);
 router.use('/simulator', simulatorRouter);
 router.use('/playground', playgroundRouter);
 router.use('/export', exportRouter);
+router.use('/deploy', deployRouter);
 router.use('/webhooks', webhooksRouter);
 router.use('/admin/dlq', adminDLQRouter);
 router.use('/user', userRouter);
