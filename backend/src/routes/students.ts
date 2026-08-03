@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { normalizeSorobanDid } from '../auth/auth.service.js';
+import type { Prisma } from '@prisma/client';
+import { normalizeSorobanDid, DidValidationError, validateStudentDidCompatibility } from '../auth/auth.service.js';
 import { invalidateUserCache } from '../cache/CacheInvalidation.js';
 import { cacheMiddleware } from '../cache/CacheMiddleware.js';
 import { CACHE_KEYS } from '../cache/CacheService.js';
@@ -53,7 +54,7 @@ function parseBody<T>(
 // Router
 // ---------------------------------------------------------------------------
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 // GET /api/students — list all students
 router.get('/', async (_req: Request, res: Response): Promise<void> => {
@@ -76,7 +77,7 @@ router.get(
   '/:id',
   cacheMiddleware({
     ttl: cacheTTL.user.profile,
-    keyGenerator: (req) => CACHE_KEYS.user.profile(req.params['id'] as string),
+    keyGenerator: (req) => CACHE_KEYS.user.profile(typeof req.params.id === 'string' ? req.params.id : 'unknown'),
   }),
   async (req: StudentByIdRequest, res: Response): Promise<void> => {
     try {
@@ -85,8 +86,8 @@ router.get(
         res.status(400).json({ error: 'Invalid student ID' });
         return;
       }
-
       const { id } = paramResult.data;
+
       const student = await prisma.student.findUnique({
         where: { id },
         include: {
@@ -121,7 +122,10 @@ router.post(
       if (!body) return;
 
       const { email, firstName, lastName, did } = body;
-      const normalizedDid = normalizeSorobanDid(did);
+      const normalizedDid = validateStudentDidCompatibility({
+        did,
+        expectedNetwork: process.env.STELLAR_NETWORK || 'testnet',
+      });
 
       const student = await prisma.student.create({
         data: {
@@ -129,12 +133,11 @@ router.post(
           firstName,
           lastName,
           did: normalizedDid ?? null,
-          // NOTE: Password hashing is not yet implemented.  This placeholder
-          // must be replaced before students can authenticate via password.
-          password: 'placeholder_password',
+          password: 'placeholder_password', // TODO: Implement proper password hashing
         },
       });
 
+      // Broadcast event
       await broadcastEvent('dashboard_updated', {
         type: 'STUDENT_CREATED',
         studentId: student.id,
@@ -143,18 +146,17 @@ router.post(
 
       res.status(201).json(student);
     } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message.startsWith('Invalid DID format')
-      ) {
+      if (error instanceof DidValidationError) {
+        logger.warn('Rejected student creation due to DID validation failure', {
+          route: '/api/v1/students',
+          email: req.body?.email,
+          reason: error.message,
+        });
         res.status(400).json({ error: error.message });
         return;
       }
 
-      logger.error('Failed to create student', {
-        error,
-        // Intentionally omit email from logs to avoid PII leakage
-      });
+      console.error("CREATE STUDENT ERROR:", error);
       res.status(500).json({ error: 'Failed to create student' });
     }
   }
@@ -178,20 +180,26 @@ router.put(
       if (!body) return;
 
       const { email, firstName, lastName, did } = body;
-      const normalizedDid = normalizeSorobanDid(did);
+      const existingStudent = await prisma.student.findUnique({
+        where: { id },
+        select: { walletAddress: true },
+      });
 
-      // Build update payload — only include fields that were provided
-      const updateData: {
-        email?: string;
-        firstName?: string;
-        lastName?: string;
-        did?: string | null;
-      } = {};
+      const normalizedDid = validateStudentDidCompatibility({
+        did,
+        walletAddress: existingStudent?.walletAddress ?? null,
+        expectedNetwork: process.env.STELLAR_NETWORK || 'testnet',
+      });
 
-      if (email !== undefined) updateData.email = email;
-      if (firstName !== undefined) updateData.firstName = firstName;
-      if (lastName !== undefined) updateData.lastName = lastName;
-      if (normalizedDid !== undefined) updateData.did = normalizedDid;
+      const updateData: Prisma.StudentUpdateInput = {
+        email,
+        firstName,
+        lastName,
+      };
+
+      if (normalizedDid !== undefined) {
+        updateData.did = normalizedDid;
+      }
 
       const student = await prisma.student.update({
         where: { id },
