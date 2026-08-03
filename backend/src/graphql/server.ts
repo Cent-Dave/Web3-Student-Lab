@@ -1,10 +1,12 @@
 import { ApolloServer } from '@apollo/server';
 import { expressMiddleware } from '@as-integrations/express4';
-import cors from 'cors';
 import { json } from 'express';
+import cors from 'cors';
+import { json, type RequestHandler } from 'express';
 import { typeDefs } from './schema.js';
 import { resolvers } from './resolvers.js';
 import { createGraphQLContext } from './context.js';
+import { createCorsMiddleware } from '../config/cors.config.js';
 import logger from '../utils/logger.js';
 
 export const createGraphQLServer = async () => {
@@ -30,14 +32,14 @@ export const createGraphQLServer = async () => {
   return server;
 };
 
-export const graphQLMiddleware = async () => {
+export const graphQLMiddleware = async (): Promise<RequestHandler[]> => {
   const server = await createGraphQLServer();
 
   return [
     json(),
-    cors<cors.CorsRequest>({ origin: true }),
+    createCorsMiddleware(),
     expressMiddleware(server, {
       context: createGraphQLContext,
-    }),
+    }) as RequestHandler,
   ];
 };

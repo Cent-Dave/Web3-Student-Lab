@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Router, Request, Response } from 'express';
 import {
   filterTransactions,
@@ -7,7 +6,7 @@ import {
 } from '../../services/blockExplorer.service.js';
 import logger from '../../utils/logger.js';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 /**
  * @route GET /api/v1/generator/explorer/snapshot
@@ -54,7 +53,8 @@ router.get('/explorer/search', async (req: Request, res: Response) => {
  */
 router.get('/explorer/link/:hash', (req: Request, res: Response) => {
   const network = req.query.network === 'public' ? 'public' : 'testnet';
-  const link = buildExplorerLink(req.params.hash, network);
+  const hash = typeof req.params.hash === 'string' ? req.params.hash : '';
+  const link = buildExplorerLink(hash, network);
   res.json({ status: 'success', data: { link } });
 });
 
