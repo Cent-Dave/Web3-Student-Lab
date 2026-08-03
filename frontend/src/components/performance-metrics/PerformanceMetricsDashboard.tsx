@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   BarChart,
   Bar,
@@ -22,6 +23,7 @@ import {
   createMetricsExport,
   evaluateAchievements,
 } from '@/lib/analytics/performanceMetrics';
+import { ChartDataTable, type ColumnDef } from '@/components/analytics/ChartDataTable';
 import AchievementBadges from './AchievementBadges';
 import DataSourceNotice from './DataSourceNotice';
 
@@ -47,18 +49,20 @@ const TOOLTIP_STYLE = {
   color: '#fff',
 };
 
-/**
- * PerformanceMetricsDashboard — the presentational heart of the Learning
- * Analytics performance view.
- *
- * It is intentionally a *pure prop-driven* component: all data fetching lives in
- * {@link usePerformanceMetrics}, while all derivation lives in the
- * `performanceMetrics` lib. That separation keeps this component trivial to test
- * (just pass props) and free of network concerns.
- *
- * Renders, in order: KPI cards, a "time spent" bar chart, a completion-rate pie
- * chart, and the achievement badges grid. Handles loading and error fallbacks.
- */
+const BAR_CHART_SUMMARY = 'Bar chart of daily study time in minutes over the recent period.';
+
+const BAR_TABLE_COLUMNS: ColumnDef[] = [
+  { key: 'date', label: 'Date' },
+  { key: 'minutes', label: 'Minutes' },
+];
+
+const PIE_CHART_SUMMARY = 'Pie chart of completed versus remaining courses.';
+
+const PIE_TABLE_COLUMNS: ColumnDef[] = [
+  { key: 'name', label: 'Category' },
+  { key: 'value', label: 'Courses' },
+];
+
 export default function PerformanceMetricsDashboard({
   metrics,
   timeSpent,
@@ -68,7 +72,9 @@ export default function PerformanceMetricsDashboard({
   lastVerifiedAt = null,
   onRetry,
 }: PerformanceMetricsDashboardProps) {
-  // --- Loading state -------------------------------------------------------
+  const [showBarTable, setShowBarTable] = useState(false);
+  const [showPieTable, setShowPieTable] = useState(false);
+
   if (isLoading) {
     return (
       <div
@@ -84,8 +90,6 @@ export default function PerformanceMetricsDashboard({
     );
   }
 
-  // Derive all view data from the raw snapshot. Cheap + pure, so it is fine to
-  // recompute on every render.
   const cards = buildMetricCards(metrics);
   const completion = buildCompletionBreakdown(metrics);
   const badges = evaluateAchievements(metrics);
@@ -111,6 +115,11 @@ export default function PerformanceMetricsDashboard({
 
   return (
     <div className="space-y-8">
+      {/* Fallback / error banner */}
+      {(error || isFallback) && (
+        <div
+          role="alert"
+          className="rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-4 text-sm text-yellow-500"
       {/* Data-source transparency: live vs cached vs fallback */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <DataSourceNotice dataSource={dataSource} lastVerifiedAt={lastVerifiedAt} onRetry={onRetry} />
@@ -158,7 +167,7 @@ export default function PerformanceMetricsDashboard({
             <span className="h-3 w-3 rounded-sm bg-red-600" aria-hidden="true"></span>
             Time Spent
           </h3>
-          <div role="img" aria-label="Bar chart of daily study time in minutes over the recent period">
+          <div role="img" aria-label={BAR_CHART_SUMMARY}>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={timeSpent}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
@@ -169,6 +178,26 @@ export default function PerformanceMetricsDashboard({
               </BarChart>
             </ResponsiveContainer>
           </div>
+          <div className="mt-4">
+            <button
+              onClick={() => setShowBarTable((v) => !v)}
+              aria-expanded={showBarTable}
+              aria-controls="bar-chart-table"
+              className="text-xs font-bold tracking-widest uppercase text-gray-400 hover:text-white transition-colors"
+            >
+              {showBarTable ? 'Hide data table' : 'Show data table'}
+            </button>
+          </div>
+          {showBarTable && (
+            <div className="mt-3">
+              <ChartDataTable
+                columns={BAR_TABLE_COLUMNS}
+                data={timeSpent}
+                caption="Daily study time in minutes."
+                id="bar-chart-table"
+              />
+            </div>
+          )}
         </div>
 
         {/* Completion rate pie chart */}
@@ -177,7 +206,7 @@ export default function PerformanceMetricsDashboard({
             <span className="h-3 w-3 rounded-sm bg-red-600" aria-hidden="true"></span>
             Completion Rate
           </h3>
-          <div role="img" aria-label="Pie chart of completed versus remaining courses">
+          <div role="img" aria-label={PIE_CHART_SUMMARY}>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
@@ -198,6 +227,26 @@ export default function PerformanceMetricsDashboard({
               </PieChart>
             </ResponsiveContainer>
           </div>
+          <div className="mt-4">
+            <button
+              onClick={() => setShowPieTable((v) => !v)}
+              aria-expanded={showPieTable}
+              aria-controls="pie-chart-table"
+              className="text-xs font-bold tracking-widest uppercase text-gray-400 hover:text-white transition-colors"
+            >
+              {showPieTable ? 'Hide data table' : 'Show data table'}
+            </button>
+          </div>
+          {showPieTable && (
+            <div className="mt-3">
+              <ChartDataTable
+                columns={PIE_TABLE_COLUMNS}
+                data={completion}
+                caption="Course completion rate breakdown."
+                id="pie-chart-table"
+              />
+            </div>
+          )}
         </div>
       </div>
 
