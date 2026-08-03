@@ -171,6 +171,8 @@ app.use('/api/rpc', rpcCacheMiddleware);
 // GraphQL API endpoint
 let graphqlServer: Awaited<ReturnType<typeof createGraphQLServer>> | null = null;
 
+export const graphqlSetupPromise = setupGraphQL();
+
 async function setupGraphQL() {
   try {
     graphqlServer = await createGraphQLServer();
@@ -190,7 +192,7 @@ async function setupGraphQL() {
   }
 }
 
-setupGraphQL().catch(() => {});
+
 
 // API Routes - with workspace isolation
 app.use('/api/v1', requireWorkspaceMiddleware, createI18nMiddleware(), routes);

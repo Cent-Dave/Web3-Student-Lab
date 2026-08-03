@@ -8,12 +8,18 @@ import { resolvers } from './resolvers.js';
 import { createGraphQLContext } from './context.js';
 import { createCorsMiddleware } from '../config/cors.config.js';
 import logger from '../utils/logger.js';
+import { depthLimitRule, complexityLimitRule } from './validationRules.js';
+import config from '../config/env.config.js';
 
 export const createGraphQLServer = async () => {
   const server = new ApolloServer({
     typeDefs,
     resolvers,
     introspection: process.env.NODE_ENV !== 'production',
+    validationRules: [
+      depthLimitRule(() => config.graphql?.maxDepth ?? 10),
+      complexityLimitRule(() => config.graphql?.maxComplexity ?? 100),
+    ],
     plugins: [
       {
         async serverWillStart() {

@@ -51,7 +51,7 @@ export class NotificationPreferencesService {
   async getByStudentId(studentId: string): Promise<NotificationPreferences | null> {
     try {
       const cacheKey = `notification_prefs:${studentId}`;
-      const client = redisClient.getClient();
+      const client = redisConnection;
       const cached = client ? await client.get(cacheKey) : null;
       if (cached) {
         return JSON.parse(cached) as NotificationPreferences;
