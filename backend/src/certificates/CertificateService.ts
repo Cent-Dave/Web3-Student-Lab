@@ -6,6 +6,8 @@
 
 
 import prisma from '../db/index.js';
+import { storageService } from '../services/storage/index.js';
+import { certificateBlockchainService } from '../blockchain/CertificateBlockchainService.js';
 import {
   Certificate,
   CertificateMetadata,
@@ -13,11 +15,9 @@ import {
   MintCertificateRequest,
   VerificationResult,
 } from '../types/certificate.types.js';
-import { MetadataGenerator } from './MetadataGenerator.js';
-import { certificateBlockchainService } from '../blockchain/CertificateBlockchainService.js';
-import logger from '../utils/logger.js';
 import { certificateImageGenerator } from '../utils/certificateImageGenerator.js';
-import { storageService } from '../services/storage/index.js';
+import logger from '../utils/logger.js';
+import { MetadataGenerator } from './MetadataGenerator.js';
 import { computeCertificateContentHash, verifyCertificateContentHash } from './ContentHash.js';
 
 export class CertificateService {
@@ -122,6 +122,11 @@ export class CertificateService {
           certificate.tokenId || tokenIdValue
         }/metadata`,
       });
+
+      if (!metadata) {
+        logger.error(`Failed to generate metadata for certificate ${certificateId}`);
+        throw new Error('Failed to generate certificate metadata');
+      }
 
       const metadataAsset = await storageService.pinCertificateMetadata({
         certificateId: certificateId,
@@ -292,9 +297,9 @@ export class CertificateService {
     }
 
     const metadata = this.metadataGenerator.generate(
-      certificate,
-      certificate.course!,
-      certificate.student
+      certificate as any,
+      certificate.course as any,
+      certificate.student as any
     );
 
     const onChainData: VerificationResult['onChainData'] = {
@@ -354,7 +359,11 @@ export class CertificateService {
       },
     });
 
-    const certMap = new Map(certificates.map((c) => [c.tokenId, c]));
+    const certMap = new Map<string, typeof certificates[number]>(
+      certificates
+        .filter((c): c is typeof certificates[number] => typeof c.tokenId === 'string')
+        .map((c) => [c.tokenId, c] as const)
+    );
 
     const results: VerificationResult[] = [];
 
@@ -374,7 +383,7 @@ export class CertificateService {
 
       const walletAddress =
         cert.student.walletAddress || this.extractWalletFromDid(cert.student.did);
-      const metadata = this.metadataGenerator.generate(cert, cert.course!, cert.student);
+      const metadata = this.metadataGenerator.generate(cert as any, cert.course as any, cert.student as any);
 
       const onChainData: VerificationResult['onChainData'] = {
         tokenId: cert.tokenId || '',
@@ -479,24 +488,35 @@ export class CertificateService {
   /**
    * Gets certificates by status (for admin/issuer)
    */
-  async getCertificatesByStatus(status: string): Promise<Certificate[]> {
-    return await prisma.certificate.findMany({
-      where: { status },
-      include: {
-        student: {
-          select: {
-            id: true,
-            email: true,
-            walletAddress: true,
-            did: true,
-            firstName: true,
-            lastName: true,
+  async getCertificatesByStatus(
+    status: string,
+    limit = 50,
+    offset = 0
+  ): Promise<{ certificates: Certificate[]; total: number }> {
+    const [certificates, total] = await Promise.all([
+      prisma.certificate.findMany({
+        where: { status },
+        include: {
+          student: {
+            select: {
+              id: true,
+              email: true,
+              walletAddress: true,
+              did: true,
+              firstName: true,
+              lastName: true,
+            },
           },
+          course: true,
         },
-        course: true,
-      },
-      orderBy: { issuedAt: 'desc' },
-    });
+        orderBy: { issuedAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      prisma.certificate.count({ where: { status } }),
+    ]);
+
+    return { certificates, total };
   }
 
   /**

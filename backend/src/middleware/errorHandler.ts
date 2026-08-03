@@ -3,6 +3,16 @@ import { captureException } from '../utils/sentry.js';
 import { sendErrorEnvelope } from '../utils/apiError.js';
 
 /** Wraps an async handler so rejections reach the global error handler. */
+export class LocalizedError extends Error {
+  constructor(
+    public readonly key: string,
+    public readonly status: number = 400
+  ) {
+    super(key);
+    this.name = 'LocalizedError';
+  }
+}
+
 export const asyncHandler = (
   fn: (req: Request, res: Response, next: NextFunction) => Promise<void>
 ) => {

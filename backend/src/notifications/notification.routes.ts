@@ -6,7 +6,7 @@ import {
 } from './NotificationService.js';
 import { NotificationListResponse } from './notification.types.js';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 /** Query string accepted by `GET /api/notifications`. */
 interface ListNotificationsQuery {

@@ -26,8 +26,10 @@ import {
 } from '../metrics/MetricsExporter.js';
 import { requireMetricsAuth } from '../middleware/metricsAuth.js';
 import { slidingWindowRateLimiter } from '../middleware/rateLimiter.js';
+import { authenticateToken } from '../middleware/auth.js';
+import { requireAdmin } from '../middleware/admin.js';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 // Operational access controls: shared-secret auth + scrape rate ceiling.
 router.use(requireMetricsAuth);
@@ -98,6 +100,7 @@ router.get('/snapshot', (_req: Request, res: Response) => {
  * /api/v1/metrics:
  *   get:
  *     summary: Get aggregated metrics summary
+ *     description: Public endpoint returning high-level aggregated metrics. No raw or sensitive data.
  *     tags: [Metrics]
  *     security:
  *       - metricsToken: []
@@ -116,11 +119,20 @@ router.get('/', (_req: Request, res: Response) => {
  * /api/v1/metrics/performance:
  *   get:
  *     summary: Get raw performance metrics
+ *     description: Administrator only. Returns raw performance metric entries.
  *     tags: [Metrics]
  *     security:
  *       - metricsToken: []
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Raw performance metrics
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Admin access required
  */
-router.get('/performance', (_req: Request, res: Response) => {
+router.get('/performance', authenticateToken, requireAdmin, (_req: Request, res: Response) => {
   res.json({ status: 'success', data: metricsCollector.getPerformanceMetrics() });
 });
 
@@ -128,22 +140,21 @@ router.get('/performance', (_req: Request, res: Response) => {
  * @openapi
  * /api/v1/metrics/errors:
  *   get:
- *     summary: Get error metrics with messages redacted
- *     description: >
- *       Error messages can contain request or user detail, so only the error
- *       type, status code and timestamp are returned. Use the correlation ID in
- *       the server logs for full detail.
+ *     summary: Get raw error metrics
+ *     description: Administrator only. Returns raw error metric entries.
  *     tags: [Metrics]
  *     security:
- *       - metricsToken: []
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Raw error metrics
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Admin access required
  */
-router.get('/errors', (_req: Request, res: Response) => {
-  const redacted = metricsCollector.getErrorMetrics().map((entry) => ({
-    type: entry.type,
-    statusCode: entry.statusCode,
-    timestamp: entry.timestamp,
-  }));
-  res.json({ status: 'success', data: redacted });
+router.get('/errors', authenticateToken, requireAdmin, (_req: Request, res: Response) => {
+  res.json({ status: 'success', data: metricsCollector.getErrorMetrics() });
 });
 
 /**
@@ -151,11 +162,20 @@ router.get('/errors', (_req: Request, res: Response) => {
  * /api/v1/metrics/business:
  *   get:
  *     summary: Get raw business event metrics
+ *     description: Administrator only. Returns raw business metric entries.
  *     tags: [Metrics]
  *     security:
  *       - metricsToken: []
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Raw business metrics
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Admin access required
  */
-router.get('/business', (_req: Request, res: Response) => {
+router.get('/business', authenticateToken, requireAdmin, (_req: Request, res: Response) => {
   res.json({ status: 'success', data: metricsCollector.getBusinessMetrics() });
 });
 
@@ -164,11 +184,20 @@ router.get('/business', (_req: Request, res: Response) => {
  * /api/v1/metrics/reset:
  *   post:
  *     summary: Reset all collected metrics
+ *     description: Administrator only. Clears all in-memory metrics.
  *     tags: [Metrics]
  *     security:
  *       - metricsToken: []
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Metrics reset successfully
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Admin access required
  */
-router.post('/reset', (_req: Request, res: Response) => {
+router.post('/reset', authenticateToken, requireAdmin, (_req: Request, res: Response) => {
   metricsCollector.reset();
   res.json({ status: 'success', message: 'Metrics reset successfully' });
 });
