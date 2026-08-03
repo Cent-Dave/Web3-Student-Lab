@@ -40,6 +40,7 @@ import simulatorIdeasRouter from '../simulator/simulator.routes.js';
 import deployRouter from './deploy.routes.js';
 import webhooksRouter from './webhooks.js';
 import adminDLQRouter from './admin/dlq.routes.js';
+import apiRouter from './api.js';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -81,6 +82,7 @@ router.use('/roadmap/tos', termsOfServiceRouter);
 router.use('/playground', playgroundValidateRouter);
 router.use('/playground/privacy-policy', privacyPolicyRouter);
 router.use('/oauth', oauthRouter);
+router.use('/', apiRouter);
 router.use('/tokenomics', tokenomicsRouter);
 
 export default router;
