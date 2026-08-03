@@ -1,16 +1,17 @@
-// @ts-nocheck
+import type { Prisma } from '@prisma/client';
 import { Router } from 'express';
-import { normalizeSorobanDid } from '../auth/auth.service.js';
+import { DidValidationError, validateStudentDidCompatibility } from '../auth/auth.service.js';
 import { invalidateUserCache } from '../cache/CacheInvalidation.js';
 import { cacheMiddleware } from '../cache/CacheMiddleware.js';
 import { CACHE_KEYS } from '../cache/CacheService.js';
 import { cacheTTL } from '../config/redis.config.js';
 import prisma from '../db/index.js';
 import { auditAction } from '../middleware/audit.js';
+import logger from '../utils/logger.js';
 import { broadcastEvent } from '../websocket/gateway.js';
 import { linkDidToCertificates } from './certificates.js';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 // GET /api/students - Get all students
 router.get('/', async (req, res) => {
@@ -32,13 +33,16 @@ router.get(
   '/:id',
   cacheMiddleware({
     ttl: cacheTTL.user.profile,
-    keyGenerator: (req) => CACHE_KEYS.user.profile(req.params.id as string),
+    keyGenerator: (req) => CACHE_KEYS.user.profile(typeof req.params.id === 'string' ? req.params.id : 'unknown'),
   }),
   async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = typeof req.params.id === 'string' ? req.params.id : undefined;
+      if (!id) {
+        return res.status(400).json({ error: 'Student id is required' });
+      }
       const student = await prisma.student.findUnique({
-        where: { id: id as string },
+        where: { id },
         include: {
           enrollments: {
             include: {
@@ -73,7 +77,10 @@ router.post('/', auditAction('CREATE_STUDENT', 'Student'), async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const normalizedDid = normalizeSorobanDid(did);
+    const normalizedDid = validateStudentDidCompatibility({
+      did,
+      expectedNetwork: process.env.STELLAR_NETWORK || 'testnet',
+    });
 
     const student = await prisma.student.create({
       data: {
@@ -94,12 +101,17 @@ router.post('/', auditAction('CREATE_STUDENT', 'Student'), async (req, res) => {
 
     res.status(201).json(student);
   } catch (error) {
-    console.error("CREATE STUDENT ERROR:", error);
-    if (error instanceof Error && error.message.startsWith('Invalid DID format')) {
+    if (error instanceof DidValidationError) {
+      logger.warn('Rejected student creation due to DID validation failure', {
+        route: '/api/v1/students',
+        email: req.body?.email,
+        reason: error.message,
+      });
       res.status(400).json({ error: error.message });
       return;
     }
 
+    console.error("CREATE STUDENT ERROR:", error);
     res.status(500).json({ error: 'Failed to create student' });
   }
 });
@@ -107,11 +119,23 @@ router.post('/', auditAction('CREATE_STUDENT', 'Student'), async (req, res) => {
 // PUT /api/students/:id - Update a student
 router.put('/:id', auditAction('UPDATE_STUDENT', 'Student'), auditAction('UPDATE_ONBOARDING', 'Student'), async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = typeof req.params.id === 'string' ? req.params.id : undefined;
+    if (!id) {
+      return res.status(400).json({ error: 'Student id is required' });
+    }
     const { email, firstName, lastName, did } = req.body;
-    const normalizedDid = normalizeSorobanDid(did);
+    const existingStudent = await prisma.student.findUnique({
+      where: { id },
+      select: { walletAddress: true },
+    });
 
-    const updateData: Record<string, unknown> = {
+    const normalizedDid = validateStudentDidCompatibility({
+      did,
+      walletAddress: existingStudent?.walletAddress ?? null,
+      expectedNetwork: process.env.STELLAR_NETWORK || 'testnet',
+    });
+
+    const updateData: Prisma.StudentUpdateInput = {
       email,
       firstName,
       lastName,
@@ -137,7 +161,12 @@ router.put('/:id', auditAction('UPDATE_STUDENT', 'Student'), auditAction('UPDATE
     await invalidateUserCache(id);
     res.json(student);
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith('Invalid DID format')) {
+    if (error instanceof DidValidationError) {
+      logger.warn('Rejected student update due to DID validation failure', {
+        route: '/api/v1/students/:id',
+        studentId: req.params.id,
+        reason: error.message,
+      });
       res.status(400).json({ error: error.message });
       return;
     }
@@ -149,7 +178,10 @@ router.put('/:id', auditAction('UPDATE_STUDENT', 'Student'), auditAction('UPDATE
 // DELETE /api/students/:id - Delete a student
 router.delete('/:id', auditAction('DELETE_STUDENT', 'Student'), async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = typeof req.params.id === 'string' ? req.params.id : undefined;
+    if (!id) {
+      return res.status(400).json({ error: 'Student id is required' });
+    }
 
     await prisma.student.delete({
       where: { id },

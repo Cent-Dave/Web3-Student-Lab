@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Job, Worker } from 'bullmq';
 import logger from '../../utils/logger.js';
 import * as defaultRepository from './asset.repository.js';
@@ -32,11 +31,11 @@ const defaultWorkerRepository: StorageWorkerRepository = defaultRepository;
 
 export const pinStorageContent = async (
   job: Job<StoragePinJobData>,
-  dependencies: StorageWorkerDependencies = {}
+  _token?: string
 ): Promise<StoragePinResult> => {
   const payload = job.data;
-  const activeProvider = dependencies.provider ?? provider;
-  const repository = dependencies.repository ?? defaultWorkerRepository;
+  const activeProvider = provider;
+  const repository = defaultWorkerRepository;
 
   try {
     const pinResult =

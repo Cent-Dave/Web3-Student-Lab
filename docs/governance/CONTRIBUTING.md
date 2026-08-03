@@ -57,6 +57,10 @@ cargo test
 ```
 
 Any failure here will also fail the pull-request workflow, so fix issues before submitting.
+Adding or editing a course lesson? See
+[docs/backend/CURRICULUM_AUTHORING.md](../backend/CURRICULUM_AUTHORING.md)
+for the required fields and the `npm run validate:curriculum` command CI
+runs on every PR.
 
 ## 5. Make a Pull Request
 
