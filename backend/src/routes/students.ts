@@ -11,7 +11,7 @@ import logger from '../utils/logger.js';
 import { broadcastEvent } from '../websocket/gateway.js';
 import { linkDidToCertificates } from './certificates.js';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 // GET /api/students - Get all students
 router.get('/', async (req, res) => {
@@ -33,13 +33,16 @@ router.get(
   '/:id',
   cacheMiddleware({
     ttl: cacheTTL.user.profile,
-    keyGenerator: (req) => CACHE_KEYS.user.profile(req.params.id as string),
+    keyGenerator: (req) => CACHE_KEYS.user.profile(typeof req.params.id === 'string' ? req.params.id : 'unknown'),
   }),
   async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = typeof req.params.id === 'string' ? req.params.id : undefined;
+      if (!id) {
+        return res.status(400).json({ error: 'Student id is required' });
+      }
       const student = await prisma.student.findUnique({
-        where: { id: id as string },
+        where: { id },
         include: {
           enrollments: {
             include: {
@@ -116,7 +119,10 @@ router.post('/', auditAction('CREATE_STUDENT', 'Student'), async (req, res) => {
 // PUT /api/students/:id - Update a student
 router.put('/:id', auditAction('UPDATE_STUDENT', 'Student'), auditAction('UPDATE_ONBOARDING', 'Student'), async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = typeof req.params.id === 'string' ? req.params.id : undefined;
+    if (!id) {
+      return res.status(400).json({ error: 'Student id is required' });
+    }
     const { email, firstName, lastName, did } = req.body;
     const existingStudent = await prisma.student.findUnique({
       where: { id },
@@ -172,7 +178,10 @@ router.put('/:id', auditAction('UPDATE_STUDENT', 'Student'), auditAction('UPDATE
 // DELETE /api/students/:id - Delete a student
 router.delete('/:id', auditAction('DELETE_STUDENT', 'Student'), async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = typeof req.params.id === 'string' ? req.params.id : undefined;
+    if (!id) {
+      return res.status(400).json({ error: 'Student id is required' });
+    }
 
     await prisma.student.delete({
       where: { id },

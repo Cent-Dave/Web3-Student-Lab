@@ -4,7 +4,7 @@ import { cbManager } from '../lib/circuit-breaker/CircuitBreakerManager.js';
 import { checkDbHealth } from '../db/healthMonitor.js';
 import logger from '../utils/logger.js';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 /**
  * @openapi
