@@ -3,7 +3,7 @@ import logger from '../utils/logger.js';
 import { storageService } from '../services/storage/index.js';
 import { authenticateToken } from '../middleware/auth.js';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 router.get('/health', (_req: Request, res: Response) => {
   res.status(200).json({

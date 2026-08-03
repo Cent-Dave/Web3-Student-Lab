@@ -9,7 +9,7 @@ import {
 } from '../../services/dlq.service.js';
 import logger from '../../utils/logger.js';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 /**
  * @route GET /api/v1/admin/dlq/metrics

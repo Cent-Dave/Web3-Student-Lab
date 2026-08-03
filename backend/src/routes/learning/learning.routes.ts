@@ -11,6 +11,7 @@ import {
     listCourses,
     updateStudentProgress,
     ProgressPersistenceError,
+    ProgressConflictError,
 } from './learning.service.js';
 import {
     courseParamsSchema,
@@ -18,7 +19,7 @@ import {
     progressUpdateSchema,
 } from './validation.schemas.js';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 /**
  * @route   GET /api/learning/courses
@@ -170,6 +171,15 @@ router.patch(
     } catch (error: unknown) {
       if (error instanceof Error && error.message === 'LESSON_NOT_FOUND') {
         res.status(404).json({ error: 'Lesson not found' });
+        return;
+      }
+
+      if (error instanceof ProgressConflictError) {
+        res.status(409).json({
+          error: error.message,
+          progress: error.current,
+          dataSource: 'live',
+        });
         return;
       }
 

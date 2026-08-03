@@ -103,8 +103,9 @@ model Certificate {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  course  Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  student            Student                        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course             Course                         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  verificationEvents CertificateVerificationEvent[]
 
   @@index([status])
   @@index([issuedAt])
@@ -113,6 +114,22 @@ model Certificate {
   @@index([studentId, status])
   @@index([courseId, issuedAt])
   @@map("certificates")
+}
+
+model CertificateVerificationEvent {
+  id            String   @id @default(cuid())
+  workspaceId   String   @default("default")
+  certificateId String?
+  tokenId       String
+  createdAt     DateTime @default(now())
+
+  certificate Certificate? @relation(fields: [certificateId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@index([certificateId])
+  @@index([tokenId])
+  @@index([createdAt])
+  @@map("certificate_verification_events")
 }
 
 model Enrollment {
