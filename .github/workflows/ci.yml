@@ -103,6 +103,18 @@ jobs:
         # left in place rather than silently making this bypass narrower
         # without fixing what it's bypassing.
         run: npm run test:coverage || true
+      - name: Dependency audit (backend)
+        working-directory: ./backend
+        run: npm audit --audit-level=high
+      - name: Generate SBOM (backend)
+        working-directory: ./backend
+        run: npm sbom --output sbom.backend.json
+      - name: Upload backend SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-backend
+          path: backend/sbom.backend.json
+          retention-days: 90
 
   frontend:
     name: Frontend Build & Test
@@ -122,6 +134,18 @@ jobs:
       - name: Build
         working-directory: ./frontend
         run: npm run build
+      - name: Dependency audit (frontend)
+        working-directory: ./frontend
+        run: npm audit --audit-level=high
+      - name: Generate SBOM (frontend)
+        working-directory: ./frontend
+        run: npm sbom --output sbom.frontend.json
+      - name: Upload frontend SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-frontend
+          path: frontend/sbom.frontend.json
+          retention-days: 90
 
   frontend-e2e:
     name: Frontend E2E (Playwright)
@@ -135,6 +159,10 @@ jobs:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
+      - run: npm install
+      - run: npm test
+      - run: npm run build
+      - run: npm run lint
       - name: Install dependencies
         working-directory: ./frontend
         run: npm ci
@@ -165,7 +193,7 @@ jobs:
           retention-days: 14
 
   contracts:
-    name: Contracts Build
+    name: Contracts Build & Test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -185,3 +213,32 @@ jobs:
       - name: Build
         working-directory: ./contracts
         run: cargo build
+      - name: Test
+        working-directory: ./contracts
+        env:
+          RUST_BACKTRACE: 1
+          CARGO_TERM_COLOR: always
+        run: cargo test -- --nocapture
+      - name: Test (unit + property/fuzz)
+        working-directory: ./contracts
+        # Property tests use a fixed, bounded case count (see
+        # ProptestConfig::with_cases in payment_gateway.rs) so CI runtime
+        # stays short and predictable. A failing case is persisted by
+        # proptest to contracts/proptest-regressions/*.txt, which must
+        # be committed so the failure is deterministically reproducible;
+        # see docs/contracts/FUZZING.md.
+        run: cargo test --lib
+      - name: Install cargo-audit
+        uses: taiki-e/cargo-audit@main
+      - name: Dependency audit (contracts)
+        working-directory: ./contracts
+        run: cargo audit --deny warnings
+      - name: Generate SBOM (contracts)
+        working-directory: ./contracts
+        run: cargo sbom --output sbom.contracts.json 2>/dev/null || echo "SBOM generation skipped (install cargo-sbom via 'cargo install cargo-sbom')"
+      - name: Upload contracts SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-contracts
+          path: contracts/sbom.contracts.json
+          retention-days: 90

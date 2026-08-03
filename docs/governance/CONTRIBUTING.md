@@ -43,6 +43,20 @@ at first.
 > [CI/CD Pipeline Guide](docs/CICD_GUIDE.md) before making any changes related to secrets, sensitive
 > data, or smart contracts.
 
+### Local Verification
+
+> [!IMPORTANT] Before opening a pull request, verify all contract checks pass locally. These are the
+> exact commands the CI pipeline runs.
+
+```bash
+cd contracts
+cargo fmt --check
+cargo clippy
+cargo build
+cargo test
+```
+
+Any failure here will also fail the pull-request workflow, so fix issues before submitting.
 Adding or editing a course lesson? See
 [docs/backend/CURRICULUM_AUTHORING.md](../backend/CURRICULUM_AUTHORING.md)
 for the required fields and the `npm run validate:curriculum` command CI
