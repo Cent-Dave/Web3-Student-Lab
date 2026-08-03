@@ -113,6 +113,10 @@ export const config = {
     compress: process.env.BACKUP_COMPRESS !== 'false',
     tempDir: getEnvVar('BACKUP_TEMP_DIR', '/tmp/backups'),
   },
+  graphql: {
+    maxDepth: parseInt(getEnvVar('GRAPHQL_MAX_DEPTH', '10'), 10),
+    maxComplexity: parseInt(getEnvVar('GRAPHQL_MAX_COMPLEXITY', '100'), 10),
+  },
 
   /**
    * Helper to safely log configuration without exposing secrets
@@ -120,6 +124,7 @@ export const config = {
   getSafeConfig() {
     return {
       app: this.app,
+      graphql: this.graphql,
       redis: { url: this.maskSecret(this.redis.url) },
       db: { url: this.maskSecret(this.db.url) },
       security: {
