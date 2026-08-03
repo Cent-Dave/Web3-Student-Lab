@@ -13,6 +13,7 @@ const workspaceModels = new Set([
   'Student',
   'Course',
   'Certificate',
+  'CertificateVerificationEvent',
   'Enrollment',
   'Feedback',
   'LearningProgress',

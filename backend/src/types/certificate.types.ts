@@ -51,7 +51,8 @@ export enum CertificateStatus {
   EXPIRED = 'EXPIRED',
   PENDING = 'PENDING',
   FAILED = 'FAILED',
-  TAMPERED = 'TAMPERED',
+  /** Not a persisted status — returned when a certificate cannot be found. */
+  INVALID = 'invalid',
 }
 
 // Certificate entity with DB fields - matches Prisma output

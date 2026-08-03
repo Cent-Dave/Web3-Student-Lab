@@ -10,6 +10,7 @@ import {
 import { buildSignedWebhookHeaders, canonicalizeWebhookPayload } from './signature.js';
 import type { DeadLetterWebhookJob, WebhookDeliveryJobData } from './types.js';
 import { recordDeliveryState } from './dispatcher.js';
+import workerRegistry from '../../metrics/WorkerRegistry.js';
 
 const requestTimeoutMs = Number(process.env.WEBHOOK_REQUEST_TIMEOUT_MS || '10000');
 
@@ -196,6 +197,8 @@ export const startWebhookWorker = (): Worker<WebhookDeliveryJobData> | null => {
   );
 
   webhookWorker.on('failed', async (job, error) => {
+    workerRegistry.recordFailed('webhook-delivery');
+
     if (!job) {
       return;
     }
@@ -226,12 +229,17 @@ export const startWebhookWorker = (): Worker<WebhookDeliveryJobData> | null => {
   });
 
   webhookWorker.on('completed', (job) => {
+    workerRegistry.recordCompleted('webhook-delivery');
     logger.info(`Webhook delivery ${job.data.deliveryId} completed`);
   });
 
   webhookWorker.on('error', (error) => {
+    workerRegistry.markDegraded('webhook-delivery');
     logger.error('Webhook worker error:', error);
   });
+
+  // Visible to the metrics exporter as worker="webhook-delivery".
+  workerRegistry.register('webhook-delivery');
 
   return webhookWorker;
 };
@@ -243,4 +251,5 @@ export const stopWebhookWorker = async (): Promise<void> => {
 
   await webhookWorker.close();
   webhookWorker = null;
+  workerRegistry.markStopped('webhook-delivery');
 };
