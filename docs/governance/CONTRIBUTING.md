@@ -43,6 +43,21 @@ at first.
 > [CI/CD Pipeline Guide](docs/CICD_GUIDE.md) before making any changes related to secrets, sensitive
 > data, or smart contracts.
 
+### Local Verification
+
+> [!IMPORTANT] Before opening a pull request, verify all contract checks pass locally. These are the
+> exact commands the CI pipeline runs.
+
+```bash
+cd contracts
+cargo fmt --check
+cargo clippy
+cargo build
+cargo test
+```
+
+Any failure here will also fail the pull-request workflow, so fix issues before submitting.
+
 ## 5. Make a Pull Request
 
 At this point, you should switch back to your master branch and make sure it's up to date with Web3

@@ -93,7 +93,7 @@ jobs:
         run: npm run build
 
   contracts:
-    name: Contracts Build
+    name: Contracts Build & Test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -113,3 +113,9 @@ jobs:
       - name: Build
         working-directory: ./contracts
         run: cargo build
+      - name: Test
+        working-directory: ./contracts
+        env:
+          RUST_BACKTRACE: 1
+          CARGO_TERM_COLOR: always
+        run: cargo test -- --nocapture
