@@ -144,6 +144,7 @@ router.get('/performance', authenticateToken, requireAdmin, (_req: Request, res:
  *     description: Administrator only. Returns raw error metric entries.
  *     tags: [Metrics]
  *     security:
+ *       - metricsToken: []
  *       - bearerAuth: []
  *     responses:
  *       200:

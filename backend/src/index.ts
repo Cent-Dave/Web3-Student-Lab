@@ -189,6 +189,7 @@ app.get('/health/ready', async (_req: Request, res: Response) => {
  *     summary: Health check endpoint (legacy)
  *     description: Returns the health status of the API and its dependencies
  *     tags: [System]
+ *     security: []
  *     responses:
  *       200:
  *         description: API is healthy

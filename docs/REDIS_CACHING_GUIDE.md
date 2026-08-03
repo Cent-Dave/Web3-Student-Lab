@@ -55,9 +55,9 @@ This document details the implementation of a distributed caching layer using Re
          └────────► Redis Instance(s)
 ```
 
-## 📦 New Files Added
+## New Files Added
 
-### Configuration
+###Configuration
 - **`src/config/redis.config.ts`** - Enhanced with clustering, sentinel, and TTL configs
 
 ### Cache Layer
