@@ -8,7 +8,7 @@ import {
 } from '../../services/blockExplorer.service.js';
 import logger from '../../utils/logger.js';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 function parseMode(req: Request): ExplorerMode | undefined {
   const modeQuery = String(req.query.mode ?? '').toLowerCase();
@@ -90,7 +90,8 @@ router.get('/explorer/search', async (req: Request, res: Response): Promise<void
  */
 router.get('/explorer/link/:hash', (req: Request<{ hash: string }>, res: Response): void => {
   const network = req.query.network === 'public' ? 'public' : 'testnet';
-  const link = buildExplorerLink(req.params.hash, network);
+  const hash = typeof req.params.hash === 'string' ? req.params.hash : '';
+  const link = buildExplorerLink(hash, network);
   res.json({ status: 'success', data: { link } });
 });
 
