@@ -1,4 +1,3 @@
-// @ts-nocheck
 import cors from 'cors';
 import express, { Request, Response } from 'express';
 import { createServer } from 'http';
@@ -23,6 +22,7 @@ import { rateLimiter } from './middleware/rateLimiter.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { requireWorkspaceMiddleware } from './middleware/WorkspaceContext.js';
 import freelanceRoute from './routes/freelance.js';
+import { livenessHandler, readinessHandler } from './routes/health.routes.js';
 import routes from './routes/index.js';
 import { startWebhookWorker, stopWebhookWorker } from './services/webhooks/index.js';
 import logger from './utils/logger.js';
@@ -93,6 +93,7 @@ setRateLimitEnvOverrides({
 
 app.use(cors());
 app.use(express.json());
+app.use(securityHeadersMiddleware); // Add security headers early in middleware chain
 app.use(decryptionMiddleware);
 app.use(dbRoutingMiddleware);
 
@@ -149,6 +150,13 @@ app.get('/health', (_req: Request, res: Response) => {
   });
 });
 
+// Liveness probe — no dependency calls, returns 200 while the process is alive.
+app.get('/health/live', livenessHandler);
+
+// Readiness probe — verifies database and Redis capabilities with timeouts.
+// Returns 503 when essential dependencies are unavailable.
+app.get('/health/ready', readinessHandler);
+
 // Cache metrics endpoint
 app.use('/api/v1/cache', cacheMetrics);
 
@@ -163,7 +171,7 @@ let graphqlServer: Awaited<ReturnType<typeof createGraphQLServer>> | null = null
 async function setupGraphQL() {
   try {
     graphqlServer = await createGraphQLServer();
-    const { expressMiddleware } = await import('@apollo/server/express4');
+    const { expressMiddleware } = await import('@as-integrations/express4');
 
     app.use(
       '/graphql',
