@@ -19,19 +19,6 @@ import { getExplorerAdapter, resolveExplorerMode } from './adapters/explorerAdap
 import { LiveStellarExplorerAdapter } from './adapters/liveStellarExplorerAdapter.js';
 import { SimulationExplorerAdapter } from './adapters/simulationExplorerAdapter.js';
 
-<<<<<<< HEAD
-export {
-  ExplorerAdapter,
-  ExplorerAdapterError,
-  ExplorerMode,
-  ExplorerSnapshot,
-  ExplorerTransaction,
-  GetSnapshotOptions,
-  LiveStellarExplorerAdapter,
-  SimulationExplorerAdapter,
-  TxStatus,
-};
-=======
 export type TxStatus = 'SUCCESS' | 'PENDING' | 'FAILED';
 
 export interface ExplorerTransaction {
@@ -109,7 +96,15 @@ function computeStats(txs: ExplorerTransaction[]): ExplorerSnapshot['stats'] {
     latestLedger: Math.max(...txs.map((t) => t.ledger)),
   };
 }
->>>>>>> origin/main
+
+export {
+  ExplorerAdapter,
+  ExplorerAdapterError,
+  ExplorerMode,
+  GetSnapshotOptions,
+  LiveStellarExplorerAdapter,
+  SimulationExplorerAdapter,
+};
 
 export function filterTransactions(
   txs: ExplorerTransaction[],
