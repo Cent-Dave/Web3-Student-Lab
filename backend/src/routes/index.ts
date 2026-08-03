@@ -40,6 +40,8 @@ import simulatorIdeasRouter from '../simulator/simulator.routes.js';
 import deployRouter from './deploy.routes.js';
 import webhooksRouter from './webhooks.js';
 import adminDLQRouter from './admin/dlq.routes.js';
+import policyRouter from './policy/policy.routes.js';
+import storageRouter from './storage.routes.js';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -71,6 +73,8 @@ router.use('/export', exportRouter);
 router.use('/deploy', deployRouter);
 router.use('/webhooks', webhooksRouter);
 router.use('/admin/dlq', adminDLQRouter);
+router.use('/policy', policyRouter);
+router.use('/storage', storageRouter);
 router.use('/user', userRouter);
 router.use('/metrics', metricsRouter);
 router.use('/dependencies', dependenciesRouter);

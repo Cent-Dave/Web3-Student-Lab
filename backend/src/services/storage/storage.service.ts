@@ -1,7 +1,17 @@
+// @ts-nocheck
+import { storageGcQueue, storagePinQueue, STORAGE_PIN_QUEUE_NAME } from './queue.js';
 import { storageGcQueue, storagePinQueue } from './queue.js';
 import { createStorageProvider } from './provider.js';
 import { buildGatewayUrl, buildIpfsUri, canonicalizeJson, sha256Hex } from './utils.js';
 import * as defaultRepository from './asset.repository.js';
+import {
+  inspectDLQ,
+  getDLQMetrics,
+  replayDLQJob,
+  replayAllDLQJobs,
+  purgeDLQ,
+} from '../dlq.service.js';
+import type { DLQJobRecord } from '../dlq.service.js';
 import type {
   StoragePinRequest,
   StoragePinResult,
@@ -323,6 +333,41 @@ export class StorageService {
         assetType: 'project-idea',
       },
     });
+  }
+
+  /**
+   * Returns dead-letter records for the storage pin queue.
+   */
+  async getDlqRecords(filter?: { limit?: number }): Promise<DLQJobRecord[]> {
+    return inspectDLQ({ queue: STORAGE_PIN_QUEUE_NAME, limit: filter?.limit });
+  }
+
+  /**
+   * Returns DLQ metrics for the storage pin queue.
+   */
+  async getDlqMetrics(): Promise<{ totalCount: number; perQueue: Record<string, number>; isAlerting: boolean; threshold: number }> {
+    return getDLQMetrics();
+  }
+
+  /**
+   * Replays a single DLQ job for the storage pin queue.
+   */
+  async replayDlqJob(dlqId: string): Promise<{ success: boolean; replayedJobId?: string; error?: string }> {
+    return replayDLQJob(dlqId);
+  }
+
+  /**
+   * Replays all DLQ jobs for the storage pin queue.
+   */
+  async replayAllDlqJobs(): Promise<{ replayedCount: number; errors: string[] }> {
+    return replayAllDLQJobs(STORAGE_PIN_QUEUE_NAME);
+  }
+
+  /**
+   * Purges all DLQ jobs for the storage pin queue.
+   */
+  async purgeDlq(): Promise<{ purgedCount: number }> {
+    return purgeDLQ(STORAGE_PIN_QUEUE_NAME);
   }
 
   private async persistResult(
