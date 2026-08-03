@@ -1,20 +1,99 @@
 /**
- * Metrics Routes — exposes collected metrics over HTTP.
+ * Metrics Routes — exposes collected metrics to operational tooling.
  *
- * Endpoint classification:
- *   GET  /api/v1/metrics          — PUBLIC: aggregated summary (minimal, no sensitive fields)
- *   GET  /api/v1/metrics/performance — ADMIN ONLY: raw performance entries
- *   GET  /api/v1/metrics/errors      — ADMIN ONLY: raw error entries
- *   GET  /api/v1/metrics/business    — ADMIN ONLY: raw business event entries
- *   POST /api/v1/metrics/reset       — ADMIN ONLY: clear all metrics
+ * Endpoints:
+ *   GET  /api/v1/metrics/prometheus  — Prometheus text exposition (scrape here)
+ *   GET  /api/v1/metrics/snapshot    — same data as stable JSON
+ *   GET  /api/v1/metrics             — aggregated summary (legacy shape)
+ *   GET  /api/v1/metrics/performance — raw performance entries
+ *   GET  /api/v1/metrics/errors      — error entries, messages redacted
+ *   GET  /api/v1/metrics/business    — raw business event entries
+ *   POST /api/v1/metrics/reset       — clear all metrics (admin use)
+ *
+ * The whole router is behind `requireMetricsAuth` (shared monitoring token) and
+ * a sliding-window rate limit, consistent with the other operational
+ * endpoints. See METRICS_DOCUMENTATION.md for metric names, units, dashboards
+ * and alert thresholds.
  */
 
 import { Router, Request, Response } from 'express';
 import metricsCollector from '../metrics/MetricsCollector.js';
+import {
+  METRICS_SCHEMA_VERSION,
+  PROMETHEUS_CONTENT_TYPE,
+  buildMetricsSnapshot,
+  renderPrometheus,
+} from '../metrics/MetricsExporter.js';
+import { requireMetricsAuth } from '../middleware/metricsAuth.js';
+import { slidingWindowRateLimiter } from '../middleware/rateLimiter.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
 
 const router: ReturnType<typeof Router> = Router();
+
+// Operational access controls: shared-secret auth + scrape rate ceiling.
+router.use(requireMetricsAuth);
+router.use(
+  slidingWindowRateLimiter({
+    windowMs: 60_000,
+    limit: Number(process.env.METRICS_RATE_LIMIT || '120'),
+    keyPrefix: 'rl:metrics',
+  })
+);
+
+/**
+ * @openapi
+ * /api/v1/metrics/prometheus:
+ *   get:
+ *     summary: Scrape metrics in Prometheus text exposition format
+ *     description: >
+ *       Stable metric names with units in the name. Aggregates only — no request
+ *       bodies, user identifiers or error messages. Route labels are normalised
+ *       so resource identifiers are never exported.
+ *     tags: [Metrics]
+ *     security:
+ *       - metricsToken: []
+ *     responses:
+ *       200:
+ *         description: Prometheus exposition payload
+ *         content:
+ *           text/plain:
+ *             schema:
+ *               type: string
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       429:
+ *         $ref: '#/components/responses/RateLimited'
+ */
+router.get('/prometheus', (_req: Request, res: Response) => {
+  res.setHeader('Content-Type', PROMETHEUS_CONTENT_TYPE);
+  res.status(200).send(renderPrometheus());
+});
+
+/**
+ * @openapi
+ * /api/v1/metrics/snapshot:
+ *   get:
+ *     summary: Get the stable JSON metrics snapshot
+ *     description: >
+ *       Same aggregation as the Prometheus endpoint, for tooling that prefers
+ *       JSON. `schemaVersion` changes only on a breaking field change.
+ *     tags: [Metrics]
+ *     security:
+ *       - metricsToken: []
+ *     responses:
+ *       200:
+ *         description: Metrics snapshot
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ */
+router.get('/snapshot', (_req: Request, res: Response) => {
+  res.json({
+    status: 'success',
+    schemaVersion: METRICS_SCHEMA_VERSION,
+    data: buildMetricsSnapshot(),
+  });
+});
 
 /**
  * @openapi
@@ -23,9 +102,13 @@ const router: ReturnType<typeof Router> = Router();
  *     summary: Get aggregated metrics summary
  *     description: Public endpoint returning high-level aggregated metrics. No raw or sensitive data.
  *     tags: [Metrics]
+ *     security:
+ *       - metricsToken: []
  *     responses:
  *       200:
  *         description: Metrics summary
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  */
 router.get('/', (_req: Request, res: Response) => {
   res.json({ status: 'success', data: metricsCollector.getSummary() });
@@ -39,6 +122,7 @@ router.get('/', (_req: Request, res: Response) => {
  *     description: Administrator only. Returns raw performance metric entries.
  *     tags: [Metrics]
  *     security:
+ *       - metricsToken: []
  *       - bearerAuth: []
  *     responses:
  *       200:
@@ -81,6 +165,7 @@ router.get('/errors', authenticateToken, requireAdmin, (_req: Request, res: Resp
  *     description: Administrator only. Returns raw business metric entries.
  *     tags: [Metrics]
  *     security:
+ *       - metricsToken: []
  *       - bearerAuth: []
  *     responses:
  *       200:
@@ -102,6 +187,7 @@ router.get('/business', authenticateToken, requireAdmin, (_req: Request, res: Re
  *     description: Administrator only. Clears all in-memory metrics.
  *     tags: [Metrics]
  *     security:
+ *       - metricsToken: []
  *       - bearerAuth: []
  *     responses:
  *       200:
