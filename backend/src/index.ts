@@ -28,6 +28,7 @@ import { requireWorkspaceMiddleware } from './middleware/WorkspaceContext.js';
 import freelanceRoute from './routes/freelance.js';
 import { livenessHandler, readinessHandler } from './routes/health.routes.js';
 import routes from './routes/index.js';
+import apiRouter from './routes/api.js';
 import { startWebhookWorker, stopWebhookWorker } from './services/webhooks/index.js';
 import logger from './utils/logger.js';
 import { getSentryErrorHandler, getSentryRequestHandler, initializeSentry } from './utils/sentry.js';
@@ -269,6 +270,7 @@ async function setupGraphQL() {
 
 // API Routes - with workspace isolation
 app.use('/api/v1', requireWorkspaceMiddleware, createI18nMiddleware(), routes);
+app.use('/api', requireWorkspaceMiddleware, createI18nMiddleware(), apiRouter);
 
 // Swagger Documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
