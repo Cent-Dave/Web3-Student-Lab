@@ -37,6 +37,24 @@ export class ProgressPersistenceError extends Error {
   }
 }
 
+/**
+ * Thrown when a progress write carries a stale optimistic-concurrency token
+ * (`baseUpdatedAt`). Deterministic conflict behavior: the server is the
+ * source of truth; the client receives a 409 together with the current
+ * server-side progress and reconciles by refetching.
+ */
+export class ProgressConflictError extends Error {
+  readonly current: Progress;
+  constructor(
+    current: Progress,
+    message = 'Progress was updated in another session; refresh to reconcile'
+  ) {
+    super(message);
+    this.name = 'ProgressConflictError';
+    this.current = current;
+  }
+}
+
 // In-memory store used ONLY as a read-through cache in front of the
 // database for getStudentProgress, and as ephemeral local state while a
 // write is in flight. It is never treated as an authoritative record of
@@ -104,22 +122,6 @@ const buildCourseStatus = (completedLessonCount: number, totalLessons: number): 
   return 'in_progress';
 };
 
-const buildPercentage = (
-  completedLessonCount: number,
-  totalLessons: number,
-  explicitPercentage?: number
-): number => {
-  if (typeof explicitPercentage === 'number') {
-    return explicitPercentage;
-  }
-
-  if (totalLessons === 0) {
-    return 0;
-  }
-
-  return Math.round((completedLessonCount / totalLessons) * 100);
-};
-
 /**
  * List all courses with optional difficulty filter.
  *
@@ -132,7 +134,12 @@ const buildPercentage = (
 export const listCourses = async (
   difficulty?: string
 ): Promise<WithDataSource<CurriculumCourse[]>> => {
-  const cacheKey = CACHE_KEYS.courses.list();
+  // Cache is partitioned by difficulty: a `difficulty` query must never be
+  // served the unfiltered (or differently filtered) cached catalog.
+  const normalizedDifficulty = difficulty || undefined;
+  const cacheKey = normalizedDifficulty
+    ? `${CACHE_KEYS.courses.list()}:difficulty:${normalizedDifficulty}`
+    : CACHE_KEYS.courses.list();
   const cached = await cacheService.get<CurriculumCourse[]>(cacheKey);
   if (cached) return { data: cached, dataSource: 'live' };
 
@@ -149,7 +156,7 @@ export const listCourses = async (
       credits: course.credits,
       createdAt: course.createdAt,
       updatedAt: course.updatedAt,
-      modules: filterModulesByDifficulty(getCurriculumForCourse(course.id), difficulty),
+      modules: filterModulesByDifficulty(getCurriculumForCourse(course.id), normalizedDifficulty),
     }));
 
     await cacheService.set(cacheKey, result, cacheTTL.courses.list);
@@ -165,7 +172,7 @@ export const listCourses = async (
       credits: 10,
       createdAt: now,
       updatedAt: now,
-      modules: filterModulesByDifficulty(getCurriculumForCourse(course.id), difficulty),
+      modules: filterModulesByDifficulty(getCurriculumForCourse(course.id), normalizedDifficulty),
     }));
     return { data: demoData, dataSource: 'demo' };
   }
@@ -182,7 +189,10 @@ export const getCourseCurriculum = async (
   courseId: string,
   difficulty?: string
 ): Promise<WithDataSource<CurriculumCourse | null>> => {
-  const cacheKey = CACHE_KEYS.courses.curriculum(courseId);
+  const normalizedDifficulty = difficulty || undefined;
+  const cacheKey = normalizedDifficulty
+    ? `${CACHE_KEYS.courses.curriculum(courseId)}:difficulty:${normalizedDifficulty}`
+    : CACHE_KEYS.courses.curriculum(courseId);
   const cached = await cacheService.get<CurriculumCourse>(cacheKey);
   if (cached) return { data: cached, dataSource: 'live' };
 
@@ -203,7 +213,7 @@ export const getCourseCurriculum = async (
       credits: course.credits,
       createdAt: course.createdAt,
       updatedAt: course.updatedAt,
-      modules: filterModulesByDifficulty(getCurriculumForCourse(course.id), difficulty),
+      modules: filterModulesByDifficulty(getCurriculumForCourse(course.id), normalizedDifficulty),
     };
 
     await cacheService.set(cacheKey, result, cacheTTL.courses.curriculum);
@@ -225,7 +235,7 @@ export const getCourseCurriculum = async (
       credits: 10,
       createdAt: now,
       updatedAt: now,
-      modules: filterModulesByDifficulty(getCurriculumForCourse(courseId), difficulty),
+      modules: filterModulesByDifficulty(getCurriculumForCourse(courseId), normalizedDifficulty),
     };
 
     return { data: result, dataSource: 'demo' };
@@ -333,24 +343,64 @@ export const updateStudentProgress = async (
   input: ProgressUpdateInput
 ): Promise<Progress> => {
   const modules = getCurriculumForCourse(courseId);
-  const lesson = modules
-    .flatMap((module) => module.lessons)
-    .find((entry) => entry.id === input.lessonId);
+  const totalLessons = countLessons(modules);
 
-  if (!lesson) {
-    throw new Error('LESSON_NOT_FOUND');
+  let moduleForLesson: Module | undefined;
+  if (input.lessonId) {
+    const lesson = modules
+      .flatMap((module) => module.lessons)
+      .find((entry) => entry.id === input.lessonId);
+
+    if (!lesson) {
+      throw new Error('LESSON_NOT_FOUND');
+    }
+
+    moduleForLesson = modules.find((module) =>
+      module.lessons.some((entry) => entry.id === input.lessonId)
+    );
   }
 
-  const moduleForLesson = modules.find((module) =>
-    module.lessons.some((entry) => entry.id === input.lessonId)
-  );
-  const totalLessons = countLessons(modules);
+  // Optimistic-concurrency check against the authoritative database row.
+  // When the client supplies the `updatedAt` it last observed and that no
+  // longer matches, another session has written in the meantime — reject the
+  // stale write deterministically instead of silently overwriting (#901).
+  if (input.baseUpdatedAt) {
+    const stored = await prisma.learningProgress.findUnique({
+      where: {
+        studentId_courseId: {
+          studentId,
+          courseId,
+        },
+      },
+    });
+
+    if (stored && stored.updatedAt.toISOString() !== input.baseUpdatedAt) {
+      logger.warn('Progress conflict detected; rejecting stale update', {
+        studentId,
+        courseId,
+        expected: input.baseUpdatedAt,
+        actual: stored.updatedAt.toISOString(),
+      });
+      throw new ProgressConflictError(toProgress(stored));
+    }
+  }
+
   const existingProgressResult = await getStudentProgress(studentId, courseId);
   const existingProgress = existingProgressResult.data;
 
-  const completedLessonSet = new Set(existingProgress.completedLessons);
+  // Whole-state updates replace the completed set atomically; lesson-driven
+  // updates mutate it. When both are provided, the lesson toggle is applied
+  // on top of the provided whole-state.
+  const completedLessonSet = new Set<string>(
+    Array.isArray(input.completedLessons)
+      ? input.completedLessons.map((id) => id.trim()).filter(Boolean)
+      : existingProgress.completedLessons
+  );
 
-  if (input.status === 'completed') {
+  const togglingToCompleted =
+    Boolean(input.lessonId) && input.status === 'completed';
+
+  if (input.lessonId && togglingToCompleted) {
     if (!completedLessonSet.has(input.lessonId)) {
       // Log individual lesson completion activity
       await (prisma as any).studentActivity
@@ -414,21 +464,56 @@ export const updateStudentProgress = async (
       }
     }
     completedLessonSet.add(input.lessonId);
-  } else {
+  } else if (input.lessonId) {
     completedLessonSet.delete(input.lessonId);
   }
 
   const completedLessons = Array.from(completedLessonSet);
-  const percentage = buildPercentage(completedLessons.length, totalLessons, input.percentage);
-  const status = buildCourseStatus(completedLessons.length, totalLessons);
+
+  const percentage =
+    typeof input.percentage === 'number'
+      ? input.percentage
+      : Math.min(
+          Math.round((completedLessons.length / (totalLessons || 1)) * 100),
+          100
+        );
+
+  // Course-level status derivation. `status` on the wire means two different
+  // things depending on the update style:
+  //  - Whole-state writes (`completedLessons`) send the course status directly.
+  //  - Lesson-driven writes send the lesson's *target* status (completed /
+  //    not_started) used only to toggle membership, never as the course status.
+  // When an explicit percentage is provided it implies the course status;
+  // otherwise it is derived from the completed/ total lesson counts.
+  const hasWholeState = Array.isArray(input.completedLessons);
+
+  let status: ProgressStatus;
+  if (hasWholeState && input.status) {
+    status = input.status;
+  } else if (typeof input.percentage === 'number') {
+    status =
+      input.percentage >= 100
+        ? 'completed'
+        : input.percentage === 0
+          ? 'not_started'
+          : 'in_progress';
+  } else {
+    status = buildCourseStatus(completedLessons.length, totalLessons);
+  }
+
   const completedAt = status === 'completed' ? new Date() : null;
   const now = new Date();
+
+  const currentModuleId =
+    input.currentModuleId !== undefined
+      ? input.currentModuleId
+      : moduleForLesson?.id ?? existingProgress.currentModuleId;
 
   // Update in-memory cache
   const updatedProgress: Progress = {
     ...existingProgress,
     completedLessons,
-    currentModuleId: moduleForLesson?.id ?? existingProgress.currentModuleId,
+    currentModuleId,
     percentage,
     status,
     lastAccessedAt: now,
@@ -464,11 +549,19 @@ export const updateStudentProgress = async (
       },
     });
 
+    const persisted = toProgress(progress);
+
     const key = `${studentId}:${courseId}`;
-    mockProgressStore[key] = updatedProgress; // keep read-through cache warm
+    mockProgressStore[key] = persisted; // keep read-through cache warm
+
+    // Overwrite the per-course cache with the authoritative row so the next
+    // read (this session or another device) does not observe a stale snapshot
+    // that silently drops the latest write (#901).
+    const cacheKey = `${CACHE_KEYS.user.progress(studentId)}:${courseId}`;
+    await cacheService.set(cacheKey, persisted, cacheTTL.user.progress);
 
     await invalidateUserProgressCache(studentId);
-    return toProgress(progress);
+    return persisted;
   } catch (error) {
     logger.error('Database unavailable in updateStudentProgress; refusing to fake-save progress', {
       studentId,

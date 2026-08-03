@@ -3,7 +3,7 @@ import Navbar from '@/components/layout/Navbar';
 import RenderWarningModal from '@/components/layout/RenderWarningModal';
 import ResiliencyBanner from '@/components/layout/ResiliencyBanner';
 import WalletGate from '@/components/layout/WalletGate';
-import { OfflineNotification, ToastContainer } from '@/components/notifications';
+import { OfflineNotification, CourseNotificationListener, ToastContainer } from '@/components/notifications';
 import { OfflineSyncHandler } from '@/components/OfflineSyncHandler';
 import { SkipLink } from '@/components/ui/SkipLink';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -61,6 +61,7 @@ export default function RootLayout({
             <AuthProvider>
               <I18nProvider>
                 <NotificationProvider>
+                  <CourseNotificationListener />
                   <Web3OnboardingProvider>
                     <KeyboardShortcutsProvider>
                       <TutorialProvider>
