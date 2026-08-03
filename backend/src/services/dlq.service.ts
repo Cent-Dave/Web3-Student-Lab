@@ -3,6 +3,7 @@ import logger from '../utils/logger.js';
 import { webhookDeliveryQueue, WEBHOOK_DELIVERY_QUEUE_NAME } from './webhooks/queue.js';
 import { exportQueue, EXPORT_QUEUE_NAME } from '../jobs/export.queue.js';
 import { backupQueue, BACKUP_QUEUE_NAME } from '../jobs/backup.queue.js';
+import { storagePinQueue, STORAGE_PIN_QUEUE_NAME } from './storage/queue.js';
 
 export interface DLQJobRecord {
   dlqId: string;
@@ -158,6 +159,7 @@ const queueRegistry: Record<string, any> = {
   [WEBHOOK_DELIVERY_QUEUE_NAME]: webhookDeliveryQueue,
   [EXPORT_QUEUE_NAME]: exportQueue,
   [BACKUP_QUEUE_NAME]: backupQueue,
+  [STORAGE_PIN_QUEUE_NAME]: storagePinQueue,
 };
 
 /**
