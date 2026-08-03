@@ -1,9 +1,9 @@
-// @ts-nocheck
 import { Job, Worker } from 'bullmq';
 import logger from '../../utils/logger.js';
 import * as defaultRepository from './asset.repository.js';
 import { createStorageProvider } from './provider.js';
 import { STORAGE_GC_QUEUE_NAME, STORAGE_PIN_QUEUE_NAME, storageGcQueue } from './queue.js';
+import workerRegistry from '../../metrics/WorkerRegistry.js';
 import type {
     StorageAssetRecord,
     StorageGcJobData,
@@ -32,11 +32,11 @@ const defaultWorkerRepository: StorageWorkerRepository = defaultRepository;
 
 export const pinStorageContent = async (
   job: Job<StoragePinJobData>,
-  dependencies: StorageWorkerDependencies = {}
+  _token?: string
 ): Promise<StoragePinResult> => {
   const payload = job.data;
-  const activeProvider = dependencies.provider ?? provider;
-  const repository = dependencies.repository ?? defaultWorkerRepository;
+  const activeProvider = provider;
+  const repository = defaultWorkerRepository;
 
   try {
     const pinResult =
@@ -145,7 +145,14 @@ export const startStorageWorkers = (): {
       concurrency: Number(process.env.STORAGE_WORKER_CONCURRENCY || '10'),
     });
 
+    workerRegistry.register('storage-pin', {
+      concurrency: Number(process.env.STORAGE_WORKER_CONCURRENCY || '10'),
+    });
+
+    pinWorker.on('completed', () => workerRegistry.recordCompleted('storage-pin'));
+    pinWorker.on('error', () => workerRegistry.markDegraded('storage-pin'));
     pinWorker.on('failed', (job, error) => {
+      workerRegistry.recordFailed('storage-pin');
       logger.error(`Storage pin job ${job?.id} failed: ${error.message}`);
     });
   }
@@ -171,7 +178,12 @@ export const startStorageWorkers = (): {
       }
     );
 
+    workerRegistry.register('storage-gc', { concurrency: 1 });
+
+    gcWorker.on('completed', () => workerRegistry.recordCompleted('storage-gc'));
+    gcWorker.on('error', () => workerRegistry.markDegraded('storage-gc'));
     gcWorker.on('failed', (job, error) => {
+      workerRegistry.recordFailed('storage-gc');
       logger.error(`Storage GC job ${job?.id} failed: ${error.message}`);
     });
   }
@@ -183,11 +195,13 @@ export const stopStorageWorkers = async (): Promise<void> => {
   if (pinWorker) {
     await pinWorker.close();
     pinWorker = null;
+    workerRegistry.markStopped('storage-pin');
   }
 
   if (gcWorker) {
     await gcWorker.close();
     gcWorker = null;
+    workerRegistry.markStopped('storage-gc');
   }
 };
 
