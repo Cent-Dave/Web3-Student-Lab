@@ -1,4 +1,3 @@
-// @ts-nocheck
 import type { JobsOptions } from 'bullmq';
 import { Queue } from 'bullmq';
 import type { StorageGcJobData, StoragePinJobData } from './types.js';
@@ -20,7 +19,6 @@ const defaultPinJobOptions: JobsOptions = {
     age: 7 * 24 * 60 * 60,
     count: 1000,
   },
-  timeout: Number(process.env.STORAGE_JOB_TIMEOUT_MS || '30000'),
 };
 
 const createQueue = <T>(name: string, defaultJobOptions?: JobsOptions) => {
@@ -31,9 +29,6 @@ const createQueue = <T>(name: string, defaultJobOptions?: JobsOptions) => {
     } as unknown as Queue<T>;
   }
 
-  const redisUrl = new URL(process.env.REDIS_URL || (() => {
-    throw new Error('REDIS_URL environment variable is required');
-  })());
   const redisUrl = new URL(process.env.REDIS_URL || 'redis://localhost:6379');
 
   return new Queue<T>(name, {
