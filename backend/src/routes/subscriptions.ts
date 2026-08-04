@@ -1,7 +1,7 @@
 import { Request, Response, Router } from 'express';
 import { idempotency } from '../middleware/idempotency.js';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 // Mock database
 interface MockSubscriptionPlan {

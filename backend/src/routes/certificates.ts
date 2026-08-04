@@ -3,7 +3,7 @@ import { normalizeSorobanDid } from '../auth/auth.service.js';
 import { auditAction } from '../middleware/audit.js';
 import { idempotency } from '../middleware/idempotency.js';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 // Robust Mock Database for 100% Demo Uptime
 interface MockCertificate {
