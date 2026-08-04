@@ -65,6 +65,7 @@ pub mod state_channel;
 pub mod statistics;
 pub mod storage_incentives;
 pub mod storage_lesson;
+pub mod storage_migration;
 pub mod subscription_manager;
 pub mod subscription_service;
 pub mod swap_router;

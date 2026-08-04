@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { JobsOptions } from 'bullmq';
-import logger from '../../utils/logger.js';
+import logger, { getTraceId } from '../../utils/logger.js';
 import {
   webhookDeliveryQueue,
   WEBHOOK_DELIVERY_QUEUE_NAME,
@@ -84,6 +84,7 @@ export const buildWebhookDeliveryJob = (request: WebhookDeliveryRequest): Webhoo
     destination: request.destination,
     event: request.event,
     metadata: request.metadata,
+    traceId: getTraceId(),
     idempotencyKey,
   };
 };

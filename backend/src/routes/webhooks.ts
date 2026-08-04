@@ -10,6 +10,7 @@ import {
     verifyWebhookSignature,
 } from '../services/webhooks/index.js';
 import logger from '../utils/logger.js';
+import { idempotency } from '../middleware/idempotency.js';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -54,7 +55,7 @@ router.get('/health', async (_req: Request, res: Response) => {
   });
 });
 
-router.post(['/ingest', '/dispatch'], async (req: Request, res: Response) => {
+router.post(['/ingest', '/dispatch'], idempotency(), async (req: Request, res: Response) => {
   try {
     const timestamp = req.header('x-webhook-timestamp') || '';
     const signature = req.header('x-webhook-signature') || '';
@@ -93,7 +94,7 @@ router.get('/subscriptions', async (req: Request, res: Response) => {
 });
 
 // POST /subscriptions - Create a new subscription
-router.post('/subscriptions', async (req: Request, res: Response) => {
+router.post('/subscriptions', idempotency(), async (req: Request, res: Response) => {
   try {
     const { url, secret, events, active } = req.body;
 
