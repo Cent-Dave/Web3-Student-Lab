@@ -6,6 +6,7 @@ import prisma from '../db/index.js';
 import { auditAction } from '../middleware/audit.js';
 import { createNotification } from '../notifications/index.js';
 import { getQueryString } from '../utils/queryParams.js';
+import logger from '../utils/logger.js';
 
 
 const router: ReturnType<typeof Router> = Router();
@@ -91,7 +92,6 @@ async function ensureSeedCourses() {
     }
 
     for (const course of courses) {
-
       await prisma.course.create({
         data: {
           id: course.id,
@@ -102,6 +102,8 @@ async function ensureSeedCourses() {
         },
       });
     }
+  } catch (error) {
+    logger.error('Failed to seed courses', { error });
   }
 }
 
@@ -112,7 +114,7 @@ async function ensureSeedCourses() {
  * outage without telling the caller).
  */
 async function loadLiveCourses() {
-  await ensureSeeded();
+  await ensureSeedCourses();
   const persisted = await prisma.course.findMany({ orderBy: { createdAt: 'asc' } });
   return persisted.map((course) => ({
     ...course,
@@ -129,7 +131,7 @@ router.get('/', cacheMiddleware({ ttl: cacheTTL.courses.list }), async (_req, re
   } catch (error) {
     logger.error('Database unavailable in GET /courses, serving demo data', { error });
     res.status(200).json({
-      courses: DEMO_COURSES,
+      courses,
       dataSource: 'demo',
       message: 'Live course data is temporarily unavailable. Showing demo data.',
     });
@@ -162,7 +164,7 @@ router.get(
       res.json({ course, dataSource: 'live' });
     } catch (error) {
       logger.error(`Database unavailable in GET /courses/${id}, checking demo data`, { error });
-      const demoCourse = DEMO_COURSES.find((c) => c.id === id);
+      const demoCourse = courses.find((c) => c.id === id);
       if (!demoCourse) {
         return res.status(404).json({ error: 'Course not found', dataSource: 'demo' });
       }

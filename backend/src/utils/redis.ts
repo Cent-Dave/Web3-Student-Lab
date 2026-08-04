@@ -63,4 +63,8 @@ export const pubClient: any = createRedisClient();
 
 export const subClient: any = createRedisClient();
 
+export function getRedisClient() {
+  return redisConnection;
+}
+
 export default redisConnection;

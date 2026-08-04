@@ -21,7 +21,7 @@ export const RUST_VALIDATION_LIMITS = Object.freeze({
   maxDiagnostics: 100,
 });
 
-const DELIMITER_PAIRS: Readonly<Record<string, string>> = Object.freeze({
+const pairs: Readonly<Record<string, string>> = Object.freeze({
   '(': ')',
   '[': ']',
   '{': '}',
@@ -140,16 +140,17 @@ export class RustValidationService {
 
           const expected = pairs[opener.char] ?? '';
           if (expected !== char) {
-            diagnostics.push({
-
-              line: lineNumber,
-              column: columnIndex + 1,
-              severity: 'error',
-              message: `Expected ${expected} to close ${opener.char} from line ${opener.line}`,
-              code: 'mismatched-delimiter',
-            })
-          ) {
-            break validationLoop;
+            if (
+              !addDiagnostic({
+                line: lineNumber,
+                column: columnIndex + 1,
+                severity: 'error',
+                message: `Expected ${expected} to close ${opener.char} from line ${opener.line}`,
+                code: 'mismatched-delimiter',
+              })
+            ) {
+              break validationLoop;
+            }
           }
         }
       }
