@@ -42,15 +42,18 @@ members = [
 # Example: did_registry/ (source only, no Cargo.toml yet).
 exclude = [
     "did_registry",
+    "automated_testing_suite",
+    "cicd_pipeline",
 ]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-soroban-sdk = "22.0.0"
+soroban-sdk = "26.1.0"
 
 [dev-dependencies]
-soroban-sdk = { version = "22.0.0", features = ["testutils"] }
+soroban-sdk = { version = "26.1.0", features = ["testutils"] }
 rand = { version = "0.8", features = ["small_rng"] }
 ed25519-dalek = { version = "2", default-features = false, features = ["std", "rand_core"] }
+proptest = "1"

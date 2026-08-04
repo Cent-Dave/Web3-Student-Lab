@@ -1,4 +1,13 @@
 import { Redis } from 'ioredis';
+import { getEnvVar } from './checkEnv.js';
+import logger from './logger.js';
+
+const redisUrl = getEnvVar('REDIS_URL', 'redis://localhost:6379');
+
+if (!process.env.REDIS_URL) {
+  logger.warn('REDIS_URL is not set, defaulting to redis://localhost:6379. Cache will not work if Redis is not running locally.');
+}
+
 /**
  * Centralized Redis client exports.
  *
@@ -10,16 +19,14 @@ import { Redis } from 'ioredis';
 
 import redisClient from '../cache/RedisClient.js';
 
-const redisUrl = process.env.REDIS_URL;
-if (!redisUrl) {
-  throw new Error('REDIS_URL environment variable is required');
+export function getRedisClient() {
+  return redisClient.getClient();
 }
-// Re-export the main client for backward compatibility
-export const redisConnection = redisClient.getClient();
 
 // Re-export pub/sub clients for BullMQ and WebSocket
 export const pubClient = redisClient.getPubClient();
 export const subClient = redisClient.getSubClient();
 
 // Default export for backward compatibility
+export const redisConnection = getRedisClient();
 export default redisConnection;

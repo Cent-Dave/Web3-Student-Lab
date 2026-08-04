@@ -1,5 +1,8 @@
 import { Job, Worker } from 'bullmq';
 import logger from '../../utils/logger.js';
+import { redisConnection } from '../../utils/redis.js';
+import { webhookBreaker } from '../../lib/circuit-breaker/externalServices.js';
+import { canonicalizeWebhookPayload, buildSignedWebhookHeaders } from './signature.js';
 import {
     WEBHOOK_DELIVERY_QUEUE_NAME,
     webhookDeadLetterQueue,
@@ -7,6 +10,7 @@ import {
 import { buildSignedWebhookHeaders, canonicalizeWebhookPayload } from './signature.js';
 import type { DeadLetterWebhookJob, WebhookDeliveryJobData } from './types.js';
 import { recordDeliveryState } from './dispatcher.js';
+import workerRegistry from '../../metrics/WorkerRegistry.js';
 
 const requestTimeoutMs = Number(process.env.WEBHOOK_REQUEST_TIMEOUT_MS || '10000');
 
@@ -55,15 +59,27 @@ export const deliverWebhook = async (
   let response: Response;
 
   try {
-    response = await fetch(job.data.destination.url, {
-      method: 'POST',
-      headers: {
-        ...headers,
-        ...job.data.destination.headers,
+    response = await webhookBreaker.execute(
+      async () => {
+        const res = await fetch(job.data.destination.url, {
+          method: 'POST',
+          headers: {
+            ...headers,
+            ...job.data.destination.headers,
+          },
+          body: serializedPayload,
+          signal: controller.signal,
+        });
+        return res;
       },
-      body: serializedPayload,
-      signal: controller.signal,
-    });
+      (error) => {
+        logger.error(`Circuit breaker fallback for webhook delivery: ${error.message}`);
+        throw new PermanentWebhookDeliveryError(
+          `Circuit breaker open for webhook delivery: ${error.message}`,
+          503
+        );
+      }
+    );
   } finally {
     clearTimeout(timer);
   }
@@ -181,6 +197,8 @@ export const startWebhookWorker = (): Worker<WebhookDeliveryJobData> | null => {
   );
 
   webhookWorker.on('failed', async (job, error) => {
+    workerRegistry.recordFailed('webhook-delivery');
+
     if (!job) {
       return;
     }
@@ -211,12 +229,17 @@ export const startWebhookWorker = (): Worker<WebhookDeliveryJobData> | null => {
   });
 
   webhookWorker.on('completed', (job) => {
+    workerRegistry.recordCompleted('webhook-delivery');
     logger.info(`Webhook delivery ${job.data.deliveryId} completed`);
   });
 
   webhookWorker.on('error', (error) => {
+    workerRegistry.markDegraded('webhook-delivery');
     logger.error('Webhook worker error:', error);
   });
+
+  // Visible to the metrics exporter as worker="webhook-delivery".
+  workerRegistry.register('webhook-delivery');
 
   return webhookWorker;
 };
@@ -228,4 +251,5 @@ export const stopWebhookWorker = async (): Promise<void> => {
 
   await webhookWorker.close();
   webhookWorker = null;
+  workerRegistry.markStopped('webhook-delivery');
 };

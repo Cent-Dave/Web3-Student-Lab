@@ -128,7 +128,18 @@ fn expected_proof_hash(
     payload.append(&Bytes::from_array(env, &nullifier.to_array()));
     payload.append(&student.clone().to_xdr(env));
 
+
     env.crypto().sha256(&payload).into()
+}
+
+/// Deterministic byte encoding of an `Address`, used as part of the proof
+/// binding pre-image (`Address` has no direct byte serialization method).
+fn address_bytes(env: &Env, address: &Address) -> Bytes {
+    let s = address.to_string();
+    let len = s.len() as usize;
+    let mut buf = [0u8; 64];
+    s.copy_into_slice(&mut buf[..len]);
+    Bytes::from_slice(env, &buf[..len])
 }
 
 #[cfg(test)]
@@ -148,6 +159,7 @@ mod tests {
         payload.append(&Bytes::from_array(env, &public_input_hash.to_array()));
         payload.append(&Bytes::from_array(env, &nullifier.to_array()));
         payload.append(&student.clone().to_xdr(env));
+
         payload
     }
 
@@ -175,7 +187,10 @@ mod tests {
         );
 
         assert!(ok);
-        assert!(ZkProofVerifierContract::is_nullifier_used(env.clone(), nullifier));
+        assert!(ZkProofVerifierContract::is_nullifier_used(
+            env.clone(),
+            nullifier
+        ));
     }
 
     #[test]

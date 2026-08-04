@@ -4,17 +4,14 @@ import {
   CertificateMetadata,
   CertificateStatus,
 } from '../types/certificate.types.js';
-import { CertificateService } from './CertificateService.js';
 import { MetadataGenerator } from './MetadataGenerator.js';
 import logger from '../utils/logger.js';
 import { verifyCertificateContentHash } from './ContentHash.js';
 
 export class VerificationService {
-  private certificateService: CertificateService;
   private metadataGenerator: MetadataGenerator;
 
   constructor() {
-    this.certificateService = new CertificateService();
     this.metadataGenerator = new MetadataGenerator();
   }
 
@@ -236,15 +233,34 @@ export class VerificationService {
    * Gets certificate metadata
    */
   async getMetadata(tokenId: string): Promise<CertificateMetadata | null> {
-    return this.certificateService.getMetadata(tokenId);
+    const { certificateService } = await import('./CertificateService.js');
+    return certificateService.getMetadata(tokenId);
   }
 
   /**
    * Records a verification event for analytics
    */
   async recordVerification(tokenId: string): Promise<void> {
-    // In a full implementation, log to analytics table
-    logger.debug(`Certificate verified: ${tokenId}`);
+    const certificate = await prisma.certificate.findFirst({
+      where: {
+        OR: [{ tokenId }, { id: tokenId }],
+      },
+      select: {
+        id: true,
+        tokenId: true,
+        workspaceId: true,
+      },
+    });
+
+    await prisma.certificateVerificationEvent.create({
+      data: {
+        workspaceId: certificate?.workspaceId || 'default',
+        certificateId: certificate?.id || null,
+        tokenId: certificate?.tokenId || tokenId,
+      },
+    });
+
+    logger.debug(`Certificate verification event recorded: ${tokenId}`);
   }
 
   /**
