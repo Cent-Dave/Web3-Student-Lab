@@ -1,8 +1,8 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, panic_with_error, Address, Bytes, BytesN,
-    Env,
+    contract, contracterror, contractimpl, contracttype, panic_with_error, xdr::ToXdr, Address,
+    Bytes, BytesN, Env,
 };
 
 #[contracttype]
@@ -126,7 +126,8 @@ fn expected_proof_hash(
     payload.append(&Bytes::from_array(env, &vk_hash.to_array()));
     payload.append(&Bytes::from_array(env, &public_input_hash.to_array()));
     payload.append(&Bytes::from_array(env, &nullifier.to_array()));
-    payload.append(&address_bytes(env, student));
+    payload.append(&student.clone().to_xdr(env));
+
 
     env.crypto().sha256(&payload).into()
 }
@@ -157,7 +158,8 @@ mod tests {
         payload.append(&Bytes::from_array(env, &vk_hash.to_array()));
         payload.append(&Bytes::from_array(env, &public_input_hash.to_array()));
         payload.append(&Bytes::from_array(env, &nullifier.to_array()));
-        payload.append(&address_bytes(env, student));
+        payload.append(&student.clone().to_xdr(env));
+
         payload
     }
 

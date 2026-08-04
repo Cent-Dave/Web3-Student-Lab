@@ -112,7 +112,9 @@ impl PaymentGateway {
     pub fn deposit(env: Env, user: Address, amount: i128) {
         user.require_auth();
         Self::require_not_paused(&env);
-        assert!(amount > 0, "invalid amount");
+        if amount <= 0 {
+            panic_with_error!(&env, Error::InvalidAmount);
+        }
 
         let mut balance: i128 = env
             .storage()
@@ -139,7 +141,9 @@ impl PaymentGateway {
     pub fn withdraw(env: Env, user: Address, amount: i128) -> i128 {
         user.require_auth();
         Self::require_not_paused(&env);
-        assert!(amount > 0, "invalid amount");
+        if amount <= 0 {
+            panic_with_error!(&env, Error::InvalidAmount);
+        }
 
         let mut balance: i128 = env
             .storage()
@@ -147,7 +151,9 @@ impl PaymentGateway {
             .get(&DataKey::Balance(user.clone()))
             .unwrap_or(0);
 
-        assert!(balance >= amount, "insufficient balance");
+        if balance < amount {
+            panic_with_error!(&env, Error::InsufficientBalance);
+        }
 
         balance = balance.checked_sub(amount).expect("balance underflow");
         env.storage()
@@ -172,7 +178,9 @@ impl PaymentGateway {
     ) -> PaymentRecord {
         payer.require_auth();
         Self::require_not_paused(&env);
-        assert!(amount > 0, "invalid amount");
+        if amount <= 0 {
+            panic_with_error!(&env, Error::InvalidAmount);
+        }
 
         let platform_fee: u32 = env
             .storage()
@@ -189,7 +197,9 @@ impl PaymentGateway {
             .get(&DataKey::Balance(payer.clone()))
             .unwrap_or(0);
 
-        assert!(payer_balance >= total_debit, "insufficient balance");
+        if payer_balance < total_debit {
+            panic_with_error!(&env, Error::InsufficientBalance);
+        }
 
         payer_balance = payer_balance
             .checked_sub(total_debit)
@@ -220,7 +230,7 @@ impl PaymentGateway {
             amount,
             fee,
             status: PaymentStatus::Completed,
-            timestamp: env.ledger().sequence() as u64,
+            timestamp: u64::from(env.ledger().sequence()),
             metadata,
         };
 
@@ -229,7 +239,7 @@ impl PaymentGateway {
             .set(&DataKey::Payment(payment_id), &record);
 
         env.events().publish(
-            (symbol_short!("payment"), payer.clone(), payee.clone()),
+            (symbol_short!("payment"), payer, payee),
             amount,
         );
 
@@ -260,11 +270,10 @@ impl PaymentGateway {
             panic_with_error!(&env, Error::Unauthorized);
         }
 
-        let current_ledger = env.ledger().sequence() as u64;
-        assert!(
-            current_ledger <= record.timestamp + MAX_REFUND_LEDGERS,
-            "refund window closed"
-        );
+        let current_ledger = u64::from(env.ledger().sequence());
+        if current_ledger > record.timestamp + MAX_REFUND_LEDGERS {
+            panic_with_error!(&env, Error::RefundWindowClosed);
+        }
 
         let mut payer_balance: i128 = env
             .storage()
@@ -356,7 +365,7 @@ impl PaymentGateway {
         }
     }
 
-    fn calculate_fee(env: &Env, amount: i128, fee_bps: u32) -> i128 {
+    fn calculate_fee(_env: &Env, amount: i128, fee_bps: u32) -> i128 {
         amount
             .checked_mul(fee_bps as i128)
             .expect("fee overflow")
@@ -398,7 +407,7 @@ impl PaymentGateway {
         Self::require_admin(&env, &admin);
         env.storage().instance().set(&ADMIN, &new_admin);
         env.events()
-            .publish((symbol_short!("admin_tx"),), new_admin);
+            .publish((symbol_short!("adm_xfer"),), new_admin);
     }
 }
 
@@ -459,7 +468,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "insufficient balance")]
+    #[should_panic(expected = "Error(Contract, #4)")]
     fn test_withdraw_over_balance_panics() {
         let (env, _contract_id, _admin, user, client) = setup_with_user();
         client.deposit(&user, &100);
@@ -481,7 +490,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "invalid amount")]
+    #[should_panic(expected = "Error(Contract, #3)")]
     fn test_process_zero_payment_panics() {
         let (env, _contract_id, _admin, payer, client) = setup_with_user();
         let payee = Address::generate(&env);
@@ -504,7 +513,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "refund window closed")]
+    #[should_panic(expected = "Error(Contract, #7)")]
     fn test_refund_after_window_panics() {
         let (env, _contract_id, _admin, payer, client) = setup_with_user();
         let payee = Address::generate(&env);
@@ -529,7 +538,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "paused")]
+    #[should_panic(expected = "Error(Contract, #2)")]
     fn test_deposit_while_paused_panics() {
         let (env, contract_id, admin, payer, client) = setup_with_user();
 

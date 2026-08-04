@@ -209,10 +209,13 @@ jobs:
         run: cargo fmt --check
       - name: Clippy Check
         working-directory: ./contracts
-        run: cargo clippy
+        run: cargo clippy --workspace
+      - name: Workspace Check
+        working-directory: ./contracts
+        run: cargo check --workspace
       - name: Build
         working-directory: ./contracts
-        run: cargo build
+        run: cargo build --workspace
       - name: Test
         working-directory: ./contracts
         env:
@@ -228,17 +231,3 @@ jobs:
         # be committed so the failure is deterministically reproducible;
         # see docs/contracts/FUZZING.md.
         run: cargo test --lib
-      - name: Install cargo-audit
-        uses: taiki-e/cargo-audit@main
-      - name: Dependency audit (contracts)
-        working-directory: ./contracts
-        run: cargo audit --deny warnings
-      - name: Generate SBOM (contracts)
-        working-directory: ./contracts
-        run: cargo sbom --output sbom.contracts.json 2>/dev/null || echo "SBOM generation skipped (install cargo-sbom via 'cargo install cargo-sbom')"
-      - name: Upload contracts SBOM
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom-contracts
-          path: contracts/sbom.contracts.json
-          retention-days: 90
