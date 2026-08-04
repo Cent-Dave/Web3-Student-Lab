@@ -26,6 +26,7 @@ import { graphqlQueryComplexityLimiter } from './middleware/graphqlRateLimiter.j
 import { rateLimiter } from './middleware/rateLimiter.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { requireWorkspaceMiddleware } from './middleware/WorkspaceContext.js';
+import { validateInput } from './middleware/validation.js';
 import freelanceRoute from './routes/freelance.js';
 import { livenessHandler, readinessHandler } from './routes/health.routes.js';
 import routes from './routes/index.js';
@@ -99,6 +100,7 @@ setRateLimitEnvOverrides({
 
 app.use(createCorsMiddleware());
 app.use(express.json());
+app.use(validateInput);
 app.use(securityHeadersMiddleware); // Add security headers early in middleware chain
 app.use(decryptionMiddleware);
 app.use(dbRoutingMiddleware);
