@@ -33,6 +33,9 @@ contracts/target/
 # Cargo.lock should be committed in binary crates; excluded here per project choice
 Cargo.lock
 
+# Orphan root lockfile causes Next/webpack SyntaxError when present without package.json
+/package-lock.json
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Next.js
 # ──────────────────────────────────────────────────────────────────────────────
