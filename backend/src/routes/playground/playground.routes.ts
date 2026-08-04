@@ -4,6 +4,7 @@ import {
   getLeaderboard,
   scoreRound,
   updateLeaderboard,
+  type LeaderboardEntry,
 } from '../../services/issueTriage.service.js';
 import logger from '../../utils/logger.js';
 
@@ -34,7 +35,8 @@ router.post('/triage/score', async (req: Request, res: Response) => {
     }
 
     const round = scoreRound(submissions);
-    let leaderboardEntry: Awaited<ReturnType<typeof updateLeaderboard>> | null = null;
+    let leaderboardEntry: LeaderboardEntry | null = null;
+
 
     if (playerId && typeof playerId === 'string') {
       leaderboardEntry = await updateLeaderboard(

@@ -3,10 +3,14 @@ import path from 'path';
 import { cspDirectivesToString, getCSPConfig } from './src/lib/security/csp-config';
 
 const nextConfig: NextConfig = {
-  outputFileTracingRoot: path.resolve(__dirname, '.'),
+  // Keep tracing rooted at frontend/ so parent orphan lockfiles are ignored
+  outputFileTracingRoot: path.join(__dirname),
   reactCompiler: true,
   // Disable Turbopack and use Webpack (required for custom webpack config)
   // turbopack: {}, // Uncomment this line if you want to use Turbopack instead
+
+  // Ensure recharts/monaco editor packages resolve from frontend node_modules only
+  transpilePackages: ['recharts'],
 
   // Content Security Policy with nonce-based script loading
   async headers() {
@@ -61,7 +65,11 @@ const nextConfig: NextConfig = {
 
   // Bundle optimization and tree-shaking configuration
   webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
-    // Tree-shaking for Stellar SDK
+    // Prefer frontend node_modules so webpack does not climb into an orphaned root lockfile tree
+    config.resolve.modules = [
+      path.join(__dirname, 'node_modules'),
+      ...(Array.isArray(config.resolve.modules) ? config.resolve.modules : ['node_modules']),
+    ];
     config.resolve.alias = {
       ...config.resolve.alias,
     };
