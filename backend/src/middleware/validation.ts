@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import sanitizeHtml from 'sanitize-html';
 import { ApiResponse } from '../utils/response.js';
+import { ApiError, ApiFieldError, sendErrorEnvelope } from '../utils/apiError.js';
 
 // ---------------------------------------------------------------------------
 // Sanitization helpers
@@ -109,29 +110,37 @@ export function validateInput(req: Request, res: Response, next: NextFunction): 
  * @example
  * router.post('/vesting', validate(createVestingScheduleSchema), handler);
  */
+
+/**
+ * Map Zod issues to envelope field errors.
+ * Only the field path and the reason are exposed — never the submitted value.
+ */
+export const toFieldErrors = (error: z.ZodError): ApiFieldError[] =>
+  error.issues.map((issue: z.ZodIssue) => ({
+    field: issue.path.join('.') || '(root)',
+    message: issue.message,
+  }));
+
+// Validation middleware factory — emits the versioned error envelope.
 export const validate = (schema: z.ZodSchema) => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
+      // Route params and body are validated together; the merged result
+      // replaces req.body so handlers read one typed object.
       const validatedData = schema.parse({ ...req.params, ...req.body });
       req.body = validatedData;
       next();
     } catch (error) {
       if (error instanceof z.ZodError) {
-        const errorMessages = error.issues.map((err: z.ZodIssue) => ({
-          field: err.path.join('.'),
-          message: err.message,
-        }));
-
-        return res.status(400).json({
-          ...ApiResponse.error('Validation failed', errorMessages),
-          error: errorMessages.map((e) => `${e.field}: ${e.message}`).join(', '),
-        });
+        return sendErrorEnvelope(
+          req,
+          res,
+          ApiError.validationFailed('Request validation failed', toFieldErrors(error))
+        );
       }
 
-      return res.status(500).json({
-        ...ApiResponse.error('Internal server error'),
-        error: error instanceof Error ? error.message : 'Internal server error',
-      });
+      // Unexpected failure inside the schema itself — never leak the detail.
+      return sendErrorEnvelope(req, res, ApiError.internal(undefined, error));
     }
   };
 };

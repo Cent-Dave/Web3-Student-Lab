@@ -1,61 +1,32 @@
-import dotenv from 'dotenv';
 import { Redis } from 'ioredis';
+import { getEnvVar } from './checkEnv.js';
+import logger from './logger.js';
 
-// dotenv.config(); // Skip in Docker Compose - use environment variables instead
+const redisUrl = getEnvVar('REDIS_URL', 'redis://localhost:6379');
 
-const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+if (!process.env.REDIS_URL) {
+  logger.warn('REDIS_URL is not set, defaulting to redis://localhost:6379. Cache will not work if Redis is not running locally.');
+}
 
-const createTestRedisClient = () => {
-  const memoryStore = new Map<string, string>();
+/**
+ * Centralized Redis client exports.
+ *
+ * This file now re-exports from the singleton RedisClient to eliminate
+ * duplicate Redis connections and ensure a single connection manager.
+ *
+ * @deprecated Import directly from '../cache/RedisClient.js' instead
+ */
 
-  return {
-    connect: async () => undefined,
-    disconnect: async () => undefined,
-    quit: async () => undefined,
-    ping: async () => 'PONG',
-    info: async () => 'test-redis',
-    on: () => undefined,
-    off: () => undefined,
-    get: async (key: string) => memoryStore.get(key) ?? null,
-    set: async (key: string, value: string) => {
-      memoryStore.set(key, value);
-      return 'OK';
-    },
-    setex: async (key: string, _ttl: number, value: string) => {
-      memoryStore.set(key, value);
-      return 'OK';
-    },
-    del: async (...keys: string[]) => {
-      keys.forEach((key) => memoryStore.delete(key));
-      return keys.length;
-    },
-    lpush: async (_key: string, ...values: string[]) => values.length,
-    brpop: async () => null,
-    publish: async (_channel: string, _message: string) => 0,
-    subscribe: (..._args: any[]) => undefined,
-  };
-};
+import redisClient from '../cache/RedisClient.js';
 
-const createRedisClient = () => {
-  if (process.env.NODE_ENV === 'test') {
-    return createTestRedisClient() as unknown as Redis;
-  }
+export function getRedisClient() {
+  return redisClient.getClient();
+}
 
-  const client = new Redis(redisUrl, {
-    maxRetriesPerRequest: null,
-  });
+// Re-export pub/sub clients for BullMQ and WebSocket
+export const pubClient = redisClient.getPubClient();
+export const subClient = redisClient.getSubClient();
 
-  client.on('error', (err) => {
-    console.warn(`Redis connection error: ${err.message}`);
-  });
-
-  return client;
-};
-
-export const redisConnection: any = createRedisClient();
-
-export const pubClient: any = createRedisClient();
-
-export const subClient: any = createRedisClient();
-
+// Default export for backward compatibility
+export const redisConnection = getRedisClient();
 export default redisConnection;
