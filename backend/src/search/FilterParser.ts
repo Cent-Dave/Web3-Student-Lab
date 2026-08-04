@@ -15,8 +15,10 @@ export class FilterParser {
     const parsedFilters: Record<string, FilterOperator> = {};
 
     for (const [key, value] of Object.entries(queryFilters)) {
-      if (typeof value === 'string' || typeof value === 'number' || Array.isArray(value)) {
+      if (typeof value === 'string' || typeof value === 'number') {
         parsedFilters[key] = { eq: value };
+      } else if (Array.isArray(value)) {
+        parsedFilters[key] = { in: value };
       } else if (typeof value === 'object' && value !== null) {
         parsedFilters[key] = value as FilterOperator;
       }

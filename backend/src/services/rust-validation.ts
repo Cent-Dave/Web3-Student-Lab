@@ -1,4 +1,5 @@
-export interface ValidationDiagnostic {
+interface ValidationDiagnostic {
+
   line: number;
   column: number;
   severity: 'error' | 'warning';
@@ -111,16 +112,11 @@ export class RustValidationService {
       }
 
       for (let columnIndex = 0; columnIndex < line.length; columnIndex += 1) {
-        if (
-          inspectedCharacters % TIME_CHECK_INTERVAL === 0 &&
-          hasTimedOut()
-        ) {
-          return timeoutResult(lineNumber, columnIndex + 1);
-        }
-        inspectedCharacters += 1;
-
         const char = line[columnIndex] ?? '';
-        if (Object.prototype.hasOwnProperty.call(DELIMITER_PAIRS, char)) {
+        if (!char) continue;
+
+        if (Object.prototype.hasOwnProperty.call(pairs, char)) {
+
           stack.push({ char, line: lineNumber, column: columnIndex + 1 });
           continue;
         }
@@ -142,10 +138,10 @@ export class RustValidationService {
             continue;
           }
 
-          const expected = DELIMITER_PAIRS[opener.char];
-          if (
-            expected !== char &&
-            !addDiagnostic({
+          const expected = pairs[opener.char] ?? '';
+          if (expected !== char) {
+            diagnostics.push({
+
               line: lineNumber,
               column: columnIndex + 1,
               severity: 'error',
