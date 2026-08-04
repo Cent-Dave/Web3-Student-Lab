@@ -3,7 +3,7 @@ import { Request, Response, Router } from 'express';
 import { authenticate } from '../auth/auth.middleware.js';
 import { getQueryString } from '../utils/queryParams.js';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 const prisma = new PrismaClient();
 
 function asStringArray(value: Prisma.JsonValue | null | undefined): string[] {

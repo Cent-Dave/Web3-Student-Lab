@@ -10,7 +10,7 @@ import {
 } from '../services/simulatorErrorLog.service.js';
 import { getQueryString } from '../utils/queryParams.js';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 const VALID_SEVERITIES: ErrorSeverity[] = ['low', 'medium', 'high', 'critical'];
 
@@ -72,6 +72,7 @@ router.get('/session/:sessionId', authenticate, (req: Request, res: Response): v
     ? (severityRaw as ErrorSeverity)
     : undefined;
 
+
   if (severity && !VALID_SEVERITIES.includes(severity)) {
     res.status(400).json({
       status: 'error',
@@ -102,6 +103,7 @@ router.get('/me', authenticate, (req: Request, res: Response): void => {
  */
 router.delete('/session/:sessionId', authenticate, (req: Request, res: Response): void => {
   const sessionId = getQueryString(req.params.sessionId);
+
   const cleared = clearSessionErrors(sessionId);
   res.json({ status: 'success', data: { cleared } });
 });

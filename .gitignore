@@ -59,3 +59,4 @@ contracts/check_output*.json
 contracts/errors*.json
 contracts/test_output*.txt
 contracts/check_errors.txt
+
