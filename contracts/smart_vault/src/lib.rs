@@ -296,9 +296,12 @@ impl SmartVault {
     fn lock(env: &Env) {
         let locked: bool = env.storage().instance().get(&LOCK).unwrap_or(false);
         if locked {
-            panic_with_error!(env, soroban_sdk::Error::from_contract_error(
-                &soroban_sdk::Status::from_contract_value(10)
-            ));
+            panic_with_error!(
+                env,
+                soroban_sdk::Error::from_contract_error(&soroban_sdk::Status::from_contract_value(
+                    10
+                ))
+            );
         }
         env.storage().instance().set(&LOCK, &true);
     }

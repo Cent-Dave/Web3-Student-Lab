@@ -128,7 +128,6 @@ fn expected_proof_hash(
     payload.append(&Bytes::from_array(env, &nullifier.to_array()));
     payload.append(&student.clone().to_xdr(env));
 
-
     env.crypto().sha256(&payload).into()
 }
 

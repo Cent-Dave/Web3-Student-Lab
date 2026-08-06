@@ -238,10 +238,8 @@ impl PaymentGateway {
             .persistent()
             .set(&DataKey::Payment(payment_id), &record);
 
-        env.events().publish(
-            (symbol_short!("payment"), payer, payee),
-            amount,
-        );
+        env.events()
+            .publish((symbol_short!("payment"), payer, payee), amount);
 
         record
     }
@@ -433,7 +431,13 @@ mod tests {
         (env, contract_id, admin)
     }
 
-    fn setup_with_user() -> (Env, Address, Address, Address, PaymentGatewayClient<'static>) {
+    fn setup_with_user() -> (
+        Env,
+        Address,
+        Address,
+        Address,
+        PaymentGatewayClient<'static>,
+    ) {
         let (env, contract_id, admin) = setup();
         let user = Address::generate(&env);
         let client = PaymentGatewayClient::new(&env, &contract_id);

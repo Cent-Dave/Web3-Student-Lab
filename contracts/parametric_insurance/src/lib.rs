@@ -435,7 +435,6 @@ mod tests {
         );
 
         client.claim(&buyer, &policy_id);
-        
     }
 
     #[test]
@@ -461,7 +460,6 @@ mod tests {
         client.post_oracle_value(&oracle, &trigger, &25i128);
 
         client.claim(&buyer, &policy_id);
-        
     }
 
     #[test]
@@ -514,7 +512,6 @@ mod tests {
         client.post_oracle_value(&oracle, &trigger, &150i128);
 
         client.claim(&buyer, &policy_id);
-        
     }
 
     #[test]
@@ -540,7 +537,6 @@ mod tests {
         client.claim(&buyer, &policy_id);
 
         client.claim(&buyer, &policy_id);
-        
     }
 
     #[test]
@@ -562,15 +558,14 @@ mod tests {
         client.underwrite(&underwriter, &1_000);
 
         let _ = client.buy_policy(
-                &buyer,
-                &10,
-                &5_000,
-                &(env.ledger().timestamp() + 100),
-                &Symbol::new(&env, "price_crash"),
-                &0i128,
-                &false,
-            );
-        
+            &buyer,
+            &10,
+            &5_000,
+            &(env.ledger().timestamp() + 100),
+            &Symbol::new(&env, "price_crash"),
+            &0i128,
+            &false,
+        );
     }
 
     #[test]

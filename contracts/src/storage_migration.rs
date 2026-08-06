@@ -110,20 +110,14 @@ impl StorageMigrationContract {
     pub fn initialize(env: Env, admin: Address, schema_version: u32) {
         admin.require_auth();
 
-        env.storage()
-            .instance()
-            .set(&MigrationKey::Admin, &admin);
+        env.storage().instance().set(&MigrationKey::Admin, &admin);
         env.storage()
             .instance()
             .set(&MigrationKey::SchemaVersion, &schema_version);
-        env.storage()
-            .instance()
-            .set(&MigrationKey::Paused, &false);
+        env.storage().instance().set(&MigrationKey::Paused, &false);
 
-        env.events().publish(
-            (symbol_short!("init"),),
-            (admin, schema_version),
-        );
+        env.events()
+            .publish((symbol_short!("init"),), (admin, schema_version));
     }
 
     // ── Schema version management ─────────────────────────────────────────────
@@ -159,10 +153,8 @@ impl StorageMigrationContract {
             .instance()
             .set(&MigrationKey::SchemaVersion, &new_version);
 
-        env.events().publish(
-            (symbol_short!("schema"),),
-            (current, new_version),
-        );
+        env.events()
+            .publish((symbol_short!("schema"),), (current, new_version));
     }
 
     // ── Pause / unpause ───────────────────────────────────────────────────────
@@ -171,18 +163,14 @@ impl StorageMigrationContract {
     /// prevent concurrent writes from creating un-migrated records.
     pub fn pause(env: Env) {
         Self::require_admin(&env);
-        env.storage()
-            .instance()
-            .set(&MigrationKey::Paused, &true);
+        env.storage().instance().set(&MigrationKey::Paused, &true);
         env.events().publish((symbol_short!("paused"),), ());
     }
 
     /// Resume write operations after the migration batch is complete.
     pub fn unpause(env: Env) {
         Self::require_admin(&env);
-        env.storage()
-            .instance()
-            .set(&MigrationKey::Paused, &false);
+        env.storage().instance().set(&MigrationKey::Paused, &false);
         env.events().publish((symbol_short!("unpaused"),), ());
     }
 
@@ -209,9 +197,10 @@ impl StorageMigrationContract {
             updated_at: now,
         };
 
-        env.storage()
-            .persistent()
-            .set(&MigrationKey::Record(key.clone()), &VersionedRecord::V2(record));
+        env.storage().persistent().set(
+            &MigrationKey::Record(key.clone()),
+            &VersionedRecord::V2(record),
+        );
 
         // Mark as migrated at the current schema version.
         env.storage()
@@ -252,10 +241,7 @@ impl StorageMigrationContract {
                         .persistent()
                         .set(&MigrationKey::Migrated(key.clone()), &true);
 
-                    env.events().publish(
-                        (symbol_short!("lazy_mig"),),
-                        key,
-                    );
+                    env.events().publish((symbol_short!("lazy_mig"),), key);
                 }
 
                 Some(migrated)
@@ -298,10 +284,9 @@ impl StorageMigrationContract {
                 Some(VersionedRecord::V1(v1)) => {
                     let v2 = Self::migrate_v1_to_v2(&env, v1);
 
-                    env.storage().persistent().set(
-                        &MigrationKey::Record(key.clone()),
-                        &VersionedRecord::V2(v2),
-                    );
+                    env.storage()
+                        .persistent()
+                        .set(&MigrationKey::Record(key.clone()), &VersionedRecord::V2(v2));
                     env.storage()
                         .persistent()
                         .set(&MigrationKey::Migrated(key.clone()), &true);
@@ -318,10 +303,8 @@ impl StorageMigrationContract {
             }
         }
 
-        env.events().publish(
-            (symbol_short!("batch_mig"),),
-            migrated_count,
-        );
+        env.events()
+            .publish((symbol_short!("batch_mig"),), migrated_count);
 
         migrated_count
     }
@@ -445,19 +428,17 @@ mod tests {
                 owner: Address::generate(&env),
                 value: 42u64,
             };
-            env.storage().persistent().set(
-                &MigrationKey::Record(key.clone()),
-                &VersionedRecord::V1(v1),
-            );
+            env.storage()
+                .persistent()
+                .set(&MigrationKey::Record(key.clone()), &VersionedRecord::V1(v1));
         });
 
         // Reading should trigger lazy migration and return a V2 record.
-        let record = client.get_record(&String::from_str(&env, "legacy")).unwrap();
+        let record = client
+            .get_record(&String::from_str(&env, "legacy"))
+            .unwrap();
         assert_eq!(record.value, 42u64);
-        assert_eq!(
-            record.label,
-            String::from_str(&env, "migrated")
-        );
+        assert_eq!(record.label, String::from_str(&env, "migrated"));
     }
 
     #[test]
@@ -481,10 +462,9 @@ mod tests {
                     owner: Address::generate(&env),
                     value: 99u64,
                 };
-                env.storage().persistent().set(
-                    &MigrationKey::Record(key.clone()),
-                    &VersionedRecord::V1(v1),
-                );
+                env.storage()
+                    .persistent()
+                    .set(&MigrationKey::Record(key.clone()), &VersionedRecord::V1(v1));
             }
         });
 
