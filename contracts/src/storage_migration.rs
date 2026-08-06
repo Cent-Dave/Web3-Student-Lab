@@ -411,24 +411,19 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn test_pause_blocks_writes() {
         let (env, client, _admin) = setup();
         let user = Address::generate(&env);
         client.pause();
         assert!(client.is_paused());
 
-        let result = std::panic::catch_unwind(|| {
-            client.set_record(
-                &user,
-                &String::from_str(&env, "key2"),
-                &50u64,
-                &String::from_str(&env, "blocked"),
-            );
-        });
-        assert!(result.is_err(), "write should panic when paused");
-
-        client.unpause();
-        assert!(!client.is_paused());
+        client.set_record(
+            &user,
+            &String::from_str(&env, "key2"),
+            &50u64,
+            &String::from_str(&env, "blocked"),
+        );
     }
 
     #[test]

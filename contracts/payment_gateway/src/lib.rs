@@ -429,11 +429,11 @@ mod tests {
         let user = Address::generate(&env);
         let client = PaymentGatewayClient::new(&env, &contract_id);
 
-        client.initialize(admin.clone());
+        client.initialize(&admin);
         (env, contract_id, admin)
     }
 
-    fn setup_with_user() -> (Env, Address, Address, Address, PaymentGatewayClient) {
+    fn setup_with_user() -> (Env, Address, Address, Address, PaymentGatewayClient<'static>) {
         let (env, contract_id, admin) = setup();
         let user = Address::generate(&env);
         let client = PaymentGatewayClient::new(&env, &contract_id);
@@ -454,7 +454,7 @@ mod tests {
         let (env, _contract_id, _admin, user, client) = setup_with_user();
 
         client.deposit(&user, &1000);
-        assert_eq!(client.get_balance(user.clone()), 1000);
+        assert_eq!(client.get_balance(&user), 1000);
     }
 
     #[test]
@@ -464,7 +464,7 @@ mod tests {
         client.deposit(&user, &1000);
         let withdrawn = client.withdraw(&user, &400);
         assert_eq!(withdrawn, 400);
-        assert_eq!(client.get_balance(user), 600);
+        assert_eq!(client.get_balance(&user), 600);
     }
 
     #[test]
@@ -486,7 +486,7 @@ mod tests {
         assert_eq!(record.status, PaymentStatus::Completed);
         assert_eq!(record.amount, 3000);
         assert!(record.fee > 0);
-        assert_eq!(client.get_balance(payer), 10_000 - 3000 - record.fee);
+        assert_eq!(client.get_balance(&payer), 10_000 - 3000 - record.fee);
     }
 
     #[test]
@@ -522,7 +522,7 @@ mod tests {
         client.process_payment(&payer, &payee, &3000, &symbol_short!("test!"), &1);
 
         env.ledger()
-            .with_mut(|l| l.sequence_number += MAX_REFUND_LEDGERS + 10);
+            .with_mut(|l| l.sequence_number += MAX_REFUND_LEDGERS as u32 + 10);
 
         client.refund(&payer, &1);
     }
@@ -564,7 +564,7 @@ mod tests {
         let (env, contract_id, admin, _payer, client) = setup_with_user();
         let new_admin = Address::generate(&env);
 
-        client.transfer_admin(&admin, new_admin.clone());
+        client.transfer_admin(&admin, &new_admin);
         assert_eq!(client.get_admin(), new_admin);
     }
 }
