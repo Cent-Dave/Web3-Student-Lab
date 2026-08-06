@@ -74,7 +74,7 @@ export async function enqueueToDLQ(
       ...input.data,
       traceId,
     },
-    opts: input.opts,
+    opts: input.opts ?? {},
     failedAt: new Date().toISOString(),
     error: input.error,
     traceId,

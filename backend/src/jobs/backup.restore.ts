@@ -161,13 +161,16 @@ async function main() {
   const options: RestoreOptions = {};
 
   if (s3KeyIndex !== -1 && args[s3KeyIndex + 1]) {
-    options.s3Key = args[s3KeyIndex + 1];
+    const s3Key = args[s3KeyIndex + 1]!;
+    options.s3Key = s3Key;
   }
   if (localFileIndex !== -1 && args[localFileIndex + 1]) {
-    options.localFile = args[localFileIndex + 1];
+    const localFile = args[localFileIndex + 1]!;
+    options.localFile = localFile;
   }
   if (dbUrlIndex !== -1 && args[dbUrlIndex + 1]) {
-    options.targetDatabaseUrl = args[dbUrlIndex + 1];
+    const targetDatabaseUrl = args[dbUrlIndex + 1]!;
+    options.targetDatabaseUrl = targetDatabaseUrl;
   }
 
   if (!options.s3Key && !options.localFile) {

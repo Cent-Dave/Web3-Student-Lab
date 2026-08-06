@@ -208,7 +208,10 @@ export function logWithTraceId(
   meta?: Record<string, unknown>
 ): void {
   const child = logger.child({ traceId });
-  (child as Record<string, unknown>)[level](message, meta ?? {});
+  const logFn = (child as unknown as Record<string, (message: string, meta?: Record<string, unknown>) => void>)[level];
+  if (logFn) {
+    logFn(message, meta ?? {});
+  }
 }
 
 /** @deprecated Use logWithTraceId */

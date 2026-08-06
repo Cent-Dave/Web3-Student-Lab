@@ -36,6 +36,7 @@ export class FilterParser {
 
     while ((match = filterRegex.exec(queryString)) !== null) {
       const [, field, operator, value] = match;
+      if (!field || !operator || value === undefined) continue;
 
       if (!filters[field]) {
         filters[field] = {};

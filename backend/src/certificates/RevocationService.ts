@@ -202,8 +202,8 @@ export class RevocationService {
         {
           studentId: original.studentId,
           courseId: original.courseId,
-          grade: newGrade || original.grade || undefined,
-          did: original.did ?? undefined,
+          ...(newGrade ? { grade: newGrade } : original.grade ? { grade: original.grade } : {}),
+          ...(original.did ? { did: original.did } : {}),
         },
         issuedBy,
         original.contractAddress || '',

@@ -192,9 +192,9 @@ router.put(
       });
 
       const updateData: Prisma.StudentUpdateInput = {
-        email,
-        firstName,
-        lastName,
+        ...(email !== undefined ? { email } : {}),
+        ...(firstName !== undefined ? { firstName } : {}),
+        ...(lastName !== undefined ? { lastName } : {}),
       };
 
       if (normalizedDid !== undefined) {

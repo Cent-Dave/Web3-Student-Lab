@@ -26,15 +26,14 @@ router.get('/', validateQuery(curriculumSearchQuerySchema), async (req: Request,
     const results = await searchCurriculum({
       query: q,
       workspaceId,
-      entityType: type,
-      difficulty,
-      courseId,
+      entityType: type ?? ('course' as any),
+      difficulty: difficulty ?? ('beginner' as any),
+      courseId: courseId ?? '',
       limit,
       offset,
-      cursor:
-        cursorRank !== undefined && cursorTitle && cursorId
-          ? { rank: cursorRank, title: cursorTitle, id: cursorId }
-          : undefined,
+      ...(cursorRank !== undefined && cursorTitle && cursorId
+        ? { cursor: { rank: cursorRank, title: cursorTitle, id: cursorId } }
+        : {}),
     });
 
     res.json({ query: q, count: results.length, limit, offset, results });

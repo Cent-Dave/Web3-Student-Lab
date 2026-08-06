@@ -38,7 +38,7 @@ router.get('/explorer/snapshot', async (req: Request, res: Response): Promise<vo
       req.query.seed !== undefined ? getQueryInt(req.query.seed, NaN) : undefined;
     const snapshot = await getExplorerSnapshot({
       limit,
-      seed: seed !== undefined && !Number.isNaN(seed) ? seed : undefined,
+      seed: seed !== undefined && !Number.isNaN(seed) ? seed : undefined as never,
     });
 
     res.json({ status: 'success', data: snapshot });

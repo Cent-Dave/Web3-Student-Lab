@@ -1,6 +1,7 @@
 import prisma from '../db/index.js';
 import logger from '../utils/logger.js';
 import redisClient from '../cache/RedisClient.js';
+import { redisConnection } from '../utils/redis.js';
 
 export interface NotificationPreferences {
   id: string;
@@ -85,8 +86,8 @@ export class NotificationPreferencesService {
           newCourses: dto.newCourses ?? true,
           reminders: dto.reminders ?? true,
           frequency: dto.frequency ?? 'immediate',
-          quietHoursStart: dto.quietHoursStart,
-          quietHoursEnd: dto.quietHoursEnd,
+          quietHoursStart: dto.quietHoursStart ?? null,
+          quietHoursEnd: dto.quietHoursEnd ?? null,
         },
       });
 
@@ -102,34 +103,34 @@ export class NotificationPreferencesService {
 
   async upsert(dto: CreatePreferencesDto): Promise<NotificationPreferences> {
     try {
-      const prefs = await prisma.notificationPreferences.upsert({
-        where: { studentId: dto.studentId },
-        update: {
-          emailEnabled: dto.emailEnabled ?? true,
-          pushEnabled: dto.pushEnabled ?? true,
-          inAppEnabled: dto.inAppEnabled ?? true,
-          courseUpdates: dto.courseUpdates ?? true,
-          announcements: dto.announcements ?? true,
-          newCourses: dto.newCourses ?? true,
-          reminders: dto.reminders ?? true,
-          frequency: dto.frequency ?? 'immediate',
-          quietHoursStart: dto.quietHoursStart,
-          quietHoursEnd: dto.quietHoursEnd,
-        },
-        create: {
-          studentId: dto.studentId,
-          emailEnabled: dto.emailEnabled ?? true,
-          pushEnabled: dto.pushEnabled ?? true,
-          inAppEnabled: dto.inAppEnabled ?? true,
-          courseUpdates: dto.courseUpdates ?? true,
-          announcements: dto.announcements ?? true,
-          newCourses: dto.newCourses ?? true,
-          reminders: dto.reminders ?? true,
-          frequency: dto.frequency ?? 'immediate',
-          quietHoursStart: dto.quietHoursStart,
-          quietHoursEnd: dto.quietHoursEnd,
-        },
-      });
+    const prefs = await prisma.notificationPreferences.upsert({
+      where: { studentId: dto.studentId },
+      update: {
+        emailEnabled: dto.emailEnabled ?? true,
+        pushEnabled: dto.pushEnabled ?? true,
+        inAppEnabled: dto.inAppEnabled ?? true,
+        courseUpdates: dto.courseUpdates ?? true,
+        announcements: dto.announcements ?? true,
+        newCourses: dto.newCourses ?? true,
+        reminders: dto.reminders ?? true,
+        frequency: dto.frequency ?? 'immediate',
+        quietHoursStart: dto.quietHoursStart ?? null,
+        quietHoursEnd: dto.quietHoursEnd ?? null,
+      },
+      create: {
+        studentId: dto.studentId,
+        emailEnabled: dto.emailEnabled ?? true,
+        pushEnabled: dto.pushEnabled ?? true,
+        inAppEnabled: dto.inAppEnabled ?? true,
+        courseUpdates: dto.courseUpdates ?? true,
+        announcements: dto.announcements ?? true,
+        newCourses: dto.newCourses ?? true,
+        reminders: dto.reminders ?? true,
+        frequency: dto.frequency ?? 'immediate',
+        quietHoursStart: dto.quietHoursStart ?? null,
+        quietHoursEnd: dto.quietHoursEnd ?? null,
+      },
+    });
 
       const client = redisClient.getClient();
       if (client) await client.del(`notification_prefs:${dto.studentId}`);

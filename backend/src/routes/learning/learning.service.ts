@@ -452,7 +452,7 @@ export const updateStudentProgress = async (
           const destinations = lessonCompletedSubscriptions.map((sub) => ({
             id: sub.id,
             url: sub.url,
-            secret: sub.secret || undefined,
+            secret: sub.secret || '',
           }));
 
           await enqueueWebhookDeliveries(payload as any, destinations).catch((err) =>

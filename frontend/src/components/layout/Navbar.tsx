@@ -3,17 +3,13 @@
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { LanguageSelector } from '@/components/common/LanguageSelector';
 import NotificationBell from '@/components/notifications/NotificationBell';
-import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { useWalletProfileCompletion } from '@/lib/profile-completion';
 import { primaryNav } from '@/lib/site-data';
 import { ArrowRight, Menu, X, Sparkles, ChevronDown, LogOut } from 'lucide-react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useState, useEffect } from 'react';
 import { useI18n } from '@/i18n';
 import { useKeyboardShortcuts } from '@/components/keyboard/KeyboardShortcutsProvider';
 

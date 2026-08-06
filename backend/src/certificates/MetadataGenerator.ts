@@ -112,14 +112,17 @@ export class MetadataGenerator {
     certificate: Certificate
   ): CertificateCourseInfo {
     const dateStr = certificate.issuedAt.toISOString().split('T')[0] || '';
-    return {
+    const courseInfo: CertificateCourseInfo = {
       id: course.id,
       title: course.title,
       instructor: course.instructor,
       credits: course.credits,
       completionDate: dateStr,
-      grade: certificate.grade || undefined,
     };
+    if (certificate.grade) {
+      courseInfo.grade = certificate.grade;
+    }
+    return courseInfo;
   }
 
   /**

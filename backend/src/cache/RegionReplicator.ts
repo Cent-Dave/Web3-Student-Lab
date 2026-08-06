@@ -1,4 +1,4 @@
-import Redis from 'ioredis';
+import Ioredis from 'ioredis';
 import logger from '../utils/logger.js';
 import {
   orderRegionsByPreference,
@@ -236,10 +236,10 @@ export class RegionReplicator {
 function createIoRedisClient(connection: string): RedisLike {
   const options = { maxRetriesPerRequest: 3, enableOfflineQueue: false };
   if (connection.includes('://')) {
-    return new Redis(connection, options) as unknown as RedisLike;
+    return new (Ioredis as any)(connection, options) as unknown as RedisLike;
   }
   const [host, port] = connection.split(':');
-  return new Redis({ host, port: parseInt(port || '6379', 10), ...options }) as unknown as RedisLike;
+  return new (Ioredis as any)({ host, port: parseInt(port || '6379', 10), ...options }) as unknown as RedisLike;
 }
 
 /** Build region clients from parsed config (opens real connections). */

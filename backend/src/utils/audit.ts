@@ -69,7 +69,7 @@ export async function logAudit(data: AuditLogData): Promise<void> {
         action: data.action,
         entity: data.entity ?? null,
         entityId: data.entityId ?? null,
-        details: detailsRecord,
+        details: detailsRecord as any,
         ipAddress: data.ipAddress ?? null,
         userAgent: data.userAgent ?? null,
       },

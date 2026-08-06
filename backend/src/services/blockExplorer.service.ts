@@ -19,33 +19,6 @@ import { getExplorerAdapter, resolveExplorerMode } from './adapters/explorerAdap
 import { LiveStellarExplorerAdapter } from './adapters/liveStellarExplorerAdapter.js';
 import { SimulationExplorerAdapter } from './adapters/simulationExplorerAdapter.js';
 
-export type TxStatus = 'SUCCESS' | 'PENDING' | 'FAILED';
-
-export interface ExplorerTransaction {
-  id: string;
-  hash: string;
-  source: string;
-  destination: string;
-  operation: string;
-  amount: string;
-  asset: string;
-  fee: string;
-  ledger: number;
-  status: TxStatus;
-  timestamp: string;
-}
-
-export interface ExplorerSnapshot {
-  transactions: ExplorerTransaction[];
-  stats: {
-    totalTransactions: number;
-    successRate: number;
-    averageFee: string;
-    latestLedger: number;
-  };
-  generatedAt: string;
-}
-
 const OPS = ['PAYMENT', 'INVOKE_HOST_FUNCTION', 'CHANGE_TRUST', 'MANAGE_OFFER', 'CREATE_ACCOUNT'];
 const ASSETS = ['XLM', 'USDC', 'EURC', 'AQUA'];
 

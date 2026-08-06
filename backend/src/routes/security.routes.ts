@@ -205,13 +205,13 @@ router.post(
     });
 
     logger.info(
-      {
+      JSON.stringify({
         processed: items.length,
         migrated,
         skipped,
         failed,
         activeVersion: securityService.getActiveSymmetricKeyVersion(),
-      },
+      }),
       'SecurityRoutes: rotate-payloads batch complete'
     );
 
@@ -255,7 +255,7 @@ router.post(
         },
       });
     } catch (err) {
-      logger.error({ err }, 'SecurityRoutes: reload-keys failed');
+      logger.error('SecurityRoutes: reload-keys failed', { err });
       // Do not expose the raw error message — it may contain path info
       res.status(500).json({
         status: 'error',

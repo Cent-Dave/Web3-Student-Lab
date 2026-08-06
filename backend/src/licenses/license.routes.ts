@@ -6,7 +6,7 @@
  */
 import { Request, Response, Router } from 'express';
 import logger from '../utils/logger.js';
-import { getQueryBoolean, getQueryInt, getQueryString } from '../utils/queryParams.js';
+import { getQueryBoolean, getQueryInt } from '../utils/queryParams.js';
 import * as licenseService from './license.service.js';
 
 const router: ReturnType<typeof Router> = Router();
@@ -389,6 +389,9 @@ router.get('/compatibility', (req: Request, res: Response) => {
 router.get('/:licenseId/compatible', (req: Request, res: Response) => {
   try {
     const licenseId = getQueryString(req.params.licenseId);
+    if (!licenseId) {
+      return res.status(400).json({ status: 'error', error: 'licenseId is required' });
+    }
     const result = licenseService.getCompatibleLicenses(licenseId);
 
     if (result.status === 'error') {
@@ -423,6 +426,9 @@ router.get('/:licenseId/compatible', (req: Request, res: Response) => {
 router.get('/spdx/:spdxId', (req: Request, res: Response) => {
   try {
     const spdxId = getQueryString(req.params.spdxId);
+    if (!spdxId) {
+      return res.status(400).json({ status: 'error', error: 'spdxId is required' });
+    }
     const result = licenseService.getLicenseBySpdxId(spdxId);
 
     if (result.status === 'error') {
@@ -457,6 +463,9 @@ router.get('/spdx/:spdxId', (req: Request, res: Response) => {
 router.get('/:licenseId', (req: Request, res: Response) => {
   try {
     const licenseId = getQueryString(req.params.licenseId);
+    if (!licenseId) {
+      return res.status(400).json({ status: 'error', error: 'licenseId is required' });
+    }
     const result = licenseService.getLicenseById(licenseId);
 
     if (result.status === 'error') {

@@ -7,7 +7,6 @@ import {
     WEBHOOK_DELIVERY_QUEUE_NAME,
     webhookDeadLetterQueue,
 } from './queue.js';
-import { buildSignedWebhookHeaders, canonicalizeWebhookPayload } from './signature.js';
 import type { DeadLetterWebhookJob, WebhookDeliveryJobData } from './types.js';
 import { recordDeliveryState } from './dispatcher.js';
 import workerRegistry from '../../metrics/WorkerRegistry.js';
@@ -128,7 +127,7 @@ const moveToDeadLetterQueue = async (
     error: error.message,
   };
 
-  await webhookDeadLetterQueue.add(job.data.event.type, deadLetterJob, {
+  await webhookDeadLetterQueue.add(job.data.event.type as any, deadLetterJob, {
     removeOnComplete: true,
     removeOnFail: false,
   });

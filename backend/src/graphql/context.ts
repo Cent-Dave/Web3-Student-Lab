@@ -9,9 +9,9 @@ export type GraphQLContext = {
 
 export const createGraphQLContext = async (): Promise<GraphQLContext> => {
   const prismaModule = await import('../db/index.js');
-  return {
+  const ctx: GraphQLContext = {
     prisma: prismaModule.prisma as PrismaClient,
     redis: redisClient.getClient(),
-    user: undefined,
   };
+  return ctx;
 };

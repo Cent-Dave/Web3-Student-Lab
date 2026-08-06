@@ -44,7 +44,7 @@ export const upsertStorageAsset = async (asset: {
       referenceCount: asset.referenceCount ?? 1,
       metadata: (asset.metadata ?? null) as Prisma.InputJsonValue,
       error: asset.error ?? null,
-      pinnedAt: asset.status === 'pinned' ? new Date() : undefined,
+      pinnedAt: asset.status === 'pinned' ? new Date() : (undefined as any),
       unpinnedAt: null,
     },
     create: {

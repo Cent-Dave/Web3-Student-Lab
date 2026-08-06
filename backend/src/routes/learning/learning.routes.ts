@@ -192,7 +192,7 @@ router.get(
       const asset = await prisma.decentralizedAsset.findFirst({
         where: {
           resourceType: 'lesson',
-          resourceId: typeof lessonId === 'string' ? lessonId : undefined,
+          resourceId: typeof lessonId === 'string' ? lessonId : ('' as string),
         },
       });
 

@@ -26,8 +26,8 @@ const parsePinataResponse = async (response: Response): Promise<StoragePinResult
     ipfsUri: `ipfs://${data.IpfsHash}`,
     gatewayUrl: buildGatewayUrl(data.IpfsHash),
     provider: 'pinata',
-    sizeBytes: data.PinSize,
-    isDuplicate: data.isDuplicate,
+    sizeBytes: data.PinSize ?? 0,
+    isDuplicate: data.isDuplicate ?? false,
   };
 };
 

@@ -122,14 +122,19 @@ export class CircuitBreaker {
   }
 
   public getStats(): CircuitBreakerStats {
-    return {
+    const stats: CircuitBreakerStats = {
       state: this.state,
       failures: this.failures,
       successes: this.successes,
-      lastFailureTime: this.lastFailureTime > 0 ? this.lastFailureTime : undefined,
-      lastSuccessTime: this.lastSuccessTime > 0 ? this.lastSuccessTime : undefined,
       lastStateChange: this.lastStateChange,
     };
+    if (this.lastFailureTime > 0) {
+      stats.lastFailureTime = this.lastFailureTime;
+    }
+    if (this.lastSuccessTime > 0) {
+      stats.lastSuccessTime = this.lastSuccessTime;
+    }
+    return stats;
   }
 
   private async onSuccess(): Promise<void> {

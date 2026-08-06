@@ -65,8 +65,8 @@ export const recordDeliveryState = (
     eventId: event.id,
     eventType: event.type,
     updatedAt: now,
-    attemptsMade: overrides?.attemptsMade,
-    error: overrides?.error,
+    ...(overrides?.attemptsMade !== undefined ? { attemptsMade: overrides.attemptsMade } : {}),
+    ...(overrides?.error !== undefined ? { error: overrides.error } : {}),
   });
 };
 
@@ -83,8 +83,8 @@ export const buildWebhookDeliveryJob = (request: WebhookDeliveryRequest): Webhoo
     deliveryId: randomUUID(),
     destination: request.destination,
     event: request.event,
-    metadata: request.metadata,
-    traceId: getTraceId(),
+    metadata: request.metadata ?? {},
+    traceId: getTraceId() as string,
     idempotencyKey,
   };
 };
@@ -123,7 +123,7 @@ export const enqueueWebhookDeliveryToQueue = async (
   const job = buildWebhookDeliveryJob({ ...request, idempotencyKey });
   recordDeliveryState(idempotencyKey, 'pending', job.deliveryId, job.event, job.destination);
 
-  await queue.add(job.event.type, job, {
+  await queue.add(job.event.type as any, job, {
     ...buildWebhookJobOptions(overrides),
     jobId: idempotencyKey,
   });

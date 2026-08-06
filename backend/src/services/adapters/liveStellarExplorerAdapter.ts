@@ -204,7 +204,7 @@ export class LiveStellarExplorerAdapter implements ExplorerAdapter {
 
   public async getSnapshot(options: GetSnapshotOptions = {}): Promise<ExplorerSnapshot> {
     const limit = Math.min(options.limit ?? 25, 100);
-    const transactions = await this.fetchTransactions(limit, { timeoutMs: options.timeoutMs });
+    const transactions = await this.fetchTransactions(limit, { timeoutMs: options.timeoutMs ?? 10000 });
 
     return {
       transactions,

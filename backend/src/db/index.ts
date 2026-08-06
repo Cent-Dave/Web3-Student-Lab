@@ -59,7 +59,7 @@ const workspaceExtension = {
   name: 'workspace-isolation',
   query: {
     $allModels: {
-      async $allOperations({ model, operation, args, query }) {
+      async $allOperations({ model, operation, args, query }: { model?: string; operation?: string; args?: any; query: (args: any) => Promise<any> }) {
         if (!model || !workspaceModels.has(model)) {
           return query(args);
         }
@@ -83,7 +83,7 @@ const workspaceExtension = {
             'updateMany',
             'delete',
             'deleteMany',
-          ].includes(operation)
+          ].includes(operation!)
         ) {
           mutableArgs.where = { ...(mutableArgs.where ?? {}), workspaceId };
           return query(mutableArgs);
@@ -131,8 +131,8 @@ const routingExtension = {
   name: 'read-replica-routing',
   query: {
     $allModels: {
-      async $allOperations({ model, operation, args, query }) {
-        const dbRole = getDatabaseRoleForOperation(operation);
+      async $allOperations({ model, operation, args, query }: { model?: string; operation?: string; args?: any; query: (args: any) => Promise<any> }) {
+          const dbRole = getDatabaseRoleForOperation(operation!);
 
         if (dbRole === 'read') {
           const modelClient = readPrisma[model as keyof typeof readPrisma];

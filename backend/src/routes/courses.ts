@@ -154,9 +154,10 @@ router.get(
     try {
       const id = getQueryString(req.params.id);
       const availableCourses = await ensureSeedCourses();
+      if (!availableCourses) {
+        return res.status(404).json({ error: 'Course not found', dataSource: 'live' });
+      }
       const course = availableCourses.find((c) => c.id === id);
-
-
       if (!course) {
         return res.status(404).json({ error: 'Course not found' });
       }
@@ -195,6 +196,8 @@ router.post('/', auditAction('CREATE_COURSE', 'Course'), async (req, res) => {
       description: description ?? '',
       instructor,
       credits: credits || 3,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
     const createdCourse = await prisma.course.create({

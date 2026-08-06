@@ -44,7 +44,7 @@ const isValidDidSubject = (subject: string): boolean => /^[A-Za-z0-9._:%-]+$/.te
 const extractFragment = (value: string): { base: string; fragment: string | null } => {
   const [base, ...fragmentParts] = value.split('#');
   if (fragmentParts.length === 0) {
-    return { base, fragment: null };
+    return { base: base!, fragment: null };
   }
 
   const fragment = fragmentParts.join('#').trim();
@@ -52,7 +52,7 @@ const extractFragment = (value: string): { base: string; fragment: string | null
     throw new DidValidationError('Invalid DID format. Fragment contains unsupported characters');
   }
 
-  return { base, fragment };
+  return { base: base!, fragment };
 };
 
 export const parseSupportedDid = (did: string): ParsedDid => {

@@ -140,14 +140,17 @@ export const resolvers = {
     createStudent: async (_parent: unknown, { input }: { input: { email: string; firstName: string; lastName: string; walletAddress?: string; password: string } }, context: GraphQLContext) => {
       const hashedPassword = crypto.createHash('sha256').update(input.password).digest('hex');
 
+      const studentData: Parameters<typeof prisma.student.create>[0]['data'] = {
+        email: input.email,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        password: input.password,
+      };
+      if (input.walletAddress) {
+        studentData.walletAddress = input.walletAddress;
+      }
       const student = await prisma.student.create({
-        data: {
-          email: input.email,
-          firstName: input.firstName,
-          lastName: input.lastName,
-          walletAddress: input.walletAddress,
-          password: hashedPassword,
-        },
+        data: studentData,
         select: {
           id: true,
           email: true,

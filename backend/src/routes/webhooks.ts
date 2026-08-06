@@ -44,7 +44,7 @@ const extractBody = (body: unknown): {
   return {
     event: candidate.event,
     destinations: candidate.destinations,
-    metadata: candidate.metadata,
+    metadata: candidate.metadata ?? {},
   };
 };
 
