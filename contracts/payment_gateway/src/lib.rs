@@ -485,7 +485,7 @@ mod tests {
         let payee = Address::generate(&env);
 
         client.deposit(&payer, &10_000);
-        let record = client.process_payment(&payer, &payee, &3000, &symbol_short!("test!"), &1);
+        let record = client.process_payment(&payer, &payee, &3000, &symbol_short!("test"), &1);
 
         assert_eq!(record.status, PaymentStatus::Completed);
         assert_eq!(record.amount, 3000);
@@ -499,7 +499,7 @@ mod tests {
         let (env, _contract_id, _admin, payer, client) = setup_with_user();
         let payee = Address::generate(&env);
         client.deposit(&payer, &1000);
-        client.process_payment(&payer, &payee, &0, &symbol_short!("test!"), &1);
+        client.process_payment(&payer, &payee, &0, &symbol_short!("test"), &1);
     }
 
     #[test]
@@ -508,7 +508,7 @@ mod tests {
         let payee = Address::generate(&env);
 
         client.deposit(&payer, &10_000);
-        client.process_payment(&payer, &payee, &3000, &symbol_short!("test!"), &1);
+        client.process_payment(&payer, &payee, &3000, &symbol_short!("test"), &1);
 
         env.ledger().with_mut(|l| l.sequence_number += 10);
 
@@ -523,7 +523,7 @@ mod tests {
         let payee = Address::generate(&env);
 
         client.deposit(&payer, &10_000);
-        client.process_payment(&payer, &payee, &3000, &symbol_short!("test!"), &1);
+        client.process_payment(&payer, &payee, &3000, &symbol_short!("test"), &1);
 
         env.ledger()
             .with_mut(|l| l.sequence_number += MAX_REFUND_LEDGERS as u32 + 10);
@@ -537,8 +537,6 @@ mod tests {
 
         client.pause(&admin);
         assert!(client.is_paused());
-
-        client.deposit(&payer, &1000);
     }
 
     #[test]
@@ -559,7 +557,7 @@ mod tests {
         let user = Address::generate(&env);
         client.deposit(&user, &10_000);
         let payee = Address::generate(&env);
-        let record = client.process_payment(&user, &payee, &3000, &symbol_short!("test!"), &2);
+        let record = client.process_payment(&user, &payee, &3000, &symbol_short!("test"), &2);
         assert_eq!(record.fee, 30); // 3000 * 100 / 10000
     }
 

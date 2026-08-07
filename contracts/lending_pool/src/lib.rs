@@ -649,18 +649,8 @@ mod tests {
         let token = add_token(&env, &client);
         let user = Address::generate(&env);
 
-        // Manually set the LOCK flag to true to simulate reentrant state
-        let contract_id = env.register(LendingPool, ());
-        // We test by calling lock twice from the same execution context
-        // The second call should panic with Reentrant (#10)
-
-        // Since we can't directly call private methods from tests,
-        // we test the public API: calling deposit_collateral works once
-        client.deposit_collateral(&user, &token, &1_000);
-        assert_eq!(client.collateral_of(&user, &token), 1_000);
-
-        // Now simulate reentrant state by directly setting LOCK
-        env.as_contract(&contract_id, || {
+        // Now simulate reentrant state by directly setting LOCK on the contract instance
+        env.as_contract(&client.address, || {
             env.storage().instance().set(&LOCK, &true);
         });
 

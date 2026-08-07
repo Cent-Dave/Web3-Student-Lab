@@ -417,6 +417,7 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "Error(Contract, #7)")]
     fn rejects_claim_when_oracle_not_set() {
         let (env, _contract_id, _token, _admin, _oracle, buyer, underwriter) = setup();
         let client = ParametricInsuranceContractClient::new(&env, &_contract_id);
@@ -438,6 +439,7 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "Error(Contract, #7)")]
     fn rejects_claim_when_trigger_not_met_below() {
         let (env, _contract_id, _token, _admin, oracle, buyer, underwriter) = setup();
         let client = ParametricInsuranceContractClient::new(&env, &_contract_id);
@@ -515,6 +517,7 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "Error(Contract, #9)")]
     fn prevents_double_claim() {
         let (env, _contract_id, _token, _admin, oracle, buyer, underwriter) = setup();
         let client = ParametricInsuranceContractClient::new(&env, &_contract_id);
@@ -540,6 +543,7 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "Error(Contract, #5)")]
     fn rejects_policy_that_would_break_solvency() {
         let env = Env::default();
         env.mock_all_auths();

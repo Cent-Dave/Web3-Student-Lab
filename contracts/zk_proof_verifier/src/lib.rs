@@ -165,6 +165,8 @@ mod tests {
     #[test]
     fn verifies_valid_proof_once() {
         let env = Env::default();
+        let contract_id = env.register(ZkProofVerifierContract, ());
+        let client = ZkProofVerifierContractClient::new(&env, &contract_id);
         let admin = Address::generate(&env);
         let student = Address::generate(&env);
 
@@ -173,29 +175,27 @@ mod tests {
         let nullifier = BytesN::from_array(&env, &[3; 32]);
 
         env.mock_all_auths();
-        ZkProofVerifierContract::initialize(env.clone(), admin, vk_hash.clone());
+        client.initialize(&admin, &vk_hash);
 
         let proof = make_valid_proof(&env, &vk_hash, &student, &public_input_hash, &nullifier);
 
-        let ok = ZkProofVerifierContract::verify_lab_completion(
-            env.clone(),
-            student.clone(),
-            public_input_hash,
-            proof,
-            nullifier.clone(),
+        let ok = client.verify_lab_completion(
+            &student,
+            &public_input_hash,
+            &proof,
+            &nullifier,
         );
 
         assert!(ok);
-        assert!(ZkProofVerifierContract::is_nullifier_used(
-            env.clone(),
-            nullifier
-        ));
+        assert!(client.is_nullifier_used(&nullifier));
     }
 
     #[test]
     #[should_panic(expected = "Error(Contract, #3)")]
     fn rejects_invalid_proof() {
         let env = Env::default();
+        let contract_id = env.register(ZkProofVerifierContract, ());
+        let client = ZkProofVerifierContractClient::new(&env, &contract_id);
         let admin = Address::generate(&env);
         let student = Address::generate(&env);
 
@@ -204,15 +204,14 @@ mod tests {
         let nullifier = BytesN::from_array(&env, &[12; 32]);
 
         env.mock_all_auths();
-        ZkProofVerifierContract::initialize(env.clone(), admin, vk_hash);
+        client.initialize(&admin, &vk_hash);
 
         let fake_proof = Bytes::from_array(&env, &[9, 9, 9, 9]);
-        let _ = ZkProofVerifierContract::verify_lab_completion(
-            env.clone(),
-            student,
-            public_input_hash,
-            fake_proof,
-            nullifier,
+        let _ = client.verify_lab_completion(
+            &student,
+            &public_input_hash,
+            &fake_proof,
+            &nullifier,
         );
     }
 
@@ -220,6 +219,8 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #4)")]
     fn rejects_replay_with_same_nullifier() {
         let env = Env::default();
+        let contract_id = env.register(ZkProofVerifierContract, ());
+        let client = ZkProofVerifierContractClient::new(&env, &contract_id);
         let admin = Address::generate(&env);
         let student = Address::generate(&env);
 
@@ -228,24 +229,22 @@ mod tests {
         let nullifier = BytesN::from_array(&env, &[6; 32]);
 
         env.mock_all_auths();
-        ZkProofVerifierContract::initialize(env.clone(), admin, vk_hash.clone());
+        client.initialize(&admin, &vk_hash);
 
         let proof = make_valid_proof(&env, &vk_hash, &student, &public_input_hash, &nullifier);
 
-        let _ = ZkProofVerifierContract::verify_lab_completion(
-            env.clone(),
-            student.clone(),
-            public_input_hash.clone(),
-            proof.clone(),
-            nullifier.clone(),
+        let _ = client.verify_lab_completion(
+            &student,
+            &public_input_hash,
+            &proof,
+            &nullifier,
         );
 
-        let _ = ZkProofVerifierContract::verify_lab_completion(
-            env.clone(),
-            student,
-            public_input_hash,
-            proof,
-            nullifier,
+        let _ = client.verify_lab_completion(
+            &student,
+            &public_input_hash,
+            &proof,
+            &nullifier,
         );
     }
 }

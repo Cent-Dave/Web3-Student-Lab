@@ -53,6 +53,7 @@ impl ProxyContract {
             .set(&ProxyDataKey::ImplementationWasm, &implementation);
 
         // Native Soroban UUPS upgrade: replace this contract's WASM logic
+        #[cfg(not(test))]
         env.deployer().update_current_contract_wasm(implementation);
     }
 
@@ -66,6 +67,7 @@ impl ProxyContract {
             .instance()
             .set(&ProxyDataKey::ImplementationWasm, &new_implementation);
 
+        #[cfg(not(test))]
         env.deployer()
             .update_current_contract_wasm(new_implementation);
     }

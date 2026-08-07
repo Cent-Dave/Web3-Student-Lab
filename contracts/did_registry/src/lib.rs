@@ -127,24 +127,26 @@ mod test {
     fn test_did_registry_flow() {
         let env = Env::default();
         env.mock_all_auths();
+        let contract_id = env.register(DIDRegistryContract, ());
+        let client = DIDRegistryContractClient::new(&env, &contract_id);
         let owner = Address::generate(&env);
         let did = BytesN::from_array(&env, &[1u8; 32]);
         let mut attrs = Map::new(&env);
         attrs.set(symbol_short!("name"), Bytes::from_slice(&env, b"Alice"));
 
-        DIDRegistryContract::register(env.clone(), owner.clone(), did.clone(), attrs.clone());
-        let doc = DIDRegistryContract::resolve(env.clone(), did.clone()).unwrap();
+        client.register(&owner, &did, &attrs);
+        let doc = client.resolve(&did).unwrap();
         assert_eq!(doc.owner, owner);
 
         // Key rotation
         let new_owner = Address::generate(&env);
-        DIDRegistryContract::rotate_key(env.clone(), owner.clone(), did.clone(), new_owner.clone());
-        let doc = DIDRegistryContract::resolve(env.clone(), did.clone()).unwrap();
+        client.rotate_key(&owner, &did, &new_owner);
+        let doc = client.resolve(&did).unwrap();
         assert_eq!(doc.owner, new_owner);
 
         // Revoke
-        DIDRegistryContract::revoke(env.clone(), new_owner.clone(), did.clone());
-        let doc = DIDRegistryContract::resolve(env.clone(), did.clone()).unwrap();
+        client.revoke(&new_owner, &did);
+        let doc = client.resolve(&did).unwrap();
         assert!(doc.revoked);
     }
 }

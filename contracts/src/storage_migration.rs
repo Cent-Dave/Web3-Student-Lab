@@ -421,7 +421,7 @@ mod tests {
         let (env, client, _admin) = setup();
 
         // Manually inject a V1 record to simulate a legacy record.
-        let contract_id = env.register_contract(None, StorageMigrationContract);
+        let contract_id = client.address.clone();
         env.as_contract(&contract_id, || {
             let key = String::from_str(&env, "legacy");
             let v1 = RecordV1 {
@@ -446,7 +446,7 @@ mod tests {
         let (env, client, _admin) = setup();
 
         // Inject several V1 records.
-        let contract_id = env.register_contract(None, StorageMigrationContract);
+        let contract_id = client.address.clone();
         let keys: Vec<String> = Vec::from_array(
             &env,
             [
