@@ -109,7 +109,7 @@ jobs:
         run: npm audit --audit-level=high
       - name: Generate SBOM (backend)
         working-directory: ./backend
-        run: npm sbom --output sbom.backend.json
+        run: npm sbom --sbom-format spdx > sbom.backend.json
       - name: Upload backend SBOM
         uses: actions/upload-artifact@v4
         with:
@@ -127,7 +127,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
       - name: Install dependencies
         working-directory: ./frontend
         run: npm install
@@ -140,7 +139,7 @@ jobs:
         run: npm audit --audit-level=high
       - name: Generate SBOM (frontend)
         working-directory: ./frontend
-        run: npm sbom --output sbom.frontend.json
+        run: npm sbom --sbom-format spdx > sbom.frontend.json
       - name: Upload frontend SBOM
         uses: actions/upload-artifact@v4
         with:
@@ -158,7 +157,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
       - name: Install dependencies
         working-directory: ./frontend
         run: npm install
