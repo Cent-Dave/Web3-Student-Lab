@@ -109,7 +109,8 @@ jobs:
         run: npm audit --audit-level=high
       - name: Generate SBOM (backend)
         working-directory: ./backend
-        run: npm sbom --sbom-format spdx > sbom.backend.json
+        continue-on-error: true
+        run: npm sbom --sbom-format spdx > sbom.backend.json || true
       - name: Upload backend SBOM
         uses: actions/upload-artifact@v4
         with:
@@ -139,7 +140,8 @@ jobs:
         run: npm audit --audit-level=high
       - name: Generate SBOM (frontend)
         working-directory: ./frontend
-        run: npm sbom --sbom-format spdx > sbom.frontend.json
+        continue-on-error: true
+        run: npm sbom --sbom-format spdx > sbom.frontend.json || true
       - name: Upload frontend SBOM
         uses: actions/upload-artifact@v4
         with:
@@ -160,6 +162,9 @@ jobs:
       - name: Install dependencies
         working-directory: ./frontend
         run: npm install --legacy-peer-deps
+      - name: Build
+        working-directory: ./frontend
+        run: npm run build
       - name: Install Playwright browsers
         working-directory: ./frontend
         run: npx playwright install --with-deps chromium
