@@ -129,7 +129,7 @@ jobs:
           node-version: '20'
       - name: Install dependencies
         working-directory: ./frontend
-        run: npm install
+        run: npm install --legacy-peer-deps
       - name: Build
         working-directory: ./frontend
         run: npm run build
@@ -159,7 +159,7 @@ jobs:
           node-version: '20'
       - name: Install dependencies
         working-directory: ./frontend
-        run: npm install
+        run: npm install --legacy-peer-deps
       - name: Install Playwright browsers
         working-directory: ./frontend
         run: npx playwright install --with-deps chromium
