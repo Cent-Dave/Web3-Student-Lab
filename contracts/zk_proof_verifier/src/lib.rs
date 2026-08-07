@@ -179,12 +179,7 @@ mod tests {
 
         let proof = make_valid_proof(&env, &vk_hash, &student, &public_input_hash, &nullifier);
 
-        let ok = client.verify_lab_completion(
-            &student,
-            &public_input_hash,
-            &proof,
-            &nullifier,
-        );
+        let ok = client.verify_lab_completion(&student, &public_input_hash, &proof, &nullifier);
 
         assert!(ok);
         assert!(client.is_nullifier_used(&nullifier));
@@ -207,12 +202,7 @@ mod tests {
         client.initialize(&admin, &vk_hash);
 
         let fake_proof = Bytes::from_array(&env, &[9, 9, 9, 9]);
-        let _ = client.verify_lab_completion(
-            &student,
-            &public_input_hash,
-            &fake_proof,
-            &nullifier,
-        );
+        let _ = client.verify_lab_completion(&student, &public_input_hash, &fake_proof, &nullifier);
     }
 
     #[test]
@@ -233,18 +223,8 @@ mod tests {
 
         let proof = make_valid_proof(&env, &vk_hash, &student, &public_input_hash, &nullifier);
 
-        let _ = client.verify_lab_completion(
-            &student,
-            &public_input_hash,
-            &proof,
-            &nullifier,
-        );
+        let _ = client.verify_lab_completion(&student, &public_input_hash, &proof, &nullifier);
 
-        let _ = client.verify_lab_completion(
-            &student,
-            &public_input_hash,
-            &proof,
-            &nullifier,
-        );
+        let _ = client.verify_lab_completion(&student, &public_input_hash, &proof, &nullifier);
     }
 }
