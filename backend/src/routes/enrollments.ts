@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { DidValidationError, validateStudentDidCompatibility } from '../auth/auth.service.js';
 import prisma from '../db/index.js';
+import { idempotency } from '../middleware/idempotency.js';
 import logger from '../utils/logger.js';
 
 const router: ReturnType<typeof Router> = Router();
@@ -93,7 +94,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/enrollments - Enroll a student in a course
-router.post('/', async (req, res) => {
+router.post('/', idempotency(), async (req, res) => {
   try {
     const { studentId, courseId } = req.body;
 

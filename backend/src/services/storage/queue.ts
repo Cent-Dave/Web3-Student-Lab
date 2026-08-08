@@ -38,7 +38,7 @@ const createQueue = <T>(name: string, defaultJobOptions?: JobsOptions) => {
       password: redisUrl.password || undefined,
       maxRetriesPerRequest: null,
     },
-    defaultJobOptions,
+    defaultJobOptions: defaultJobOptions ?? {},
   });
 };
 

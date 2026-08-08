@@ -2,7 +2,16 @@
 // Language: Rust (Soroban)
 
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, panic_with_error, symbol_short, Address, Bytes, Env, Map, Symbol, Vec};
+use soroban_sdk::{
+    contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, Address,
+    Bytes, Env, Map, Symbol, Vec,
+};
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum Error {
+    Reentrancy = 1,
+}
 
 const MAX_SIGNERS: usize = 10;
 const LOCK: Symbol = symbol_short!("mw_lock");
@@ -182,9 +191,7 @@ impl MultiSigWalletContract {
     fn lock(env: &Env) {
         let locked: bool = env.storage().instance().get(&LOCK).unwrap_or(false);
         if locked {
-            panic_with_error!(env, soroban_sdk::Error::from_contract_error(
-                &soroban_sdk::Status::from_contract_value(10)
-            ));
+            panic_with_error!(&env, Error::Reentrancy);
         }
         env.storage().instance().set(&LOCK, &true);
     }

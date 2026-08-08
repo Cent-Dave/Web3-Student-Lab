@@ -83,7 +83,7 @@ function loadKeysFromEnv(): KeyEntry[] {
     const match = KEY_ENV_PATTERN.exec(name);
     if (!match || !value) continue;
 
-    const version = parseInt(match[1], 10);
+    const version = parseInt(match[1]!, 10);
 
     try {
       const keyBuffer = validateKeyMaterial(value);
@@ -134,13 +134,13 @@ export class EncryptionKeyManager {
     }
 
     // Active key = highest version
-    this.activeVersion = entries[entries.length - 1].version;
+    this.activeVersion = entries[entries.length - 1]!.version;
 
     logger.info(
-      {
+      JSON.stringify({
         keyVersions: entries.map((e) => e.version),
         activeVersion: this.activeVersion,
-      },
+      }),
       'EncryptionKeyManager: keys loaded'
     );
   }
@@ -258,7 +258,7 @@ export class EncryptionKeyManager {
       try {
         return { id, result: this.rotateEnvelope(envelopeStr) };
       } catch (err) {
-        logger.warn({ id }, 'EncryptionKeyManager.rotateBatch: item failed');
+        logger.warn('EncryptionKeyManager.rotateBatch: item failed', { id });
         return { id, error: (err as Error).message };
       }
     });

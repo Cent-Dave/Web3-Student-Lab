@@ -6,8 +6,10 @@ const nextConfig: NextConfig = {
   // Keep tracing rooted at frontend/ so parent orphan lockfiles are ignored
   outputFileTracingRoot: path.join(__dirname),
   reactCompiler: true,
-  // Disable Turbopack and use Webpack (required for custom webpack config)
-  // turbopack: {}, // Uncomment this line if you want to use Turbopack instead
+  // Disable Turbopack and use Webpack (required for custom webpack config & Module Federation)
+
+  // Ensure recharts/monaco editor packages resolve from frontend node_modules only
+  transpilePackages: ['recharts'],
 
   // Ensure recharts/monaco editor packages resolve from frontend node_modules only
   transpilePackages: ['recharts'],

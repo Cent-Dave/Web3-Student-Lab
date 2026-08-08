@@ -8,6 +8,7 @@ import {
   getUserErrors,
   logSimulatorError,
 } from '../services/simulatorErrorLog.service.js';
+import { getQueryString } from '../utils/queryParams.js';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -65,13 +66,12 @@ router.post('/', authenticate, async (req: Request, res: Response): Promise<void
  * @access  Private
  */
 router.get('/session/:sessionId', authenticate, (req: Request, res: Response): void => {
-  const sessionId = typeof req.params.sessionId === 'string' ? req.params.sessionId : undefined;
-  const severity = typeof req.query.severity === 'string' ? req.query.severity as ErrorSeverity : undefined;
+  const sessionId = getQueryString(req.params.sessionId);
+  const severityRaw = getQueryString(req.query.severity);
+  const severity = severityRaw
+    ? (severityRaw as ErrorSeverity)
+    : undefined;
 
-  if (!sessionId) {
-    res.status(400).json({ status: 'error', message: 'sessionId is required' });
-    return;
-  }
 
   if (severity && !VALID_SEVERITIES.includes(severity)) {
     res.status(400).json({
@@ -102,11 +102,8 @@ router.get('/me', authenticate, (req: Request, res: Response): void => {
  * @access  Private
  */
 router.delete('/session/:sessionId', authenticate, (req: Request, res: Response): void => {
-  const sessionId = typeof req.params.sessionId === 'string' ? req.params.sessionId : undefined;
-  if (!sessionId) {
-    res.status(400).json({ status: 'error', message: 'sessionId is required' });
-    return;
-  }
+  const sessionId = getQueryString(req.params.sessionId);
+
   const cleared = clearSessionErrors(sessionId);
   res.json({ status: 'success', data: { cleared } });
 });

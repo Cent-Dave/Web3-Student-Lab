@@ -47,7 +47,7 @@ export class PaginationHelper {
         cursor: options.cursor,
         limit: options.limit || this.DEFAULT_LIMIT,
         hasMore: resultCount === (options.limit || this.DEFAULT_LIMIT),
-        nextCursor: resultCount > 0 ? this.encodeCursor({ id: (resultCount as any).id }) : null,
+        nextCursor: resultCount > 0 ? this.encodeCursor({ id: resultCount }) : '',
       };
     } else {
       // Offset-based pagination

@@ -120,24 +120,27 @@ export default function PerformanceMetricsDashboard({
         <div
           role="alert"
           className="rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-4 text-sm text-yellow-500"
-      {/* Data-source transparency: live vs cached vs fallback */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <DataSourceNotice dataSource={dataSource} lastVerifiedAt={lastVerifiedAt} onRetry={onRetry} />
-        <button
-          type="button"
-          onClick={handleExport}
-          disabled={exportDisabled}
-          aria-disabled={exportDisabled}
-          title={
-            exportDisabled
-              ? 'Sample data cannot be exported as learner progress'
-              : `Export data (${dataSource})`
-          }
-          className="hover:bg-red-500/10 disabled:opacity-40 disabled:hover:bg-transparent rounded-lg border border-red-500/40 px-3 py-1 text-xs font-bold tracking-widest text-red-500 uppercase"
         >
-          Export data
-        </button>
-      </div>
+          {/* Data-source transparency: live vs cached vs fallback */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <DataSourceNotice dataSource={dataSource} lastVerifiedAt={lastVerifiedAt} onRetry={onRetry} />
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={exportDisabled}
+              aria-disabled={exportDisabled}
+              title={
+                exportDisabled
+                  ? 'Sample data cannot be exported as learner progress'
+                  : `Export data (${dataSource})`
+              }
+              className="hover:bg-red-500/10 disabled:opacity-40 disabled:hover:bg-transparent rounded-lg border border-red-500/40 px-3 py-1 text-xs font-bold tracking-widest text-red-500 uppercase"
+            >
+              Export data
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">

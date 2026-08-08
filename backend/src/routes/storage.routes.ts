@@ -156,7 +156,7 @@ router.post('/gc', async (req: Request, res: Response) => {
 router.get('/dlq', authenticateToken, async (_req: Request, res: Response) => {
   try {
     const limit = _req.query.limit ? Number(_req.query.limit) : undefined;
-    const records = await storageService.getDlqRecords({ limit });
+    const records = await storageService.getDlqRecords(limit !== undefined ? { limit } : {});
 
     res.json({
       status: 'success',
@@ -200,7 +200,10 @@ router.get('/dlq/metrics', authenticateToken, async (_req: Request, res: Respons
  */
 router.post('/dlq/replay/:dlqId', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const { dlqId } = req.params;
+    const dlqId = Array.isArray(req.params.dlqId) ? req.params.dlqId[0] : req.params.dlqId;
+    if (!dlqId) {
+      return res.status(400).json({ status: 'error', error: 'dlqId is required' });
+    }
     const result = await storageService.replayDlqJob(dlqId);
 
     if (!result.success) {

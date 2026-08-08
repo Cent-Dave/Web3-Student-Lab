@@ -24,7 +24,7 @@ export const cacheMiddleware = (ttlSeconds: number = 300) => {
       res.json = function (data: any) {
         // Only cache successful responses
         if (res.statusCode === 200) {
-          client?.setex(cacheKey, ttlSeconds, JSON.stringify(data)).catch((err) => {
+          client?.setex(cacheKey, ttlSeconds, JSON.stringify(data)).catch((err: unknown) => {
             console.error('Cache set error:', err);
           });
         }

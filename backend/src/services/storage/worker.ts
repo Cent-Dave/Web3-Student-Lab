@@ -47,7 +47,7 @@ export const handleStorageFailure = async (
       data: job.data,
       opts: job.opts,
       error: errorMessage,
-      traceId: job.data.metadata?.traceId || job.id?.toString() || `storage_${Date.now()}`,
+      traceId: (job.data.metadata?.traceId || job.id?.toString() || `storage_${Date.now()}`) as string,
       attemptsMade: job.attemptsMade
     });
     
@@ -71,13 +71,13 @@ export const pinStorageContent = async (
         ? await activeProvider.pinJson({
             content: payload.content,
             name: payload.name,
-            metadata: payload.metadata,
+            metadata: payload.metadata ?? {},
           })
         : await activeProvider.pinFile({
             content: Buffer.from(payload.content as string, 'base64'),
             filename: payload.filename || payload.name,
             mimeType: payload.mimeType || 'application/octet-stream',
-            metadata: payload.metadata,
+            metadata: payload.metadata ?? {},
           });
 
     await repository.upsertStorageAsset({
@@ -277,7 +277,7 @@ export const scheduleStorageGc = async (): Promise<void> => {
   }
 
   await storageGcQueue.add(
-    'gc',
+    'gc' as any,
     { retentionDays },
     {
       repeat: { pattern: '0 */6 * * *' },
@@ -305,7 +305,7 @@ export const replayStorageJob = async (
     const { storagePinQueue } = await import('./queue.js');
     
     const job = await storagePinQueue.add(
-      jobData.mode === 'json' ? 'pin-json' : 'pin-file',
+      jobData.mode === 'json' ? 'pin-json' : 'pin-file' as any,
       jobData,
       {
         delay: options?.delay || 0,
@@ -317,7 +317,7 @@ export const replayStorageJob = async (
 
     logger.info(`Replayed storage job for ${jobData.resourceType}/${jobData.resourceId}/${jobData.name}`);
     
-    return { success: true, jobId: job.id };
+    return { success: true, jobId: job.id ?? '' };
   } catch (error: any) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown replay error';
     logger.error(`Failed to replay storage job for ${jobData.resourceType}/${jobData.resourceId}:`, errorMessage);

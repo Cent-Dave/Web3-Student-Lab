@@ -102,15 +102,18 @@ export class CertificateService {
       const { storageService } = await import('../services/storage/index.js');
 
       // Generate and pin the certificate image and metadata to decentralized storage
-      const imageBuffer = await certificateImageGenerator.generateCertificateImage({
+      const imageOptions: Parameters<typeof certificateImageGenerator.generateCertificateImage>[0] = {
         studentName: `${student.firstName || ''} ${student.lastName || ''}`.trim() || 'Student',
         courseTitle: course.title,
         instructor: course.instructor,
         completionDate: certificate.issuedAt.toISOString(),
-        grade: certificate.grade || undefined,
         credentialId: certificate.tokenId || tokenIdValue,
         issuerName: process.env.ISSUER_NAME || 'Web3 Student Lab',
-      });
+      };
+      if (certificate.grade) {
+        imageOptions.grade = certificate.grade;
+      }
+      const imageBuffer = await certificateImageGenerator.generateCertificateImage(imageOptions);
 
       const imageAsset = await storageService.pinCertificateImage({
         certificateId: certificateId,

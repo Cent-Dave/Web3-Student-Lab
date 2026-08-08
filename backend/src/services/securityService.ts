@@ -99,11 +99,11 @@ export class SecurityService {
       });
 
       this.currentKeyId = keyId;
-      logger.info({ keyId }, 'SecurityService: RSA key rotated');
+      logger.info('SecurityService: RSA key rotated', { keyId });
 
       this.cleanupExpiredRsaKeys();
     } catch (error) {
-      logger.error({ error }, 'SecurityService: RSA key rotation failed');
+      logger.error('SecurityService: RSA key rotation failed', { error });
     }
   }
 
@@ -112,7 +112,7 @@ export class SecurityService {
     for (const [keyId, kp] of this.keyMap.entries()) {
       if (kp.expiresAt < now) {
         this.keyMap.delete(keyId);
-        logger.info({ keyId }, 'SecurityService: expired RSA key removed');
+        logger.info('SecurityService: expired RSA key removed', { keyId });
       }
     }
   }
@@ -159,7 +159,7 @@ export class SecurityService {
       return result;
     } catch (error) {
       // Do not leak internal error details to callers
-      logger.error({ error }, 'SecurityService: RSA decryption failed');
+      logger.error('SecurityService: RSA decryption failed', { error });
       throw new Error('Decryption failed');
     }
   }
@@ -231,8 +231,8 @@ export class SecurityService {
   public reloadSymmetricKeys(): void {
     this.ekm.reload();
     logger.info(
-      { activeVersion: this.ekm.getActiveVersion() },
-      'SecurityService: symmetric keys reloaded'
+      'SecurityService: symmetric keys reloaded',
+      { activeVersion: this.ekm.getActiveVersion() }
     );
   }
 }

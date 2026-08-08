@@ -186,8 +186,16 @@ export class CertificateController {
       const contractAddress = process.env.CERTIFICATE_CONTRACT_ID || 'GUNKNOWNCONTRACT';
       const network = process.env.STELLAR_NETWORK || 'stellar-testnet';
 
+      const mintData: Parameters<typeof certificateService.mintCertificate>[0] = {
+        studentId,
+        courseId,
+      };
+      if (tokenId) mintData.tokenId = tokenId;
+      if (grade) mintData.grade = grade;
+      if (did) mintData.did = did;
+
       const result = await certificateService.mintCertificate(
-        { studentId, courseId, tokenId, grade, did },
+        mintData,
         issuerDid,
         contractAddress,
         network
@@ -361,17 +369,20 @@ export class CertificateController {
         return;
       }
 
-      const imageBuffer = await certificateImageGenerator.generateCertificateImage({
+      const imageOptions: Parameters<typeof certificateImageGenerator.generateCertificateImage>[0] = {
         studentName: certificate.student
           ? `${certificate.student.firstName} ${certificate.student.lastName}`.trim()
           : 'Student',
         courseTitle: certificate.course?.title || 'Course',
         instructor: certificate.course?.instructor || 'Instructor',
         completionDate: certificate.issuedAt.toISOString(),
-        grade: certificate.grade || undefined,
         credentialId: certificate.tokenId || id,
         issuerName: process.env.ISSUER_NAME || 'Web3 Student Lab',
-      });
+      };
+      if (certificate.grade) {
+        imageOptions.grade = certificate.grade;
+      }
+      const imageBuffer = await certificateImageGenerator.generateCertificateImage(imageOptions);
 
       res.set('Content-Type', 'image/svg+xml');
       res.status(200).send(imageBuffer);

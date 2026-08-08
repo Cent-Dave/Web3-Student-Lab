@@ -17,7 +17,7 @@ test.describe('offline experience', () => {
     // "/" is the one route WalletGate never blocks, so this exercises the
     // banner without needing a connected wallet.
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('button', { name: 'Explore' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Launch App' })).toBeVisible();
     // context.setOffline() only fires the browser's 'offline' event once,
     // and the home page ships a much heavier client bundle than /offline —
     // server-rendered markup like the button above can be visible before
@@ -37,7 +37,7 @@ test.describe('offline experience', () => {
 
   test('does not repeat the offline notice while the connection stays down', async ({ page, context }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('button', { name: 'Explore' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Launch App' })).toBeVisible();
     // The home page ships a much heavier client bundle than /offline; give
     // it time to finish hydrating so the offline/online listeners are
     // actually attached (server-rendered markup like the button above can

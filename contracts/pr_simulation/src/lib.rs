@@ -373,6 +373,7 @@ mod tests {
     fn setup() -> (Env, PrSimulationClient<'static>, Address) {
         let env = Env::default();
         env.mock_all_auths();
+        env.ledger().with_mut(|l| l.timestamp = 100);
         let contract_id = env.register(PrSimulation, ());
         let client = PrSimulationClient::new(&env, &contract_id);
         let admin = Address::generate(&env);

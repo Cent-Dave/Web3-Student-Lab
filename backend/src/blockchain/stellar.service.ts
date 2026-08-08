@@ -1,4 +1,5 @@
 import {
+  Account,
   Asset,
   Horizon,
   Keypair,
@@ -39,9 +40,9 @@ export class StellarService {
     subscriptionId: number;
   }): Promise<PaymentResult> {
     try {
-      const sourceAccount = await Promise.race([
+      const sourceAccount = await Promise.race<Account>([
         this.server.loadAccount(this.treasuryKeypair.publicKey()),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Stellar RPC timeout')), 1500)),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Stellar RPC timeout')), 1500)),
       ]);
 
       // Create payment transaction
@@ -88,9 +89,9 @@ export class StellarService {
     originalTransactionId?: string;
   }): Promise<RefundResult> {
     try {
-      const sourceAccount = await Promise.race([
+      const sourceAccount = await Promise.race<Account>([
         this.server.loadAccount(this.treasuryKeypair.publicKey()),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Stellar RPC timeout')), 1500)),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Stellar RPC timeout')), 1500)),
       ]);
 
       // Create refund transaction (in real implementation, this would send to user's wallet)

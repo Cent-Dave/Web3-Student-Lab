@@ -1,6 +1,5 @@
 import redisClient from '../cache/RedisClient.js';
 import logger from '../utils/logger.js';
-import redisClient from '../cache/RedisClient.js';
 import {
     CourseNotification,
     CreateCourseNotificationDto,
@@ -51,15 +50,15 @@ export async function createNotification(
   const notification: CourseNotification = {
     id: nextId(),
     type: dto.type,
-    userId: dto.userId,
-    courseId: dto.courseId,
-    courseTitle: dto.courseTitle,
     title: dto.title,
     message: dto.message,
-    metadata: dto.metadata,
     read: false,
     createdAt: new Date().toISOString(),
   };
+  if (dto.userId) notification.userId = dto.userId;
+  if (dto.courseId) notification.courseId = dto.courseId;
+  if (dto.courseTitle) notification.courseTitle = dto.courseTitle;
+  if (dto.metadata) notification.metadata = dto.metadata;
 
   // Persist locally
   const key = getKey(dto.userId);

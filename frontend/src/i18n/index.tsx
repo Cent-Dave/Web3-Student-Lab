@@ -40,7 +40,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
       setLocaleState(stored);
       return;
     }
-    const browser = navigator.language.toLowerCase();
+    const browser = typeof navigator !== 'undefined' ? navigator.language.toLowerCase() : 'en';
     if (browser.startsWith('es')) setLocaleState('es');
     else if (browser.startsWith('zh')) setLocaleState('zh');
   }, []);

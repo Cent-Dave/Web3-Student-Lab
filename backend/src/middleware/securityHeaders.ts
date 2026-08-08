@@ -110,11 +110,11 @@ export function securityHeadersMiddleware(req: Request, res: Response, next: Nex
 export function cspReportOnlyMiddleware(req: Request, res: Response, next: NextFunction): void {
   if (process.env.CSP_REPORT_ONLY === 'true') {
     const cspHeaders = getCSPHeaders();
-    res.setHeader('Content-Security-Policy-Report-Only', cspHeaders['Content-Security-Policy']);
+    res.setHeader('Content-Security-Policy-Report-Only', cspHeaders['Content-Security-Policy'] ?? '');
     
     if (process.env.CSP_REPORT_URI) {
       res.setHeader('Content-Security-Policy-Report-Only', 
-        `${cspHeaders['Content-Security-Policy']}; report-uri ${process.env.CSP_REPORT_URI}`);
+        `${cspHeaders['Content-Security-Policy'] ?? ''}; report-uri ${process.env.CSP_REPORT_URI}`);
     }
   }
   next();

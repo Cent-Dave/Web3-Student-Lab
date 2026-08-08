@@ -112,7 +112,9 @@ impl PaymentGateway {
     pub fn deposit(env: Env, user: Address, amount: i128) {
         user.require_auth();
         Self::require_not_paused(&env);
-        assert!(amount > 0, "invalid amount");
+        if amount <= 0 {
+            panic_with_error!(&env, Error::InvalidAmount);
+        }
 
         let mut balance: i128 = env
             .storage()
@@ -139,7 +141,9 @@ impl PaymentGateway {
     pub fn withdraw(env: Env, user: Address, amount: i128) -> i128 {
         user.require_auth();
         Self::require_not_paused(&env);
-        assert!(amount > 0, "invalid amount");
+        if amount <= 0 {
+            panic_with_error!(&env, Error::InvalidAmount);
+        }
 
         let mut balance: i128 = env
             .storage()
@@ -147,7 +151,9 @@ impl PaymentGateway {
             .get(&DataKey::Balance(user.clone()))
             .unwrap_or(0);
 
-        assert!(balance >= amount, "insufficient balance");
+        if balance < amount {
+            panic_with_error!(&env, Error::InsufficientBalance);
+        }
 
         balance = balance.checked_sub(amount).expect("balance underflow");
         env.storage()
@@ -172,7 +178,9 @@ impl PaymentGateway {
     ) -> PaymentRecord {
         payer.require_auth();
         Self::require_not_paused(&env);
-        assert!(amount > 0, "invalid amount");
+        if amount <= 0 {
+            panic_with_error!(&env, Error::InvalidAmount);
+        }
 
         let platform_fee: u32 = env
             .storage()
@@ -189,7 +197,9 @@ impl PaymentGateway {
             .get(&DataKey::Balance(payer.clone()))
             .unwrap_or(0);
 
-        assert!(payer_balance >= total_debit, "insufficient balance");
+        if payer_balance < total_debit {
+            panic_with_error!(&env, Error::InsufficientBalance);
+        }
 
         payer_balance = payer_balance
             .checked_sub(total_debit)
@@ -220,7 +230,7 @@ impl PaymentGateway {
             amount,
             fee,
             status: PaymentStatus::Completed,
-            timestamp: env.ledger().sequence() as u64,
+            timestamp: u64::from(env.ledger().sequence()),
             metadata,
         };
 
@@ -228,10 +238,8 @@ impl PaymentGateway {
             .persistent()
             .set(&DataKey::Payment(payment_id), &record);
 
-        env.events().publish(
-            (symbol_short!("payment"), payer.clone(), payee.clone()),
-            amount,
-        );
+        env.events()
+            .publish((symbol_short!("payment"), payer, payee), amount);
 
         record
     }
@@ -260,11 +268,10 @@ impl PaymentGateway {
             panic_with_error!(&env, Error::Unauthorized);
         }
 
-        let current_ledger = env.ledger().sequence() as u64;
-        assert!(
-            current_ledger <= record.timestamp + MAX_REFUND_LEDGERS,
-            "refund window closed"
-        );
+        let current_ledger = u64::from(env.ledger().sequence());
+        if current_ledger > record.timestamp + MAX_REFUND_LEDGERS {
+            panic_with_error!(&env, Error::RefundWindowClosed);
+        }
 
         let mut payer_balance: i128 = env
             .storage()
@@ -356,7 +363,7 @@ impl PaymentGateway {
         }
     }
 
-    fn calculate_fee(env: &Env, amount: i128, fee_bps: u32) -> i128 {
+    fn calculate_fee(_env: &Env, amount: i128, fee_bps: u32) -> i128 {
         amount
             .checked_mul(fee_bps as i128)
             .expect("fee overflow")
@@ -398,7 +405,7 @@ impl PaymentGateway {
         Self::require_admin(&env, &admin);
         env.storage().instance().set(&ADMIN, &new_admin);
         env.events()
-            .publish((symbol_short!("admin_tx"),), new_admin);
+            .publish((symbol_short!("adm_xfer"),), new_admin);
     }
 }
 
@@ -420,11 +427,17 @@ mod tests {
         let user = Address::generate(&env);
         let client = PaymentGatewayClient::new(&env, &contract_id);
 
-        client.initialize(admin.clone());
+        client.initialize(&admin);
         (env, contract_id, admin)
     }
 
-    fn setup_with_user() -> (Env, Address, Address, Address, PaymentGatewayClient) {
+    fn setup_with_user() -> (
+        Env,
+        Address,
+        Address,
+        Address,
+        PaymentGatewayClient<'static>,
+    ) {
         let (env, contract_id, admin) = setup();
         let user = Address::generate(&env);
         let client = PaymentGatewayClient::new(&env, &contract_id);
@@ -445,7 +458,7 @@ mod tests {
         let (env, _contract_id, _admin, user, client) = setup_with_user();
 
         client.deposit(&user, &1000);
-        assert_eq!(client.get_balance(user.clone()), 1000);
+        assert_eq!(client.get_balance(&user), 1000);
     }
 
     #[test]
@@ -455,11 +468,11 @@ mod tests {
         client.deposit(&user, &1000);
         let withdrawn = client.withdraw(&user, &400);
         assert_eq!(withdrawn, 400);
-        assert_eq!(client.get_balance(user), 600);
+        assert_eq!(client.get_balance(&user), 600);
     }
 
     #[test]
-    #[should_panic(expected = "insufficient balance")]
+    #[should_panic(expected = "Error(Contract, #4)")]
     fn test_withdraw_over_balance_panics() {
         let (env, _contract_id, _admin, user, client) = setup_with_user();
         client.deposit(&user, &100);
@@ -472,21 +485,21 @@ mod tests {
         let payee = Address::generate(&env);
 
         client.deposit(&payer, &10_000);
-        let record = client.process_payment(&payer, &payee, &3000, &symbol_short!("test!"), &1);
+        let record = client.process_payment(&payer, &payee, &3000, &symbol_short!("test"), &1);
 
         assert_eq!(record.status, PaymentStatus::Completed);
         assert_eq!(record.amount, 3000);
         assert!(record.fee > 0);
-        assert_eq!(client.get_balance(payer), 10_000 - 3000 - record.fee);
+        assert_eq!(client.get_balance(&payer), 10_000 - 3000 - record.fee);
     }
 
     #[test]
-    #[should_panic(expected = "invalid amount")]
+    #[should_panic(expected = "Error(Contract, #3)")]
     fn test_process_zero_payment_panics() {
         let (env, _contract_id, _admin, payer, client) = setup_with_user();
         let payee = Address::generate(&env);
         client.deposit(&payer, &1000);
-        client.process_payment(&payer, &payee, &0, &symbol_short!("test!"), &1);
+        client.process_payment(&payer, &payee, &0, &symbol_short!("test"), &1);
     }
 
     #[test]
@@ -495,7 +508,7 @@ mod tests {
         let payee = Address::generate(&env);
 
         client.deposit(&payer, &10_000);
-        client.process_payment(&payer, &payee, &3000, &symbol_short!("test!"), &1);
+        client.process_payment(&payer, &payee, &3000, &symbol_short!("test"), &1);
 
         env.ledger().with_mut(|l| l.sequence_number += 10);
 
@@ -504,16 +517,16 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "refund window closed")]
+    #[should_panic(expected = "Error(Contract, #7)")]
     fn test_refund_after_window_panics() {
         let (env, _contract_id, _admin, payer, client) = setup_with_user();
         let payee = Address::generate(&env);
 
         client.deposit(&payer, &10_000);
-        client.process_payment(&payer, &payee, &3000, &symbol_short!("test!"), &1);
+        client.process_payment(&payer, &payee, &3000, &symbol_short!("test"), &1);
 
         env.ledger()
-            .with_mut(|l| l.sequence_number += MAX_REFUND_LEDGERS + 10);
+            .with_mut(|l| l.sequence_number += MAX_REFUND_LEDGERS as u32 + 10);
 
         client.refund(&payer, &1);
     }
@@ -524,12 +537,10 @@ mod tests {
 
         client.pause(&admin);
         assert!(client.is_paused());
-
-        client.deposit(&payer, &1000);
     }
 
     #[test]
-    #[should_panic(expected = "paused")]
+    #[should_panic(expected = "Error(Contract, #2)")]
     fn test_deposit_while_paused_panics() {
         let (env, contract_id, admin, payer, client) = setup_with_user();
 
@@ -546,7 +557,7 @@ mod tests {
         let user = Address::generate(&env);
         client.deposit(&user, &10_000);
         let payee = Address::generate(&env);
-        let record = client.process_payment(&user, &payee, &3000, &symbol_short!("test!"), &2);
+        let record = client.process_payment(&user, &payee, &3000, &symbol_short!("test"), &2);
         assert_eq!(record.fee, 30); // 3000 * 100 / 10000
     }
 
@@ -555,7 +566,7 @@ mod tests {
         let (env, contract_id, admin, _payer, client) = setup_with_user();
         let new_admin = Address::generate(&env);
 
-        client.transfer_admin(&admin, new_admin.clone());
+        client.transfer_admin(&admin, &new_admin);
         assert_eq!(client.get_admin(), new_admin);
     }
 }

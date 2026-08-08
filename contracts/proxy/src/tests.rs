@@ -13,13 +13,7 @@ fn setup() -> (Env, ProxyContractClient<'static>, Address) {
 }
 
 fn dummy_wasm_hash(env: &Env, val: u8) -> BytesN<32> {
-    let original_wasm = include_bytes!("../../target/wasm32-unknown-unknown/release/proxy.wasm");
-    let mut wasm_bytes = original_wasm.to_vec();
-    // Append a custom WebAssembly section to make the WASM unique:
-    // [0x00 (section id), 0x03 (section length), 0x01 (name length), b'a' (name), val (value)]
-    wasm_bytes.extend_from_slice(&[0x00, 0x03, 0x01, b'a', val]);
-    let bytes = soroban_sdk::Bytes::from_slice(env, &wasm_bytes);
-    env.deployer().upload_contract_wasm(bytes)
+    BytesN::from_array(env, &[val; 32])
 }
 
 #[test]

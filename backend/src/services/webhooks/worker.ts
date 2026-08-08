@@ -1,5 +1,5 @@
 import { Job, Worker } from 'bullmq';
-import logger from '../../utils/logger.js';
+import logger, { traceContext } from '../../utils/logger.js';
 import { redisConnection } from '../../utils/redis.js';
 import { webhookBreaker } from '../../lib/circuit-breaker/externalServices.js';
 import { canonicalizeWebhookPayload, buildSignedWebhookHeaders } from './signature.js';
@@ -7,7 +7,6 @@ import {
     WEBHOOK_DELIVERY_QUEUE_NAME,
     webhookDeadLetterQueue,
 } from './queue.js';
-import { buildSignedWebhookHeaders, canonicalizeWebhookPayload } from './signature.js';
 import type { DeadLetterWebhookJob, WebhookDeliveryJobData } from './types.js';
 import { recordDeliveryState } from './dispatcher.js';
 import workerRegistry from '../../metrics/WorkerRegistry.js';
@@ -128,7 +127,7 @@ const moveToDeadLetterQueue = async (
     error: error.message,
   };
 
-  await webhookDeadLetterQueue.add(job.data.event.type, deadLetterJob, {
+  await webhookDeadLetterQueue.add(job.data.event.type as any, deadLetterJob, {
     removeOnComplete: true,
     removeOnFail: false,
   });
@@ -158,26 +157,31 @@ export const startWebhookWorker = (): Worker<WebhookDeliveryJobData> | null => {
   webhookWorker = new Worker<WebhookDeliveryJobData>(
     WEBHOOK_DELIVERY_QUEUE_NAME,
     async (job) => {
-      try {
-        return await deliverWebhook(job);
-      } catch (error) {
-        if (error instanceof PermanentWebhookDeliveryError) {
-          try {
-            await moveToDeadLetterQueue(job, error);
-            logger.warn(
-              `Webhook ${job.data.deliveryId} sent to DLQ after permanent failure: ${error.message}`
-            );
-          } catch (dlqError) {
-            logger.error('Failed to enqueue permanent webhook failure to DLQ:', dlqError);
+      // Issue #981: run each job inside the traceId context that was captured
+      // when the job was enqueued, so all log lines carry the parent traceId.
+      const traceId = job.data.traceId ?? `job-${job.id}`;
+      return traceContext.run({ traceId }, async () => {
+        try {
+          return await deliverWebhook(job);
+        } catch (error) {
+          if (error instanceof PermanentWebhookDeliveryError) {
+            try {
+              await moveToDeadLetterQueue(job, error);
+              logger.warn(
+                `Webhook ${job.data.deliveryId} sent to DLQ after permanent failure: ${error.message}`
+              );
+            } catch (dlqError) {
+              logger.error('Failed to enqueue permanent webhook failure to DLQ:', dlqError);
+            }
+            return {
+              statusCode: error.statusCode || 400,
+              deliveryId: job.data.deliveryId,
+            };
           }
-          return {
-            statusCode: error.statusCode || 400,
-            deliveryId: job.data.deliveryId,
-          };
-        }
 
-        throw error;
-      }
+          throw error;
+        }
+      });
     },
     {
       connection: {
