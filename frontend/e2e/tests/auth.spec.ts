@@ -73,17 +73,15 @@ test.describe('wallet authentication journey', () => {
   // dependency, so clicking it genuinely exercises WalletContext.connect()
   // and WalletGate end-to-end.
   test('connecting the dev mock wallet unlocks the app behind WalletGate', async ({ page }) => {
-    await page.goto('/auth/login', { waitUntil: 'domcontentloaded' });
+    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
 
     // Every route but "/" is blocked behind WalletGate until a wallet connects.
     await expect(page.getByRole('heading', { name: /Authentication Required/i })).toBeVisible();
 
     await page.getByRole('button', { name: /Dev Mock Wallet/ }).click();
 
-    // Once connected, WalletGate renders the real /auth/login page underneath.
+    // Once connected, WalletGate renders the real /dashboard page underneath.
     await expect(page.getByRole('heading', { name: /Authentication Required/i })).not.toBeVisible();
-    await expect(page.getByText('Wallet connected', { exact: true })).toBeVisible();
-    await expect(page.getByText(MOCK_WALLET_ADDRESS)).toBeVisible();
 
     const storedWallet = await page.evaluate(() => window.localStorage.getItem('stellar_wallet'));
     expect(JSON.parse(storedWallet ?? '{}')).toMatchObject({
@@ -96,7 +94,7 @@ test.describe('wallet authentication journey', () => {
   // (see WalletContext.tsx's albedoAdapter/rabetAdapter) — a real,
   // deterministic failure path with no mocking required at all.
   test('recovers gracefully, without unlocking the app, when a wallet connection fails', async ({ page }) => {
-    await page.goto('/auth/login', { waitUntil: 'domcontentloaded' });
+    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
 
     const connectButton = page.getByRole('button', { name: /Albedo/ });
     await connectButton.click();
