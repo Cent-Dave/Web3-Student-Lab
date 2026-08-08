@@ -162,11 +162,6 @@ jobs:
       - name: Install dependencies
         working-directory: ./frontend
         run: npm install --legacy-peer-deps
-      - name: Build
-        working-directory: ./frontend
-        env:
-          NEXT_PUBLIC_API_URL: http://127.0.0.1:3000/api/v1
-        run: npm run build
       - name: Install Playwright browsers
         working-directory: ./frontend
         run: npx playwright install --with-deps chromium
