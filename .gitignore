@@ -36,6 +36,9 @@ Cargo.lock
 # Orphan root lockfile causes Next/webpack SyntaxError when present without package.json
 /package-lock.json
 
+# testing
+coverage/
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Next.js
 # ──────────────────────────────────────────────────────────────────────────────

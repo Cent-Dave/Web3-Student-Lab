@@ -11,6 +11,9 @@ const nextConfig: NextConfig = {
   // Ensure recharts/monaco editor packages resolve from frontend node_modules only
   transpilePackages: ['recharts'],
 
+  // Ensure recharts/monaco editor packages resolve from frontend node_modules only
+  transpilePackages: ['recharts'],
+
   // Content Security Policy with nonce-based script loading
   async headers() {
     const cspConfig = getCSPConfig();
