@@ -15,14 +15,17 @@ export default function WalletGate({ children }: { children: React.ReactNode }) 
     setIsMounted(true);
   }, []);
 
+  const hasLocalWallet = typeof window !== 'undefined' && !!localStorage.getItem('stellar_wallet');
+
+  // The offline recovery page, landing page, and auth pages must stay reachable without a connected wallet.
+  // Also pass through synchronously if a wallet is already stored in localStorage to prevent hydration delay.
+  if (isConnected || hasLocalWallet || pathname === '/' || pathname === '/offline' || pathname?.startsWith('/auth/')) {
+    return <>{children}</>;
+  }
+
   // Prevent hydration flicker before localStorage session recovery completes
   if (!isMounted) {
     return null;
-  }
-
-  // The offline recovery page, landing page, and auth pages must stay reachable without a connected wallet.
-  if (isConnected || pathname === '/' || pathname === '/offline' || pathname?.startsWith('/auth/')) {
-    return <>{children}</>;
   }
 
   return (
