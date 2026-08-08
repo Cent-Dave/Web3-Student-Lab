@@ -32,6 +32,7 @@ export default defineConfig({
       // CORS headers. Same-origin sidesteps that entirely and keeps the
       // suite free of any real backend/CORS dependency.
       NEXT_PUBLIC_API_URL: `${baseURL}/api/v1`,
+      NEXT_PUBLIC_WS_URL: `ws://localhost:${port}`,
     },
   },
   projects: [
