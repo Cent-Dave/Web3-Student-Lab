@@ -10,7 +10,6 @@ type Web3Mocks = {
   signedTransactionXdr: string;
   installWalletMocks: () => Promise<void>;
   installWebSocketMock: () => Promise<void>;
-  isMobile: boolean;
 };
 
 export const test = base.extend<Web3Mocks>({
@@ -22,10 +21,6 @@ export const test = base.extend<Web3Mocks>({
   },
   signedTransactionXdr: async ({}, use) => {
     await use('AAAAAgAAAAA-web3-student-lab-signed-xdr');
-  },
-  isMobile: async ({ page }, use) => {
-    const viewport = page.viewportSize();
-    await use(viewport ? viewport.width < 768 : false);
   },
   installWalletMocks: async ({ context, stellarAddress, ethereumAddress, signedTransactionXdr }, use) => {
     await installWalletMocks(context, {

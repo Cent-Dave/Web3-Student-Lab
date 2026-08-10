@@ -13,8 +13,9 @@ test.describe('mobile-first responsive layout', () => {
       expect(overflow).toBe(false);
     });
 
-    test('primary CTA buttons are reachable on mobile', async ({ page, isMobile }) => {
-      test.skip(!isMobile, 'Mobile-only test');
+    test('primary CTA buttons are reachable on mobile', async ({ page }) => {
+      const viewport = page.viewportSize();
+      test.skip(!(viewport && viewport.width < 768), 'Mobile-only test');
 
       await page.goto('/', { waitUntil: 'domcontentloaded' });
 
@@ -22,8 +23,9 @@ test.describe('mobile-first responsive layout', () => {
       await expect(page.getByRole('link', { name: /View Source/i })).toBeVisible();
     });
 
-    test('feature cards stay within viewport width on mobile', async ({ page, isMobile }) => {
-      test.skip(!isMobile, 'Mobile-only test');
+    test('feature cards stay within viewport width on mobile', async ({ page }) => {
+      const viewport = page.viewportSize();
+      test.skip(!(viewport && viewport.width < 768), 'Mobile-only test');
 
       await page.goto('/', { waitUntil: 'domcontentloaded' });
 
@@ -31,7 +33,7 @@ test.describe('mobile-first responsive layout', () => {
       const count = await cards.count();
       expect(count).toBeGreaterThanOrEqual(3);
 
-      const vw = page.viewportSize()!.width;
+      const vw = viewport!.width;
       for (let i = 0; i < count; i++) {
         const box = await cards.nth(i).boundingBox();
         if (box) {
@@ -42,8 +44,9 @@ test.describe('mobile-first responsive layout', () => {
   });
 
   test.describe('mobile navigation', () => {
-    test('hamburger menu toggles and displays navigation links', async ({ page, isMobile }) => {
-      test.skip(!isMobile, 'Mobile-only test');
+    test('hamburger menu toggles and displays navigation links', async ({ page }) => {
+      const viewport = page.viewportSize();
+      test.skip(!(viewport && viewport.width < 768), 'Mobile-only test');
 
       await page.goto('/', { waitUntil: 'domcontentloaded' });
 
@@ -61,8 +64,9 @@ test.describe('mobile-first responsive layout', () => {
       await expect(page.getByLabel('Open menu')).toBeVisible();
     });
 
-    test('desktop nav does not show hamburger menu button', async ({ page, isMobile }) => {
-      test.skip(isMobile, 'Desktop-only test');
+    test('desktop nav does not show hamburger menu button', async ({ page }) => {
+      const viewport = page.viewportSize();
+      test.skip(!(viewport && viewport.width >= 768), 'Desktop-only test');
 
       await page.goto('/', { waitUntil: 'domcontentloaded' });
 
@@ -88,9 +92,9 @@ test.describe('mobile-first responsive layout', () => {
 
     test('wallet connect buttons remain within viewport on mobile', async ({
       page,
-      isMobile,
     }) => {
-      test.skip(!isMobile, 'Mobile-only test');
+      const viewport = page.viewportSize();
+      test.skip(!(viewport && viewport.width < 768), 'Mobile-only test');
 
       await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
 
@@ -98,7 +102,7 @@ test.describe('mobile-first responsive layout', () => {
       const count = await buttons.count();
       expect(count).toBeGreaterThan(0);
 
-      const vw = page.viewportSize()!.width;
+      const vw = viewport!.width;
       for (let i = 0; i < count; i++) {
         const box = await buttons.nth(i).boundingBox();
         if (box) {
@@ -127,9 +131,9 @@ test.describe('mobile-first responsive layout', () => {
     test('course selector and lesson controls reachable on mobile', async ({
       page,
       stellarAddress,
-      isMobile,
     }) => {
-      test.skip(!isMobile, 'Mobile-only test');
+      const viewport = page.viewportSize();
+      test.skip(!(viewport && viewport.width < 768), 'Mobile-only test');
 
       await mockWallet(page, stellarAddress);
 
@@ -142,9 +146,9 @@ test.describe('mobile-first responsive layout', () => {
     test('footer Prev/Next controls are reachable on mobile', async ({
       page,
       stellarAddress,
-      isMobile,
     }) => {
-      test.skip(!isMobile, 'Mobile-only test');
+      const viewport = page.viewportSize();
+      test.skip(!(viewport && viewport.width < 768), 'Mobile-only test');
 
       await mockWallet(page, stellarAddress);
 
