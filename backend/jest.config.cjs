@@ -1,26 +1,10 @@
-/** @type {import('ts-jest').JestConfigWithTsJest} */
-process.env.NODE_ENV = 'test';
-
-export default {
-  setupFiles: [
-    'dotenv/config',
-    '<rootDir>/jest.setup.js',
-    '<rootDir>/tests/jest.setup.js',
-  ],
-  preset: 'ts-jest',
+module.exports = {
   testEnvironment: 'node',
-  extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   transform: {
-    '^.+\\.tsx?$': [
-      'ts-jest',
-      {
-        useESM: true,
-        isolatedModules: true,
-      },
-    ],
+    '^.+\\.(ts|tsx|js)$': ['babel-jest'],
   },
   testMatch: ['**/tests/**/*.test.ts'],
   testPathIgnorePatterns: [
