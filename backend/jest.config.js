@@ -5,7 +5,7 @@ export default {
   setupFiles: [
     'dotenv/config',
     '<rootDir>/jest.setup.js',
-    '<rootDir>/tests/jest.setup.ts',
+    '<rootDir>/tests/jest.setup.js',
   ],
   preset: 'ts-jest',
   testEnvironment: 'node',
