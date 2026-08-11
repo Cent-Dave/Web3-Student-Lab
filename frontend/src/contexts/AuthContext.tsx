@@ -220,11 +220,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       throw new Error('Registration failed: Invalid response from server');
     } catch (err: unknown) {
-      const message = axios.isAxiosError(err)
-        ? err.response?.data?.error || err.response?.data?.message || err.message || 'Registration failed'
-        : err instanceof Error
-          ? err.message
-          : 'Registration failed';
+      const detailsMsg = axios.isAxiosError(err) && Array.isArray(err.response?.data?.details)
+        ? err.response.data.details.map((d: any) => d.message).join(', ')
+        : null;
+      const message = detailsMsg
+        || (axios.isAxiosError(err) ? (err.response?.data?.error || err.response?.data?.message || err.message) : null)
+        || (err instanceof Error ? err.message : null)
+        || 'Registration failed';
       setError(message);
       throw new Error(message);
     }
