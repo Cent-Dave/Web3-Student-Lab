@@ -1,4 +1,23 @@
-import prisma from '../src/db/index';
+import 'dotenv/config';
+import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import pkg from 'pg';
+const { Pool } = pkg;
+
+const connectionString = process.env.DATABASE_URL || '';
+const useSSL =
+  process.env.NODE_ENV !== 'test' &&
+  !connectionString.includes('sslmode=disable') &&
+  !connectionString.includes('localhost') &&
+  !connectionString.includes('127.0.0.1');
+
+const pool = new Pool({
+  connectionString,
+  ssl: useSSL ? { rejectUnauthorized: false } : false,
+});
+
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
   console.log('Seeding database...');
@@ -81,4 +100,5 @@ main()
   })
   .finally(async () => {
     await prisma.$disconnect();
+    await pool.end();
   });
