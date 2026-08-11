@@ -21,7 +21,7 @@ export default function CoursesPage() {
     setError(null);
     try {
       const result = await coursesAPI.getAllWithSource();
-      setCourses(result.courses);
+      setCourses(Array.isArray(result.courses) ? result.courses : []);
       setDataSource(result.dataSource);
       setDemoMessage(result.message);
     } catch (err) {

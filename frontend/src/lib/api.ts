@@ -206,13 +206,13 @@ function normalizeCoursesResponse(data: unknown): CoursesListResult {
   if (data && typeof data === 'object' && 'courses' in (data as Record<string, unknown>)) {
     const d = data as { courses: Course[]; dataSource?: CourseDataSource; message?: string };
     return {
-      courses: d.courses,
+      courses: Array.isArray(d.courses) ? d.courses : [],
       dataSource: d.dataSource ?? 'live',
       message: d.message,
     };
   }
   // Backward-compatible shape (plain array) in case of stale caches.
-  return { courses: (data as Course[]) ?? [], dataSource: 'live' };
+  return { courses: Array.isArray(data) ? (data as Course[]) : [], dataSource: 'live' };
 }
 
 function normalizeCourseResponse(data: unknown): CourseDetailResult {
