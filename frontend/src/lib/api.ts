@@ -120,7 +120,7 @@ function normalizeCertificateListResponse(data: unknown): Certificate[] {
 // Authentication APIs
 export const authAPI = {
   register: async (data: RegisterRequest): Promise<AuthResponse> => {
-    const response = await apiClient.post('/auth/register', data, { encrypt: true } as any);
+    const response = await apiClient.post('/auth/register', data);
     return response.data;
   },
 

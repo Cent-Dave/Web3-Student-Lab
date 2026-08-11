@@ -157,13 +157,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
       const response = await authAPI.login({ email, password });
 
-      setUser(response.user);
-      setToken(response.token);
-
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
-      if (publicKey) {
-        markWalletProfileComplete(publicKey, response.user.email);
+      if (response?.user && response?.token) {
+        setUser(response.user);
+        setToken(response.token);
+        localStorage.setItem('token', response.token);
+        localStorage.setItem('user', JSON.stringify(response.user));
+        if (publicKey && response.user.email) {
+          markWalletProfileComplete(publicKey, response.user.email);
+        }
+      } else {
+        throw new Error('Login failed: Invalid response from server');
       }
     } catch (err: unknown) {
       const message = axios.isAxiosError(err)
@@ -187,13 +190,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         walletAddress: publicKey || undefined,
       });
 
-      setUser(response.user);
-      setToken(response.token);
-
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
-      if (publicKey) {
-        markWalletProfileComplete(publicKey, response.user.email);
+      if (response?.user && response?.token) {
+        setUser(response.user);
+        setToken(response.token);
+        localStorage.setItem('token', response.token);
+        localStorage.setItem('user', JSON.stringify(response.user));
+        if (publicKey && response.user.email) {
+          markWalletProfileComplete(publicKey, response.user.email);
+        }
+      } else {
+        throw new Error('Registration failed: Invalid response from server');
       }
     } catch (err: unknown) {
       const message = axios.isAxiosError(err)
