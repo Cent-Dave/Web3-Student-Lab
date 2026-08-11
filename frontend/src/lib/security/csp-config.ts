@@ -68,18 +68,17 @@ export function getProductionCSP(): CSPConfig {
       // Default to same-origin only
       'default-src': ["'self'"],
       
-      // Scripts: self, nonce for inline scripts, no eval in production
+      // Scripts: self and unsafe-inline/unsafe-eval for Next.js hydration
       'script-src': [
         "'self'",
-        "'nonce-{nonce}'",
-        ...(isDevelopment ? ["'unsafe-eval'"] : []),
+        "'unsafe-inline'",
+        "'unsafe-eval'",
       ],
       
-      // Styles: self, nonce for inline styles, unsafe-inline for styled-components
+      // Styles: self and unsafe-inline
       'style-src': [
         "'self'",
-        "'nonce-{nonce}'",
-        "'unsafe-inline'", // Required for styled-components and Tailwind
+        "'unsafe-inline'",
       ],
       
       // Images: self, data URLs, https for Stellar avatars/images

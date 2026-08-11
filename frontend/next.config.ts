@@ -52,10 +52,7 @@ const nextConfig: NextConfig = {
             key: 'Strict-Transport-Security',
             value: 'max-age=31536000; includeSubDomains; preload',
           },
-          {
-            key: 'Cross-Origin-Embedder-Policy',
-            value: 'require-corp',
-          },
+
           {
             key: 'Cross-Origin-Opener-Policy',
             value: 'same-origin',
