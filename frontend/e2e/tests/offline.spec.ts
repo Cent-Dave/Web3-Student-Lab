@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../fixtures/web3.fixture';
 
 test.beforeEach(async ({ page }) => {
   // Suppress the "Backend Warming Up" modal (RenderWarningModal), which

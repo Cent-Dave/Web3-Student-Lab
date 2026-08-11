@@ -42,17 +42,27 @@ function mockCurrentUser(page: Page, user: Record<string, unknown> | null) {
 /**
  * Seeds a connected wallet + authenticated session and (re)loads `path`.
  *
- * Deliberately uses page.evaluate() + a follow-up navigation rather than
- * page.addInitScript(): init scripts re-run on *every* subsequent
- * navigation for the life of the page, which would silently re-seed
- * `token`/`user` right after a logout or session-expiry redirect clears
- * them — exactly the state these tests need to observe.
+ * `stellar_wallet` is seeded via page.addInitScript() so it survives the
+ * single per-page localStorage clear that the web3 fixture installs, and
+ * survives the reload below. `token`/`user` are deliberately seeded with
+ * page.evaluate() AFTER the first load: re-seeding them via init script
+ * would silently re-set them right after a logout or session-expiry
+ * redirect clears them — exactly the state these tests need to observe.
  */
 async function loginAs(page: Page, path: string, user: Record<string, unknown>) {
+  await page.addInitScript(
+    (pk: string) => {
+      window.localStorage.setItem(
+        'stellar_wallet',
+        JSON.stringify({ wallet: 'Freighter', pk })
+      );
+    },
+    'GMOCKPUBLICKEY'
+  );
+
   await page.goto(path, { waitUntil: 'domcontentloaded' });
   await page.evaluate(
     ({ token, user: seededUser }) => {
-      window.localStorage.setItem('stellar_wallet', JSON.stringify({ wallet: 'Freighter', pk: 'GMOCKPUBLICKEY' }));
       window.localStorage.setItem('token', token);
       window.localStorage.setItem('user', JSON.stringify(seededUser));
     },
