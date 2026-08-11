@@ -92,6 +92,7 @@ router.post(
     setRefreshTokenCookie(res, authResponse.refreshToken);
     res.status(201).json(authResponse);
   } catch (_error) {
+    console.error('Registration handler error:', _error);
     if (_error instanceof Error && _error.message === 'Student with this email already exists') {
       res.status(409).json({ error: _error.message });
       return;
@@ -103,7 +104,8 @@ router.post(
       res.status(409).json({ error: _error.message });
       return;
     }
-    res.status(500).json({ error: 'Internal server error' });
+    const message = _error instanceof Error ? _error.message : 'Internal server error';
+    res.status(500).json({ error: message });
   }
 });
 

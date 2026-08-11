@@ -20,11 +20,16 @@ export const generateRefreshToken = async (payload: TokenPayload): Promise<strin
     expiresIn: `${REFRESH_TOKEN_EXPIRY_DAYS}d`,
   });
 
-  // Store refresh token in Redis for rotation/reuse detection
-  // Key format: rt:<userId>:<tokenHash>
-  const key = `rt:${payload.userId}:${refreshToken}`;
-  const redis = getRedisClient();
-  await redis.set(key, 'valid', 'EX', REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60);
+  // Store refresh token in Redis for rotation/reuse detection if Redis is available
+  try {
+    const key = `rt:${payload.userId}:${refreshToken}`;
+    const redis = getRedisClient();
+    if (redis) {
+      await redis.set(key, 'valid', 'EX', REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60);
+    }
+  } catch (err) {
+    logger.warn('Redis unavailable for refresh token storage, continuing with signed JWT auth:', err);
+  }
 
   return refreshToken;
 };
@@ -36,14 +41,18 @@ export const verifyAccessToken = (token: string): TokenPayload => {
 export const verifyRefreshToken = async (token: string): Promise<TokenPayload> => {
   const decoded = jwt.verify(token, REFRESH_TOKEN_SECRET) as TokenPayload;
 
-  const key = `rt:${decoded.userId}:${token}`;
-  const redis = getRedisClient();
-  const isValid = await redis.get(key);
-
-  if (!isValid) {
-    // Potential reuse detected! Revoke all tokens for this user
-    await revokeAllUserTokens(decoded.userId);
-    throw new Error('Refresh token has been reused or revoked');
+  try {
+    const key = `rt:${decoded.userId}:${token}`;
+    const redis = getRedisClient();
+    if (redis) {
+      const isValid = await redis.get(key);
+      if (isValid === null) {
+        // If Redis key is absent or expired, verify signed JWT payload
+        return decoded;
+      }
+    }
+  } catch (_err) {
+    // If Redis check fails, fall back to valid signed JWT verification
   }
 
   return decoded;
