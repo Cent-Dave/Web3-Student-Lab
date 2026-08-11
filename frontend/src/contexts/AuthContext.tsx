@@ -157,25 +157,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
       const response = await authAPI.login({ email, password });
 
-      if (response?.user && response?.token) {
-        setUser(response.user);
-        setToken(response.token);
-        localStorage.setItem('token', response.token);
-        localStorage.setItem('user', JSON.stringify(response.user));
-        if (publicKey && response.user.email) {
-          markWalletProfileComplete(publicKey, response.user.email);
+      const userObj = response?.user || (response as any)?.data?.user;
+      const tokenObj = response?.token || response?.accessToken || (response as any)?.data?.token || (response as any)?.data?.accessToken;
+
+      if (userObj && tokenObj) {
+        setUser(userObj);
+        setToken(tokenObj);
+        localStorage.setItem('token', tokenObj);
+        localStorage.setItem('user', JSON.stringify(userObj));
+        if (publicKey && userObj.email) {
+          markWalletProfileComplete(publicKey, userObj.email);
         }
-      } else {
-        throw new Error('Login failed: Invalid response from server');
+        return response;
       }
+
+      const serverError = (response as any)?.error || (response as any)?.message;
+      if (serverError) {
+        throw new Error(serverError);
+      }
+
+      throw new Error('Login failed: Invalid response from server');
     } catch (err: unknown) {
       const message = axios.isAxiosError(err)
-        ? err.response?.data?.error || err.message || 'Login failed'
+        ? err.response?.data?.error || err.response?.data?.message || err.message || 'Login failed'
         : err instanceof Error
           ? err.message
           : 'Login failed';
       setError(message);
-      throw err;
+      throw new Error(message);
     }
   };
 
@@ -190,25 +199,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         walletAddress: publicKey || undefined,
       });
 
-      if (response?.user && response?.token) {
-        setUser(response.user);
-        setToken(response.token);
-        localStorage.setItem('token', response.token);
-        localStorage.setItem('user', JSON.stringify(response.user));
-        if (publicKey && response.user.email) {
-          markWalletProfileComplete(publicKey, response.user.email);
+      const userObj = response?.user || (response as any)?.data?.user;
+      const tokenObj = response?.token || response?.accessToken || (response as any)?.data?.token || (response as any)?.data?.accessToken;
+
+      if (userObj && tokenObj) {
+        setUser(userObj);
+        setToken(tokenObj);
+        localStorage.setItem('token', tokenObj);
+        localStorage.setItem('user', JSON.stringify(userObj));
+        if (publicKey && userObj.email) {
+          markWalletProfileComplete(publicKey, userObj.email);
         }
-      } else {
-        throw new Error('Registration failed: Invalid response from server');
+        return response;
       }
+
+      const serverError = (response as any)?.error || (response as any)?.message;
+      if (serverError) {
+        throw new Error(serverError);
+      }
+
+      throw new Error('Registration failed: Invalid response from server');
     } catch (err: unknown) {
       const message = axios.isAxiosError(err)
-        ? err.response?.data?.error || err.message || 'Registration failed'
+        ? err.response?.data?.error || err.response?.data?.message || err.message || 'Registration failed'
         : err instanceof Error
           ? err.message
           : 'Registration failed';
       setError(message);
-      throw err;
+      throw new Error(message);
     }
   };
 
