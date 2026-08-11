@@ -68,17 +68,21 @@ export function getProductionCSP(): CSPConfig {
       // Default to same-origin only
       'default-src': ["'self'"],
       
-      // Scripts: self and unsafe-inline/unsafe-eval for Next.js hydration
+      // Scripts: self, unsafe-inline/unsafe-eval for Next.js, jsDelivr for Monaco Editor
       'script-src': [
         "'self'",
         "'unsafe-inline'",
         "'unsafe-eval'",
+        'https://cdn.jsdelivr.net',
+        'https://cdnjs.cloudflare.com',
       ],
       
-      // Styles: self and unsafe-inline
+      // Styles: self, unsafe-inline, jsDelivr for Monaco Editor
       'style-src': [
         "'self'",
         "'unsafe-inline'",
+        'https://cdn.jsdelivr.net',
+        'https://cdnjs.cloudflare.com',
       ],
       
       // Images: self, data URLs, https for Stellar avatars/images
@@ -95,14 +99,18 @@ export function getProductionCSP(): CSPConfig {
       'font-src': [
         "'self'",
         'data:',
+        'https://cdn.jsdelivr.net',
       ],
       
-      // Connect: API, WebSocket, Stellar endpoints
+      // Connect: API, WebSocket, Stellar endpoints, CDN
       'connect-src': [
         "'self'",
         apiOrigin,
         wsOrigin.replace(/^http/, 'ws'),
         wsOrigin.replace(/^http/, 'wss'),
+        // Monaco CDN
+        'https://cdn.jsdelivr.net',
+        'https://cdnjs.cloudflare.com',
         // Stellar endpoints
         'https://soroban-testnet.stellar.org',
         'https://soroban-test.stellar.org:443',
@@ -136,8 +144,8 @@ export function getProductionCSP(): CSPConfig {
       // Upgrade insecure requests
       'upgrade-insecure-requests': [],
       
-      // Worker sources: For web workers
-      'worker-src': ["'self'", 'blob:'],
+      // Worker sources: For web workers (Monaco, background tasks)
+      'worker-src': ["'self'", 'blob:', 'https://cdn.jsdelivr.net'],
       
       // Manifest: Allow self
       'manifest-src': ["'self'"],

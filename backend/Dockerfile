@@ -57,5 +57,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # Switch to non-root user
 USER nodejs
 
-# Start the application with database migrations
-CMD ["sh", "-c", "npx prisma db push --accept-data-loss --schema=prisma/schema.prisma && npm run start:prod"]
+# Start the application with database migrations and seeding
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss --schema=prisma/schema.prisma && npm run db:seed && npm run start:prod"]
