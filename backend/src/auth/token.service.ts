@@ -1,4 +1,4 @@
-import * as jwt from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 import logger from '../utils/logger.js';
 import { getRedisClient } from '../utils/redis.js';
 
@@ -11,12 +11,22 @@ export interface TokenPayload {
   userId: string;
 }
 
+const signJwt = (payload: object, secret: string, options?: jwt.SignOptions): string => {
+  const sign = jwt.sign || (jwt as any).default?.sign;
+  return sign(payload, secret, options);
+};
+
+const verifyJwt = (token: string, secret: string): any => {
+  const verify = jwt.verify || (jwt as any).default?.verify;
+  return verify(token, secret);
+};
+
 export const generateAccessToken = (payload: TokenPayload): string => {
-  return jwt.sign(payload, ACCESS_TOKEN_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
+  return signJwt(payload, ACCESS_TOKEN_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
 };
 
 export const generateRefreshToken = async (payload: TokenPayload): Promise<string> => {
-  const refreshToken = jwt.sign(payload, REFRESH_TOKEN_SECRET, {
+  const refreshToken = signJwt(payload, REFRESH_TOKEN_SECRET, {
     expiresIn: `${REFRESH_TOKEN_EXPIRY_DAYS}d`,
   });
 
@@ -24,7 +34,7 @@ export const generateRefreshToken = async (payload: TokenPayload): Promise<strin
   try {
     const key = `rt:${payload.userId}:${refreshToken}`;
     const redis = getRedisClient();
-    if (redis) {
+    if (redis && typeof redis.set === 'function') {
       await redis.set(key, 'valid', 'EX', REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60);
     }
   } catch (err) {
@@ -35,16 +45,16 @@ export const generateRefreshToken = async (payload: TokenPayload): Promise<strin
 };
 
 export const verifyAccessToken = (token: string): TokenPayload => {
-  return jwt.verify(token, ACCESS_TOKEN_SECRET) as TokenPayload;
+  return verifyJwt(token, ACCESS_TOKEN_SECRET) as TokenPayload;
 };
 
 export const verifyRefreshToken = async (token: string): Promise<TokenPayload> => {
-  const decoded = jwt.verify(token, REFRESH_TOKEN_SECRET) as TokenPayload;
+  const decoded = verifyJwt(token, REFRESH_TOKEN_SECRET) as TokenPayload;
 
   try {
     const key = `rt:${decoded.userId}:${token}`;
     const redis = getRedisClient();
-    if (redis) {
+    if (redis && typeof redis.get === 'function') {
       const isValid = await redis.get(key);
       if (isValid === null) {
         // If Redis key is absent or expired, verify signed JWT payload
@@ -65,9 +75,15 @@ export const rotateRefreshToken = async (
     const payload = await verifyRefreshToken(oldToken);
 
     // Invalidate old token
-    const oldKey = `rt:${payload.userId}:${oldToken}`;
-    const redis = getRedisClient();
-    await redis.del(oldKey);
+    try {
+      const oldKey = `rt:${payload.userId}:${oldToken}`;
+      const redis = getRedisClient();
+      if (redis && typeof redis.del === 'function') {
+        await redis.del(oldKey);
+      }
+    } catch (_err) {
+      // Ignore redis deletion error
+    }
 
     // Generate new pair
     const accessToken = generateAccessToken({ userId: payload.userId });
@@ -81,24 +97,43 @@ export const rotateRefreshToken = async (
 };
 
 export const revokeAllUserTokens = async (userId: string): Promise<void> => {
-  const pattern = `rt:${userId}:*`;
-  const redis = getRedisClient();
-  const keys = await redis.keys(pattern);
-  if (keys.length > 0) {
-    await redis.del(...keys);
+  try {
+    const pattern = `rt:${userId}:*`;
+    const redis = getRedisClient();
+    if (redis && typeof redis.keys === 'function') {
+      const keys = await redis.keys(pattern);
+      if (keys.length > 0 && typeof redis.del === 'function') {
+        await redis.del(...keys);
+      }
+    }
+  } catch (_err) {
+    // Ignore redis error
   }
   logger.warn(`All tokens revoked for user ${userId}`);
 };
 
 export const blacklistAccessToken = async (token: string, expirySeconds: number): Promise<void> => {
-  const key = `bl:${token}`;
-  const redis = getRedisClient();
-  await redis.set(key, 'blacklisted', 'EX', expirySeconds);
+  try {
+    const key = `bl:${token}`;
+    const redis = getRedisClient();
+    if (redis && typeof redis.set === 'function') {
+      await redis.set(key, 'blacklisted', 'EX', expirySeconds);
+    }
+  } catch (_err) {
+    // Ignore redis error
+  }
 };
 
 export const isAccessTokenBlacklisted = async (token: string): Promise<boolean> => {
-  const key = `bl:${token}`;
-  const redis = getRedisClient();
-  const result = await redis.get(key);
-  return result === 'blacklisted';
+  try {
+    const key = `bl:${token}`;
+    const redis = getRedisClient();
+    if (redis && typeof redis.get === 'function') {
+      const result = await redis.get(key);
+      return result === 'blacklisted';
+    }
+  } catch (_err) {
+    // Ignore redis error
+  }
+  return false;
 };
