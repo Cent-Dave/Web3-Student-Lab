@@ -15,19 +15,24 @@ export default function WalletGate({ children }: { children: React.ReactNode }) 
     setIsMounted(true);
   }, []);
 
-  const hasLocalWallet = typeof window !== 'undefined' && !!localStorage.getItem('stellar_wallet');
+  // Public routes (landing, offline recovery, auth) must always render — on the
+  // server AND the client — so they never depend on mount state or localStorage.
+  // Gated routes stay blocked until mounted to avoid a hydration flicker / a
+  // leaked localStorage wallet bypassing the gate before React hydrates.
+  const isPublicRoute =
+    pathname === '/' || pathname === '/offline' || pathname?.startsWith('/auth/');
 
-  // Prevent hydration flicker: render nothing until the component has mounted
-  // on the client. Otherwise a localStorage-stored wallet (e.g. leaked from a
-  // previous test) would cause a divergent first client render vs. the server,
-  // and tests could never reliably observe the "Authentication Required" gate.
+  if (isPublicRoute) {
+    return <>{children}</>;
+  }
+
   if (!isMounted) {
     return null;
   }
 
-  // The offline recovery page, landing page, and auth pages must stay reachable without a connected wallet.
-  // Also pass through if a wallet is already stored in localStorage.
-  if (isConnected || hasLocalWallet || pathname === '/' || pathname === '/offline' || pathname?.startsWith('/auth/')) {
+  const hasLocalWallet = typeof window !== 'undefined' && !!localStorage.getItem('stellar_wallet');
+
+  if (isConnected || hasLocalWallet) {
     return <>{children}</>;
   }
 
