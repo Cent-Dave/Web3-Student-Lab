@@ -37,8 +37,12 @@ const createPool = (connectionString: string) => {
     !connectionString.includes('localhost') &&
     !connectionString.includes('127.0.0.1');
 
+  const normalizedConnectionString = useSSL
+    ? connectionString.replace(/sslmode=[^&]+/, 'sslmode=no-verify')
+    : connectionString;
+
   return new Pool({
-    connectionString,
+    connectionString: normalizedConnectionString,
     ssl: useSSL ? { rejectUnauthorized: false } : false
   });
 };
