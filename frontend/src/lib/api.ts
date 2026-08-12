@@ -120,11 +120,13 @@ function normalizeCertificateListResponse(data: unknown): Certificate[] {
 // Authentication APIs
 export const authAPI = {
   register: async (data: RegisterRequest): Promise<AuthResponse> => {
+    apiRequestCache.invalidatePrefix('auth:profile-status');
     const response = await apiClient.post('/auth/register', data);
     return response.data;
   },
 
   login: async (data: LoginRequest): Promise<AuthResponse> => {
+    apiRequestCache.invalidatePrefix('auth:profile-status');
     const response = await apiClient.post('/auth/login', data);
     return response.data;
   },
@@ -143,16 +145,10 @@ export const authAPI = {
   getProfileStatus: async (
     walletAddress: string
   ): Promise<{ completed: boolean; user: User | null }> => {
-    return apiRequestCache.fetch(
-      `auth:profile-status:${walletAddress}`,
-      async () => {
-        const response = await apiClient.get('/auth/profile-status', {
-          params: { walletAddress },
-        });
-        return response.data;
-      },
-      { ttlMs: DEFAULT_CACHE_TTL_MS }
-    );
+    const response = await apiClient.get('/auth/profile-status', {
+      params: { walletAddress },
+    });
+    return response.data;
   },
 
   /**
