@@ -96,8 +96,13 @@ export function validatePublicEnv(source: NodeJS.ProcessEnv = process.env): EnvV
   }
 
   const env: PublicEnv = {
-    apiUrl: (data.NEXT_PUBLIC_API_URL ?? (production ? '' : DEV_API_URL)).replace(/\/+$/, ''),
-    wsUrl: data.NEXT_PUBLIC_WS_URL ?? (production ? '' : DEV_WS_URL),
+    apiUrl: (
+      data.NEXT_PUBLIC_API_URL ??
+      (production ? 'https://web3-student-lab.onrender.com/api/v1' : DEV_API_URL)
+    ).replace(/\/+$/, ''),
+    wsUrl:
+      data.NEXT_PUBLIC_WS_URL ??
+      (production ? 'wss://web3-student-lab.onrender.com' : DEV_WS_URL),
     sorobanRpcUrl: data.NEXT_PUBLIC_SOROBAN_RPC_URL ?? DEFAULT_SOROBAN_RPC_URL,
     horizonUrl: data.NEXT_PUBLIC_HORIZON_URL ?? DEFAULT_HORIZON_URL,
     certificateContractId: data.NEXT_PUBLIC_CERTIFICATE_CONTRACT_ID ?? null,
