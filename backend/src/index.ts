@@ -8,7 +8,19 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 8080;
 
-app.use(cors());
+// Enable CORS with credentials support for Vercel frontend and local development
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow any requesting origin (Vercel, localhost, etc.) to support withCredentials: true
+      callback(null, origin || true);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-workspace-id', 'X-Payload-Encryption'],
+  })
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
