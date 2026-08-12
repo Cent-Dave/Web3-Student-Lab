@@ -64,10 +64,10 @@ export class CertificateService {
     });
 
     if (existingCert) {
-      const metadata = await this.metadataGenerator.generateMetadata(
+      const metadata = this.metadataGenerator.generate(
         existingCert,
-        existingCert.student,
-        existingCert.course
+        existingCert.course,
+        existingCert.student
       );
       return { ...existingCert, metadata };
     }
@@ -88,7 +88,7 @@ export class CertificateService {
           studentId,
           courseId,
           enrolledAt: new Date(),
-          progress: 100,
+          status: 'completed',
         },
       });
     }
