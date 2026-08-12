@@ -24,18 +24,13 @@ export default function RegisterPage() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLoading && user) {
       router.replace('/dashboard');
     }
   }, [isLoading, router, user]);
-
-  useEffect(() => {
-    if (!isLoading && !user && profileCompleted) {
-      router.replace('/auth/login');
-    }
-  }, [isLoading, profileCompleted, router, user]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -44,12 +39,14 @@ export default function RegisterPage() {
     });
     if (error) clearError();
     if (localError) setLocalError(null);
+    if (successMessage) setSuccessMessage(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     setLocalError(null);
+    setSuccessMessage(null);
 
     // Validation
     if (formData.password !== formData.confirmPassword) {
@@ -69,13 +66,19 @@ export default function RegisterPage() {
       if (publicKey) {
         markWalletProfileComplete(publicKey, formData.email);
       }
-      router.push('/dashboard');
+      setSuccessMessage('Profile setup successful! Redirecting to your dashboard...');
+      setTimeout(() => {
+        router.push('/dashboard');
+      }, 1500);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Registration failed. Please try again.';
-      if (publicKey && message.toLowerCase().includes('already exists')) {
+      if (publicKey && (message.toLowerCase().includes('already exists') || message.toLowerCase().includes('duplicate'))) {
         markWalletProfileComplete(publicKey, formData.email);
         await refreshProfileStatus();
-        router.push('/dashboard');
+        setSuccessMessage('Profile linked successfully! Redirecting to your dashboard...');
+        setTimeout(() => {
+          router.push('/dashboard');
+        }, 1500);
         return;
       }
       setLocalError(message);
@@ -134,7 +137,15 @@ export default function RegisterPage() {
           )}
 
           <form onSubmit={handleSubmit} className={`space-y-5 ${!publicKey ? 'opacity-60' : ''}`}>
-            {(error || localError) && (
+            {successMessage && (
+              <div className="rounded-lg border border-emerald-500/50 bg-emerald-500/10 p-4 animate-pulse">
+                <p className="text-center text-sm font-bold text-emerald-400">
+                  ✓ {successMessage}
+                </p>
+              </div>
+            )}
+
+            {(error || localError) && !successMessage && (
               <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-4">
                 <p className="text-center text-sm font-bold text-red-500">{error || localError}</p>
               </div>
