@@ -70,8 +70,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        setUser((currentUser) => currentUser ?? result.user);
-        markWalletProfileComplete(publicKey, result.user.email);
+        const profileUser = result.user;
+        setUser((currentUser) => {
+          const resolved = currentUser ?? profileUser;
+          if (resolved) {
+            try {
+              localStorage.setItem('user', JSON.stringify(resolved));
+            } catch {}
+          }
+          return resolved;
+        });
+        markWalletProfileComplete(publicKey, profileUser.email);
         setError((currentError) =>
           currentError === 'Profile status check is temporarily rate limited. Please wait a moment.'
             ? null
@@ -105,29 +114,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const storedToken = localStorage.getItem('token');
       const storedUser = localStorage.getItem('user');
 
-      if (storedToken && storedUser) {
+      if (storedToken || storedUser) {
         try {
           if (isMounted) {
-            setToken(storedToken);
-            setUser(JSON.parse(storedUser));
+            if (storedToken) setToken(storedToken);
+            if (storedUser) setUser(JSON.parse(storedUser));
           }
+        } catch (e) {
+          console.error('Failed to parse stored session user:', e);
+        }
 
-          // Verify token is still valid
-          const currentUser = await authAPI.getCurrentUser();
-          if (!currentUser && isMounted) {
-            // Token invalid, clear storage
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            setUser(null);
-            setToken(null);
-          }
-        } catch (err) {
-          console.error('Failed to restore session:', err);
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          if (isMounted) {
-            setUser(null);
-            setToken(null);
+        if (storedToken) {
+          try {
+            const currentUser = await authAPI.getCurrentUser();
+            if (currentUser && isMounted) {
+              setUser(currentUser);
+              localStorage.setItem('user', JSON.stringify(currentUser));
+            }
+          } catch (err) {
+            if (axios.isAxiosError(err) && err.response?.status === 401) {
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+              if (isMounted) {
+                setUser(null);
+                setToken(null);
+              }
+            }
           }
         }
       }
