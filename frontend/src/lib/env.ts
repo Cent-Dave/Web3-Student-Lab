@@ -21,8 +21,8 @@ import { z } from 'zod';
 
 const emptyToUndefined = (value: unknown) => (value === '' ? undefined : value);
 
-const DEV_API_URL = 'http://localhost:8080/api/v1';
-const DEV_WS_URL = 'ws://localhost:8080';
+const DEV_API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://web3-student-lab.onrender.com/api/v1';
+const DEV_WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'wss://web3-student-lab.onrender.com';
 export const DEFAULT_SOROBAN_RPC_URL = 'https://soroban-testnet.stellar.org';
 export const DEFAULT_HORIZON_URL = 'https://horizon-testnet.stellar.org';
 
