@@ -158,11 +158,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Handle wallet connection checks separately
   useEffect(() => {
+    if (user && publicKey) {
+      markWalletProfileComplete(publicKey, user.email);
+    }
     const storedUser = localStorage.getItem('user');
     if (!storedUser && publicKey) {
       refreshProfileStatus();
     }
-  }, [publicKey, refreshProfileStatus]);
+  }, [user, publicKey, refreshProfileStatus]);
 
   const login = async (email: string, password: string) => {
     try {
