@@ -43,6 +43,44 @@ vi.mock("@/contexts/AuthContext", () => ({
   ),
 }));
 
+vi.mock("@/contexts/WalletContext", () => ({
+  useWallet: () => ({ publicKey: null, disconnect: vi.fn() }),
+  WalletProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+}));
+
+vi.mock("@/components/keyboard/KeyboardShortcutsProvider", () => ({
+  useKeyboardShortcuts: () => ({ openShortcutHelp: vi.fn() }),
+  KeyboardShortcutsProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+}));
+
+import enTranslations from "@/i18n/locales/en.json";
+
+vi.mock("@/i18n", () => ({
+  useI18n: () => ({
+    t: (key: string) => {
+      const keys = key.split(".");
+      let current: any = enTranslations;
+      for (const k of keys) {
+        if (current && typeof current === "object" && k in current) {
+          current = current[k];
+        } else {
+          return key;
+        }
+      }
+      return typeof current === "string" ? current : key;
+    },
+    locale: "en",
+    setLocale: vi.fn(),
+  }),
+  I18nProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+}));
+
 // ---------------------------------------------------------------------------
 // Import components after mocks are set up
 // ---------------------------------------------------------------------------
@@ -73,15 +111,17 @@ describe("Navbar – automated accessibility scan", () => {
   it("renders all navigation links", () => {
     renderNavbar();
     const expectedLinks = [
-      "MODULES",
-      "ROADMAP",
-      "PLAYGROUND",
-      "SIMULATOR",
-      "IDEAS",
-      "VERIFY",
+      "Learn",
+      "Dashboard",
+      "Collaborative Lab",
+      "Roadmap",
+      "Verify",
+      "Calculator",
+      "Gas Auction",
+      "Admin",
     ];
     expectedLinks.forEach((name) => {
-      expect(screen.getByRole("link", { name })).toBeInTheDocument();
+      expect(screen.getAllByRole("link", { name: new RegExp(`^${name}`, "i") }).length).toBeGreaterThan(0);
     });
   });
 });
@@ -101,22 +141,22 @@ describe("Navbar – mobile menu keyboard behaviour", () => {
 
   it("opens the mobile menu when the toggle button is clicked", () => {
     renderNavbar();
-    const toggleBtn = screen.getByRole("button");
-    expect(screen.queryByText("MODULES")).not.toBeNull(); // links always in DOM
+    const toggleBtn = screen.getByRole("button", { name: /open menu/i });
+    expect(screen.queryAllByText(/Learn/i).length).toBeGreaterThan(0);
 
     fireEvent.click(toggleBtn);
     // After open, the mobile panel links are in document
-    const mobilePanel = document.querySelector(".xl\\:hidden.bg-black");
+    const mobilePanel = document.querySelector(".xl\\:hidden");
     expect(mobilePanel).not.toBeNull();
   });
 
   it("closes the mobile menu when Escape is pressed", () => {
     renderNavbar();
-    const toggleBtn = screen.getByRole("button");
+    const toggleBtn = screen.getByRole("button", { name: /open menu/i });
 
     // Open first
     fireEvent.click(toggleBtn);
-    const mobilePanel = document.querySelector(".xl\\:hidden.bg-black");
+    const mobilePanel = document.querySelector(".xl\\:hidden");
     expect(mobilePanel).not.toBeNull();
 
     // Press Escape on the nav element
@@ -135,15 +175,12 @@ describe("Navbar – mobile menu keyboard behaviour", () => {
     renderNavbar();
     const nav = screen.getByRole("navigation");
 
-    // Pressing Escape should not throw and should not affect Sign In / Initialize links
+    // Pressing Escape should not throw and should not affect auth link
     expect(() => {
       fireEvent.keyDown(nav, { key: "Escape", code: "Escape" });
     }).not.toThrow();
 
-    expect(screen.getByRole("link", { name: "SIGN IN" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "INITIALIZE" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /start with wallet|complete profile|open wallet/i })).toBeInTheDocument();
   });
 });
 

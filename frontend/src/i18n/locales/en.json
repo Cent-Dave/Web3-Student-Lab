@@ -15,6 +15,7 @@
     "grant_desc": "Web3 Student Lab is an ambitious open-source project designed to revolutionize developer onboarding to the Stellar ecosystem. We are currently seeking a grant to fully deploy our infrastructure, finalize our curriculum, and bring this platform to mainnet."
   },
   "nav": {
+    "admin": "Admin",
     "learn": "Learn",
     "dashboard": "Dashboard",
     "modules": "MODULES",

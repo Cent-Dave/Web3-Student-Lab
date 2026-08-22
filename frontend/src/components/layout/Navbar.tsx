@@ -62,6 +62,26 @@ export default function Navbar() {
 
         <div className="flex flex-1 justify-end items-center gap-6">
           <nav className="hidden items-center gap-2 xl:flex relative z-[100]" aria-label="Primary">
+            <Link
+              href="/courses"
+              className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors rounded-xl ${
+                isActive('/courses')
+                  ? 'text-red-400 bg-red-500/10 border border-red-500/20'
+                  : 'text-gray-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              {t('nav.learn')}
+            </Link>
+            <Link
+              href="/admin/courses"
+              className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors rounded-xl ${
+                isActive('/admin/courses') || isActive('/admin/content')
+                  ? 'text-red-400 bg-red-500/10 border border-red-500/20'
+                  : 'text-gray-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              {t('nav.admin')}
+            </Link>
             <div className="group relative">
               <button className="flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-widest text-gray-300 hover:text-white transition-colors">
                 Explore <ChevronDown className="w-4 h-4 transition-transform group-hover:rotate-180" />
@@ -91,6 +111,12 @@ export default function Navbar() {
             {user ? (
               <>
                 <NotificationBell />
+                <Link
+                  href="/admin/content"
+                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-bold uppercase tracking-widest text-red-400 hover:bg-red-500/20 hover:text-red-300 hover:border-red-500/50 transition-all shadow-[0_0_15px_rgba(220,38,38,0.15)] hover:shadow-[0_0_25px_rgba(220,38,38,0.25)]"
+                >
+                  {t('nav.admin')}
+                </Link>
                 <Link
                   href="/certificates"
                   className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-bold uppercase tracking-widest text-red-400 hover:bg-red-500/20 hover:text-red-300 hover:border-red-500/50 transition-all shadow-[0_0_15px_rgba(220,38,38,0.15)] hover:shadow-[0_0_25px_rgba(220,38,38,0.25)]"
@@ -168,6 +194,13 @@ export default function Navbar() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {user ? (
                 <>
+                  <Link
+                    href="/admin/content"
+                    onClick={() => setOpen(false)}
+                    className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white text-center hover:bg-white/10 transition-colors"
+                  >
+                    {t('nav.admin')}
+                  </Link>
                   <Link
                     href="/certificates"
                     onClick={() => setOpen(false)}
