@@ -55,6 +55,44 @@ router.get('/health', async (_req: Request, res: Response) => {
   });
 });
 
+import {
+  getStellarWebhookSecret,
+  processStellarHorizonWebhook,
+  verifyStellarWebhookSignature,
+} from '../services/webhooks/stellarWebhook.service.js';
+
+router.post(['/stellar', '/horizon'], async (req: Request, res: Response) => {
+  try {
+    const signature = req.header('x-stellar-signature') || req.header('x-webhook-signature') || '';
+    const timestamp = req.header('x-stellar-timestamp') || req.header('x-webhook-timestamp') || '';
+    const rawPayload = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    const secret = getStellarWebhookSecret();
+
+    if (!signature || !timestamp) {
+      logger.warn('Stellar webhook missing signature or timestamp headers');
+      return res.status(401).json({ error: 'Missing webhook signature or timestamp headers' });
+    }
+
+    const isValid = verifyStellarWebhookSignature(rawPayload, signature, secret, timestamp);
+    if (!isValid) {
+      logger.warn('Rejected Stellar Horizon webhook with invalid signature or expired timestamp');
+      return res.status(401).json({ error: 'Unauthorized: Invalid signature or expired timestamp' });
+    }
+
+    const result = await processStellarHorizonWebhook(req.body);
+
+    return res.status(200).json({
+      status: 'success',
+      result,
+    });
+  } catch (error: any) {
+    logger.error('Failed to process Stellar Horizon webhook:', error);
+    return res.status(400).json({
+      error: error instanceof Error ? error.message : 'Failed to process Stellar Horizon webhook',
+    });
+  }
+});
+
 router.post(['/ingest', '/dispatch'], idempotency(), async (req: Request, res: Response) => {
   try {
     const timestamp = req.header('x-webhook-timestamp') || '';
