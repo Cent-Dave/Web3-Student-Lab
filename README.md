@@ -55,19 +55,21 @@ The application is fully deployed and accessible online:
 web3-student-lab/
 ├── contracts/            # Soroban Cargo workspace (see docs/contracts/WORKSPACE.md)
 ├── frontend/             # Next.js/React frontend application
-│   └── src/app/
-│       ├── simulator/    # Visual blockchain tools
-│       ├── playground/   # In-browser smart contract editor
-│       ├── roadmap/      # Learning progress tracking and paths
-│       └── ideas/        # Hackathon project generator UI
 ├── backend/              # Node.js backend application
-│   └── src/
-│       ├── blockchain/   # Interaction with Stellar/Soroban
-│       ├── contracts/    # Compilation and execution engine for student code
-│       ├── learning/     # Curriculum and progress APIs
-│       └── generator/    # Prompt/AI layer for hackathon ideas
+├── scripts/              # Development automation scripts and test payloads
 └── docs/                 # Documentation and learning materials
 ```
+
+### ⚡ Development Automation Scripts (`scripts/`)
+
+All automated generators, environment setup scripts, and payload tooling reside in `scripts/`:
+
+| Script / Artifact | Description | Usage |
+| ----------------- | ----------- | ----- |
+| `scripts/generate_issues.py` | Generates structured Markdown issue sets (`70_new_issues.md`) | `python3 scripts/generate_issues.py` |
+| `scripts/generate_gh_payload.py` | Generates GitHub REST API issue payloads (`github_issues_payload.json`) | `python3 scripts/generate_gh_payload.py` |
+| `scripts/setup-local-node.sh` | Spins up local Stellar/Soroban standalone node | `bash scripts/setup-local-node.sh` |
+| `scripts/deploy-subscription-system.sh` | Deploys Soroban subscription system contracts | `bash scripts/deploy-subscription-system.sh` |
 
 ## 👥 Local Development
 
