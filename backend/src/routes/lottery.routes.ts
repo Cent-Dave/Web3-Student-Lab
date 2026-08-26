@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 
-const lotteryRouter = Router();
+const lotteryRouter: Router = Router();
 
 /**
  * @openapi

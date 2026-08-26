@@ -3,7 +3,7 @@ import { ZodError } from 'zod';
 import { BuybackIndexerUnavailableError, getBuybackDashboard } from '../tokenomics/buyback-indexer.service.js';
 import logger from '../utils/logger.js';
 
-const router = Router();
+const router: Router = Router();
 
 /**
  * @openapi

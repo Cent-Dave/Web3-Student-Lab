@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import v2Lottery from './lottery.routes.js';
 
-const apiRouter = Router();
-const v1Router = Router();
-const v2Router = Router();
+const apiRouter: Router = Router();
+const v1Router: Router = Router();
+const v2Router: Router = Router();
 
 /**
  * Version 2 API Routes

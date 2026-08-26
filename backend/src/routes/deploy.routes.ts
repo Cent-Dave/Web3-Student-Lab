@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { deployContract } from '../services/deployService.js';
 import logger from '../utils/logger.js';
 
-const router = Router();
+const router: Router = Router();
 
 router.post('/deploy', async (req, res) => {
   try {

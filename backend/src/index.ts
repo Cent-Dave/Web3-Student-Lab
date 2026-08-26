@@ -2,11 +2,18 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import routes from './routes/index.js';
+import { initializeSentry, getSentryRequestHandler, getSentryErrorHandler } from './utils/sentry.js';
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 8080;
+
+// Initialize Sentry Telemetry and Distributed Tracing
+initializeSentry(app);
+
+// Mount Sentry Request Handler middleware
+app.use(getSentryRequestHandler());
 
 // Enable CORS with credentials support for Vercel frontend and local development
 app.use(
@@ -17,7 +24,14 @@ app.use(
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-workspace-id', 'X-Payload-Encryption'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'x-workspace-id',
+      'X-Payload-Encryption',
+      'sentry-trace',
+      'baggage',
+    ],
   })
 );
 
@@ -30,6 +44,9 @@ app.get('/health', (req: Request, res: Response) => {
 
 // Mount main API v1 router
 app.use('/api/v1', routes);
+
+// Mount Sentry Error Handler middleware
+app.use(getSentryErrorHandler());
 
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
