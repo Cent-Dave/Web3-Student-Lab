@@ -33,29 +33,48 @@ function buildAllowedOrigins(): string[] {
   return [];
 }
 
+function isPreviewSubdomain(origin: string, subdomains: string[]): boolean {
+  try {
+    const url = new URL(origin);
+    const hostname = url.hostname;
+    return subdomains.some((sub) => hostname === sub || hostname.endsWith(`.${sub}`));
+  } catch {
+    return false;
+  }
+}
+
 const allowedOrigins = buildAllowedOrigins();
+const allowedPreviewSubdomains = parseOrigins(
+  process.env.CORS_ALLOWED_PREVIEW_SUBDOMAINS || ''
+);
 
 export function createCorsMiddleware(): (req: any, res: any, next: any) => void {
   const options: CorsOptions = {
     origin: (origin, callback) => {
+      if (origin === 'null') {
+        return callback(new Error('Spoofed origin detected'), null as any);
+      }
+
       if (!origin) {
-        if (allowedOrigins.length > 0) {
-          return callback(null, false);
-        }
-        return callback(null, true);
+        return callback(null, false);
       }
 
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
 
+      if (allowedPreviewSubdomains.length > 0 && isPreviewSubdomain(origin, allowedPreviewSubdomains)) {
+        return callback(null, true);
+      }
+
       logger.warn('CORS origin rejected', {
         origin,
         allowedOrigins,
+        allowedPreviewSubdomains,
         env: config.app.env,
       });
 
-      return callback(null, false);
+      return callback(new Error('Origin not allowed'), null as any);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -73,6 +92,7 @@ export function getCorsConfigForLogging() {
   return {
     environment: config.app.env,
     allowedOrigins,
-    hasWildcard: allowedOrigins.length === 0,
+    allowedPreviewSubdomains,
+    hasWildcard: false,
   };
 }

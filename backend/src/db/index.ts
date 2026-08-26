@@ -167,6 +167,16 @@ const routingExtension = {
 
 const routedPrisma = prisma.$extends(routingExtension);
 
+routedPrisma.$use(async (params, next) => {
+  if (
+    params.model === 'AuditLog' &&
+    ['update', 'delete', 'updateMany', 'deleteMany'].includes(params.action)
+  ) {
+    throw new Error('AuditLog records are immutable and cannot be modified or deleted');
+  }
+  return next(params);
+});
+
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = basePrisma;
   globalForPrisma.readPrisma = baseReadPrisma;

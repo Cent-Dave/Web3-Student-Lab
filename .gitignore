@@ -4,7 +4,10 @@
 node_modules/
 .pnp
 .pnp.js
+.pnp.cjs
 .pnpm-store/
+.kilo/
+.kiro/
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Build artifacts — TypeScript / JavaScript
@@ -35,6 +38,8 @@ Cargo.lock
 
 # Orphan root lockfile causes Next/webpack SyntaxError when present without package.json
 /package-lock.json
+pnpm-lock.yaml
+yarn.lock
 
 # testing
 coverage/
@@ -150,6 +155,26 @@ pnpm-debug.log*
 # Benchmarks / large generated output
 # ──────────────────────────────────────────────────────────────────────────────
 backend/benchmarks/results/
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Generated issue payloads and scaffolding artifacts
+# ──────────────────────────────────────────────────────────────────────────────
+70_new_issues.md
+contract_issues_batch1.json
+github_issues_payload.json
+github_issues_payload_fixed.json
+ISSUE_*_RESOLUTION_CHECKLIST.md
+legacy_deprecation.rs
+MigrationDashboard.tsx
+QuadraticVoting.tsx
+quadratic_voting.rs
+sybil_resistance.rs
+token_migration.rs
+redis-sentinel.conf
+REDIS_IMPLEMENTATION_SUMMARY.md
+SMART_WALLET_IMPLEMENTATION.md
+.codex
+.cache
 
 # build artifacts
 dist/
