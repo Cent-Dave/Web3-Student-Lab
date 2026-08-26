@@ -105,7 +105,6 @@ jobs:
         run: npm run test:coverage || true
       - name: Dependency audit (backend)
         working-directory: ./backend
-        continue-on-error: true
         run: npm audit --audit-level=high
       - name: Generate SBOM (backend)
         working-directory: ./backend
@@ -136,7 +135,6 @@ jobs:
         run: npm run build
       - name: Dependency audit (frontend)
         working-directory: ./frontend
-        continue-on-error: true
         run: npm audit --audit-level=high
       - name: Generate SBOM (frontend)
         working-directory: ./frontend
@@ -161,6 +159,8 @@ jobs:
           components: clippy, rustfmt
       - name: Cache cargo registry
         uses: Swatinem/rust-cache@v2
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
       - name: Rustfmt Check
         working-directory: ./contracts
         run: cargo fmt --check
@@ -173,6 +173,9 @@ jobs:
       - name: Build
         working-directory: ./contracts
         run: cargo build --workspace
+      - name: Audit dependencies
+        working-directory: ./contracts
+        run: cargo audit --deny warnings
       - name: Test
         working-directory: ./contracts
         env:
@@ -181,10 +184,4 @@ jobs:
         run: cargo test -- --nocapture
       - name: Test (unit + property/fuzz)
         working-directory: ./contracts
-        # Property tests use a fixed, bounded case count (see
-        # ProptestConfig::with_cases in payment_gateway.rs) so CI runtime
-        # stays short and predictable. A failing case is persisted by
-        # proptest to contracts/proptest-regressions/*.txt, which must
-        # be committed so the failure is deterministically reproducible;
-        # see docs/contracts/FUZZING.md.
         run: cargo test --lib

@@ -9,6 +9,7 @@ import { slidingWindowRateLimiter } from '../../middleware/rateLimiter.js';
 import { validateRequest } from '../../utils/validation.js';
 import { auditAction } from '../../middleware/audit.js';
 import { clearRefreshTokenCookie, getRefreshTokenFromReq, setRefreshTokenCookie } from '../../utils/cookie.js';
+import { requireTurnstile } from '../../middleware/turnstile.js';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -74,6 +75,7 @@ const router: ReturnType<typeof Router> = Router();
 router.post(
   '/register',
   validateRequest(registerSchema),
+  requireTurnstile(),
   auditAction('USER_REGISTER', 'User'),
   async (req: Request, res: Response) => {
   try {
@@ -220,6 +222,7 @@ router.get('/profile-status', async (req: Request, res: Response) => {
 router.post(
   '/login',
   validateRequest(loginSchema),
+  requireTurnstile(),
   auditAction('USER_LOGIN', 'User'),
   async (req: Request, res: Response) => {
   const { email, password }: LoginRequest = req.body;

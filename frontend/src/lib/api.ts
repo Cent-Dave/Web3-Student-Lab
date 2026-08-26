@@ -21,6 +21,7 @@ export interface AuthResponse {
 export interface LoginRequest {
   email: string;
   password: string;
+  turnstileToken?: string;
 }
 
 export interface RegisterRequest {
@@ -29,6 +30,7 @@ export interface RegisterRequest {
   firstName: string;
   lastName: string;
   walletAddress?: string;
+  turnstileToken?: string;
 }
 
 export interface Course {
