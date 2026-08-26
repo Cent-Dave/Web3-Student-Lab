@@ -2,15 +2,15 @@ import type { NextConfig } from 'next';
 import path from 'path';
 import { cspDirectivesToString, getCSPConfig } from './src/lib/security/csp-config';
 
+// Conditionally require bundle analyzer when ANALYZE environment variable is enabled
+const withBundleAnalyzer = process.env.ANALYZE === 'true'
+  ? require('@next/bundle-analyzer')({ enabled: true })
+  : (config: NextConfig) => config;
+
 const nextConfig: NextConfig = {
   // Keep tracing rooted at frontend/ so parent orphan lockfiles are ignored
   outputFileTracingRoot: path.join(__dirname),
   reactCompiler: true,
-  // Disable Turbopack and use Webpack (required for custom webpack config & Module Federation)
-
-  // Ensure recharts/monaco editor packages resolve from frontend node_modules only
-  transpilePackages: ['recharts'],
-
   // Ensure recharts/monaco editor packages resolve from frontend node_modules only
   transpilePackages: ['recharts'],
 
@@ -157,4 +157,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);

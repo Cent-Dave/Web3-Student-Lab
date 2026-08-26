@@ -28,7 +28,9 @@ const workspaceModels = new Set([
 
 
 import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
+// @ts-ignore
+import pkg from 'pg';
+const { Pool } = pkg;
 
 const createPool = (connectionString: string) => {
   const useSSL =

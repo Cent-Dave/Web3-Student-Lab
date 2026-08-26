@@ -3,7 +3,7 @@ import { PolicyEngine } from '../../services/policy/PolicyEngine.js';
 import { VulnerabilityScanner } from '../../services/vulnerabilityScanner.service.js';
 import logger from '../../utils/logger.js';
 
-const router = Router();
+const router: Router = Router();
 const policyEngine = PolicyEngine.getInstance();
 const vulnerabilityScanner = VulnerabilityScanner.getInstance();
 
