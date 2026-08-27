@@ -38,6 +38,7 @@ import infrastructureRouter from '../infrastructure/infrastructure.routes.js';
 import simulatorIdeasRouter from '../simulator/simulator.routes.js';
 
 import deployRouter from './deploy.routes.js';
+import didRouter from './did.routes.js';
 import webhooksRouter from './webhooks.js';
 import adminDLQRouter from './admin/dlq.routes.js';
 import adminCoursesRouter from './admin/courses.routes.js';
@@ -73,6 +74,7 @@ router.use('/simulator', simulatorRouter);
 router.use('/playground', playgroundRouter);
 router.use('/export', exportRouter);
 router.use('/deploy', deployRouter);
+router.use('/did', didRouter);
 router.use('/webhooks', webhooksRouter);
 router.use('/admin/dlq', adminDLQRouter);
 router.use('/admin/courses', adminCoursesRouter);
