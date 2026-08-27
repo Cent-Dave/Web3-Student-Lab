@@ -231,9 +231,12 @@ export default function CertificateNFTPage() {
             >
               {isVerifying ? 'Polling Network...' : 'Verify On-Chain'}
             </button>
-            <Link
-              href={`/certificates/generate?id=${certificate.id}`}
+            <a
+              href={`${process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:8080/api/v1'}/certificates/${certificate.id}/download.pdf`}
+              target="_blank"
+              rel="noopener noreferrer"
               className="flex items-center gap-2 rounded-xl bg-red-600 px-6 py-4 text-sm font-black tracking-widest text-white uppercase transition-colors hover:bg-red-700"
+              aria-label="Download PDF diploma"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -243,8 +246,8 @@ export default function CertificateNFTPage() {
                   d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
                 />
               </svg>
-              Download
-            </Link>
+              PDF
+            </a>
           </div>
 
           {verificationResult && (

@@ -7,8 +7,62 @@ import {
   ReissueCertificateSchema,
   BatchVerificationSchema,
 } from './certificates/validation.schemas.js';
+import explorerRouter from './certificates/explorer.routes.js';
+import { certificatePdfGenerator } from '../certificates/PdfGenerator.js';
+import prisma from '../db/index.js';
+import logger from '../utils/logger.js';
 
 const router: ReturnType<typeof Router> = Router();
+
+// Mount public analytics explorer under /certificates/explorer
+router.use('/explorer', explorerRouter);
+
+/**
+ * @route   GET /api/v1/certificates/:certificateId/download.pdf
+ * @desc    Download a signed PDF diploma for a certificate.
+ * @access  Public
+ */
+router.get('/:certificateId/download.pdf', async (req, res) => {
+  try {
+    const { certificateId } = req.params;
+
+    const cert = await prisma.certificate.findUnique({
+      where: { id: certificateId },
+      include: {
+        student: { select: { firstName: true, lastName: true } },
+        course: { select: { title: true, instructor: true } },
+      },
+    });
+
+    if (!cert) {
+      return res.status(404).json({ status: 'error', message: 'Certificate not found' });
+    }
+
+    const studentName = cert.student
+      ? `${cert.student.firstName || ''} ${cert.student.lastName || ''}`.trim()
+      : 'Unknown Student';
+
+    const result = await certificatePdfGenerator.generatePdf({
+      studentName,
+      courseTitle: cert.course?.title ?? 'Unknown Course',
+      instructor: cert.course?.instructor ?? 'Unknown Instructor',
+      issuedAt: cert.issuedAt.toISOString(),
+      certificateId: cert.id,
+      grade: cert.grade ?? undefined,
+    });
+
+    const filename = `certificate-${cert.id}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('X-Certificate-Signature', result.signature);
+    res.setHeader('X-Certificate-Public-Key', result.publicKeyHex);
+    res.setHeader('X-Certificate-SHA256', result.sha256);
+    return res.send(Buffer.from(result.pdfBytes));
+  } catch (error) {
+    logger.error('[CertificatesRoutes] PDF download failed', { error });
+    return res.status(500).json({ status: 'error', message: 'PDF generation failed' });
+  }
+});
 
 /**
  * Certificate Routes

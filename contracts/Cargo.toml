@@ -9,14 +9,10 @@ edition = "2021"
 members = [
     ".",
     "auth_checker",
-    "automated_testing_suite",
-    "cicd_pipeline",
+    "certificate_nft",
     "commit_reveal_rng",
     "content_management_system",
     "continuous_bonding_curve",
-    "quadratic_funding",
-    "multisig_wallet_timelock",
-    "did_registry",
     "course_proxy",
     "cross_chain_client",
     "dao_governance",
@@ -39,7 +35,6 @@ members = [
     "zk_proof_verifier",
 ]
 # Incomplete or non-crate directories under contracts/ must not be listed as members.
-# Example: did_registry/ (source only, no Cargo.toml yet).
 exclude = [
     "did_registry",
     "automated_testing_suite",
