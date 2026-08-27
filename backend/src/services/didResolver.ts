@@ -211,7 +211,7 @@ export function buildDidDocument(params: {
     doc.service = services;
   }
 
-  return doc as DidDocument;
+  return doc as unknown as DidDocument;
 }
 
 /**
