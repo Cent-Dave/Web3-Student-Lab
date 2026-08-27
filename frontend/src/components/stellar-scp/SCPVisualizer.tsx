@@ -283,7 +283,7 @@ export const SCPVisualizer: React.FC = () => {
       .attr('stroke', (d) => (d.failed ? '#ef4444' : '#1e293b'))
       .attr('stroke-width', (d) => (d.failed ? 3 : 2))
       .style('cursor', 'pointer')
-      .on('click', (_, d) => handleNodeClick(d))
+      .on('click', (_, d) => handleToggleNodeFailure(d.id))
       .merge(nodeSelection)
       .transition()
       .duration(300)
