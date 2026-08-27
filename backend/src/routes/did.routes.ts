@@ -72,7 +72,11 @@ router.post('/bind', (req: Request, res: Response) => {
 });
 
 router.get('/resolve/:did', (req: Request, res: Response) => {
-  const { did } = req.params;
+  const didParam = req.params.did;
+  if (typeof didParam !== 'string') {
+    return res.status(400).json({ error: 'Invalid DID parameter' });
+  }
+  const did = didParam;
   try {
     parseDid(did);
   } catch (err) {
