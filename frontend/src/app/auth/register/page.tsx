@@ -28,12 +28,42 @@ export default function RegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLoading && user) {
       router.replace('/dashboard');
     }
   }, [isLoading, router, user]);
+
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+    script.async = true;
+    script.defer = true;
+    document.body.appendChild(script);
+
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!turnstileToken && typeof window !== 'undefined' && (window as any).turnstile) {
+      try {
+        (window as any).turnstile.render('#turnstile-container', {
+          sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '',
+          callback: onTurnstileSuccess,
+        });
+      } catch (error) {
+        console.error('Failed to render Turnstile widget:', error);
+      }
+    }
+  }, [turnstileToken]);
+
+  const onTurnstileSuccess = (token: string) => {
+    setTurnstileToken(token);
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -73,7 +103,7 @@ export default function RegisterPage() {
     }
 
     try {
-      await register(formData.email, formData.password, formData.firstName, formData.lastName);
+      await register(formData.email, formData.password, formData.firstName, formData.lastName, turnstileToken || undefined);
       if (publicKey) {
         markWalletProfileComplete(publicKey, formData.email);
       }
@@ -261,6 +291,13 @@ export default function RegisterPage() {
                 onChange={handleChange}
                 className="w-full rounded-lg border border-white/20 bg-black px-4 py-3 text-white placeholder-gray-600 transition-colors focus:border-red-500 focus:ring-1 focus:ring-red-500"
                 placeholder="••••••••"
+              />
+            </div>
+
+            <div className="flex justify-center">
+              <div
+                id="turnstile-container"
+                className="flex justify-center"
               />
             </div>
 

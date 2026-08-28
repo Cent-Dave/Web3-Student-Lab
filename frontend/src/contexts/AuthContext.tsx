@@ -167,10 +167,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user, publicKey, refreshProfileStatus]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, turnstileToken?: string) => {
     try {
       setError(null);
-      const response = await authAPI.login({ email, password });
+      const response = await authAPI.login({ email, password, turnstileToken });
 
       const userObj = response?.user || (response as any)?.data?.user;
       const tokenObj = response?.token || response?.accessToken || (response as any)?.data?.token || (response as any)?.data?.accessToken;
@@ -203,7 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (email: string, password: string, firstName: string, lastName: string) => {
+  const register = async (email: string, password: string, firstName: string, lastName: string, turnstileToken?: string) => {
     try {
       setError(null);
       const response = await authAPI.register({
@@ -212,6 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         firstName,
         lastName,
         walletAddress: publicKey || undefined,
+        turnstileToken,
       });
 
       const userObj = response?.user || (response as any)?.data?.user;
