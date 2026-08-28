@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+
+import { LivePoolYield } from '@/components/yield-calculator/LivePoolYield';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -206,6 +208,13 @@ export default function YieldCalculatorPage() {
           >
             <RefreshCw className="h-4 w-4" /> Reset
           </button>
+        </div>
+
+        {/* Live Soroban/Horizon AMM pool yield (Issue #1157). Sits above the
+            fixed-APY calculator so students see what an LP return is actually
+            made of before modelling a rate they typed in themselves. */}
+        <div className="mb-8">
+          <LivePoolYield />
         </div>
 
         {/* Top Summary Cards */}
