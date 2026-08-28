@@ -199,6 +199,14 @@ pnpm-debug.log*
 # ──────────────────────────────────────────────────────────────────────────────
 backend/benchmarks/results/
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Certificates & Identity — generated outputs (issues #1176-#1179)
+# ──────────────────────────────────────────────────────────────────────────────
+# Generated PDF certificates (never commit user data)
+backend/generated-pdfs/
+# IPFS gateway service cache dumps
+backend/ipfs-cache/
+
 # build artifacts
 dist/
 backend/dist/
