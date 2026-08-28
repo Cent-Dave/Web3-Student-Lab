@@ -425,6 +425,73 @@ export class CertificateController {
       res.status(500).json({ error: 'Failed to generate QR code' });
     }
   }
+
+  /**
+   * POST /api/certificates/merkle/anchor
+   * Anchor a cohort Merkle root on-chain
+   */
+  async anchorMerkleCohort(req: Request, res: Response): Promise<void> {
+    try {
+      const { cohortId, rootHash } = req.body;
+      if (!cohortId || !rootHash) {
+        res.status(400).json({ error: 'cohortId and rootHash are required' });
+        return;
+      }
+
+      const result = await certificateService.anchorMerkleCohort(cohortId, rootHash);
+      res.status(200).json(result);
+    } catch (error) {
+      logger.error(`Merkle anchor error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      res.status(500).json({ error: 'Failed to anchor Merkle cohort' });
+    }
+  }
+
+  /**
+   * POST /api/certificates/merkle/verify
+   * Verify Merkle inclusion proof against anchored root
+   */
+  async verifyMerkleInclusion(req: Request, res: Response): Promise<void> {
+    try {
+      const { cohortId, leafHash, proof } = req.body;
+      if (!cohortId || !leafHash || !Array.isArray(proof)) {
+        res.status(400).json({ error: 'cohortId, leafHash, and proof array are required' });
+        return;
+      }
+
+      const result = await certificateService.verifyMerkleInclusion(cohortId, leafHash, proof);
+      res.status(200).json(result);
+    } catch (error) {
+      logger.error(`Merkle verify error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      res.status(500).json({ error: 'Failed to verify Merkle inclusion' });
+    }
+  }
+
+  /**
+   * GET /api/certificates/:id/openbadges
+   * Export OpenBadges v3.0 JSON-LD credential package
+   */
+  async exportOpenBadges(req: Request, res: Response): Promise<void> {
+    try {
+      const id = getStringParam(req.params.id);
+      if (!id) {
+        res.status(400).json({ error: 'Certificate ID is required' });
+        return;
+      }
+
+      const badge = await certificateService.exportOpenBadges(id);
+      if (!badge) {
+        res.status(404).json({ error: 'Certificate not found or not eligible for export' });
+        return;
+      }
+
+      res.set('Content-Type', 'application/ld+json');
+      res.set('Cache-Control', 'public, max-age=86400, immutable');
+      res.status(200).json(badge);
+    } catch (error) {
+      logger.error(`OpenBadges export error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      res.status(500).json({ error: 'Failed to export OpenBadges package' });
+    }
+  }
 }
 
 export const certificateController = new CertificateController();
