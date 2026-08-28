@@ -8,6 +8,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { markWalletProfileComplete, useWalletProfileCompletion } from '@/lib/profile-completion';
 import { WalletConnectCard } from '@/components/wallet/WalletConnectCard';
+import { PasswordStrengthMeter } from '@/components/auth/PasswordStrengthMeter';
+import { calculatePasswordStrength } from '@/utils/passwordStrength';
+import { checkPasswordBreached } from '@/utils/pwnedPasswordCheck';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -55,8 +58,16 @@ export default function RegisterPage() {
       return;
     }
 
-    if (formData.password.length < 6) {
-      setLocalError('Password must be at least 6 characters');
+    const strength = calculatePasswordStrength(formData.password);
+    if (!strength.isValid) {
+      setLocalError('Passphrase strength score must be at least 3 (Good). Please choose a stronger passphrase.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const pwned = await checkPasswordBreached(formData.password);
+    if (pwned.isBreached) {
+      setLocalError(`This passphrase has been compromised in public data breaches (${pwned.count.toLocaleString()} times). Please choose a unique passphrase.`);
       setIsSubmitting(false);
       return;
     }
@@ -230,6 +241,7 @@ export default function RegisterPage() {
                 className="w-full rounded-lg border border-white/20 bg-black px-4 py-3 text-white placeholder-gray-600 transition-colors focus:border-red-500 focus:ring-1 focus:ring-red-500"
                 placeholder="••••••••"
               />
+              <PasswordStrengthMeter password={formData.password} />
             </div>
 
             <div>

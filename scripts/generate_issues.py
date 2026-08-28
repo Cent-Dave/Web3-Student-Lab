@@ -1,5 +1,6 @@
 import json
 import random
+import os
 
 modules = [
     "Blockchain Learning Simulator",
@@ -86,7 +87,8 @@ ETA: {eta}
 """
     issues.append(content)
 
-with open("70_new_issues.md", "w") as f:
+output_path = os.path.join(os.path.dirname(__file__), "70_new_issues.md")
+with open(output_path, "w") as f:
     f.write("\n".join(issues))
 
-print("Successfully generated 70_new_issues.md")
+print(f"Successfully generated {output_path}")

@@ -98,7 +98,8 @@ ETA: {eta}
 """
     issues.append({"title": title, "body": body, "labels": labels})
 
-with open("github_issues_payload.json", "w") as f:
+output_path = os.path.join(os.path.dirname(__file__), "github_issues_payload.json")
+with open(output_path, "w") as f:
     json.dump(issues, f, indent=2)
 
-print("Generated payload for 70 issues.")
+print(f"Generated payload for 70 issues at {output_path}.")
