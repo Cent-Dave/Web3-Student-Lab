@@ -1,8 +1,10 @@
 {
   "name": "web3-student-lab",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
-    "prepare": "husky"
+    "prepare": "husky",
+    "setup": "bash scripts/setup.sh"
   },
   "dependencies": {
     "cors": "^2.8.6",
