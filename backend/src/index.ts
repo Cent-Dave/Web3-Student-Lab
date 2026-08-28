@@ -44,6 +44,16 @@ app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', message: 'Web3 Student Lab Backend is running' });
 });
 
+app.post('/api/security/csp-report', express.json(), (req: Request, res: Response) => {
+  const report = req.body;
+  logger.warn('CSP violation report', {
+    report,
+    ip: req.ip,
+    userAgent: req.get('user-agent'),
+  });
+  res.status(204).end();
+});
+
 // Mount main API v1 router
 app.use('/api/v1', routes);
 
