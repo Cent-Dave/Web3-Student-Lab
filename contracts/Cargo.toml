@@ -37,6 +37,7 @@ members = [
     "smart_vault",
     "testnet_faucet_integration",
     "zk_proof_verifier",
+    "certificate",
 ]
 # Incomplete or non-crate directories under contracts/ must not be listed as members.
 # Example: did_registry/ (source only, no Cargo.toml yet).

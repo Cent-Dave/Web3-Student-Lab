@@ -132,6 +132,16 @@ model CertificateVerificationEvent {
   @@map("certificate_verification_events")
 }
 
+model MerkleCohortRoot {
+  cohortId   String   @id
+  rootHash   String
+  anchoredAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([cohortId])
+  @@map("merkle_cohort_roots")
+}
+
 model Enrollment {
   id          String   @id @default(cuid())
   workspaceId String   @default("default")

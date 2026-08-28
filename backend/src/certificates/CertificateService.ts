@@ -645,6 +645,112 @@ export class CertificateService {
     }
     return 'GUNKNOWNWALLETADDRESS';
   }
+
+  /**
+   * Anchors a Merkle cohort root for batch certificate verification.
+   */
+  async anchorMerkleCohort(cohortId: string, rootHash: string): Promise<{ cohortId: string; rootHash: string; anchoredAt: string }> {
+    const anchoredAt = new Date().toISOString();
+    await prisma.merkleCohortRoot.upsert({
+      where: { cohortId },
+      update: { rootHash, anchoredAt, updatedAt: new Date() },
+      create: { cohortId, rootHash, anchoredAt },
+    });
+    return { cohortId, rootHash, anchoredAt };
+  }
+
+  /**
+   * Verifies a Merkle inclusion proof against an anchored cohort root.
+   */
+  async verifyMerkleInclusion(cohortId: string, leafHash: string, proof: string[]): Promise<{ valid: boolean; cohortId: string }> {
+    const cohort = await prisma.merkleCohortRoot.findUnique({ where: { cohortId } });
+    if (!cohort) {
+      throw new Error('Cohort not found');
+    }
+
+    const { verifyMerkleProof } = await import('./../utils/merkle.ts');
+    const proofSteps = proof.map((hash, index) => ({ hash, position: index % 2 === 0 ? 'left' : 'right' as 'left' | 'right' }));
+    const valid = verifyMerkleProof(leafHash, proofSteps, cohort.rootHash);
+    return { valid, cohortId };
+  }
+
+  /**
+   * Exports an OpenBadges v3.0 JSON-LD credential package for a certificate.
+   */
+  async exportOpenBadges(certificateId: string): Promise<any> {
+    const certificate = await prisma.certificate.findUnique({
+      where: { id: certificateId },
+      include: { student: true, course: true },
+    });
+
+    if (!certificate) {
+      return null;
+    }
+
+    const studentName = `${certificate.student?.firstName || ''} ${certificate.student?.lastName || ''}`.trim() || 'Student';
+    const completionDate = certificate.issuedAt.toISOString().split('T')[0] || new Date().toISOString().split('T')[0];
+    const issuedOn = certificate.issuedAt.toISOString();
+
+    const badgeClass = {
+      '@context': 'https://w3id.org/openbadges/v3.0',
+      type: 'Achievement',
+      id: `${process.env.API_BASE_URL || 'http://localhost:8080'}/api/v1/certificates/${certificate.id}/openbadges/badge-class`,
+      name: certificate.course?.title || 'Course Completion',
+      description: `Awarded to ${studentName} for completing ${certificate.course?.title || 'a course'}.`,
+      issuer: {
+        id: `${process.env.API_BASE_URL || 'http://localhost:8080'}/api/v1/certificates/openbadges/issuer`,
+        type: 'Profile',
+        name: process.env.ISSUER_NAME || 'Web3 Student Lab',
+        url: process.env.API_BASE_URL || 'http://localhost:8080',
+        email: 'issuer@web3studentlab.example',
+      },
+      criteria: {
+        type: 'Criteria',
+        name: 'Course Completion Criteria',
+        description: `Complete all required modules and assessments for ${certificate.course?.title || 'the course'}.`,
+      },
+      image: `${process.env.API_BASE_URL || 'http://localhost:8080'}/api/v1/certificates/${certificate.id}/image`,
+    };
+
+    const assertion = {
+      '@context': 'https://w3id.org/openbadges/v3.0',
+      type: 'Assertion',
+      id: `${process.env.API_BASE_URL || 'http://localhost:8080'}/api/v1/certificates/${certificate.id}/openbadges/assertion`,
+      achievement: badgeClass.id,
+      recipient: {
+        type: 'ID',
+        identity: certificate.student?.walletAddress || certificate.student?.did || certificate.studentId,
+        hashed: false,
+      },
+      issuedOn,
+      expires: certificate.status === CertificateStatus.EXPIRED ? new Date(certificate.issuedAt.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString() : undefined,
+      verification: {
+        type: 'HostedBadge',
+        url: badgeClass.id,
+      },
+    };
+
+    const profile = {
+      '@context': 'https://w3id.org/openbadges/v3.0',
+      type: 'Profile',
+      id: badgeClass.issuer.id,
+      name: badgeClass.issuer.name,
+      url: badgeClass.issuer.url,
+      email: badgeClass.issuer.email,
+      image: `${process.env.API_BASE_URL || 'http://localhost:8080'}/api/v1/certificates/openbadges/issuer-logo`,
+    };
+
+    return {
+      profile,
+      badgeClass,
+      assertion,
+      _links: {
+        badgeClass: { href: badgeClass.id },
+        issuer: { href: badgeClass.issuer.id },
+        verification: { href: assertion.verification.url },
+      },
+    };
+  }
 }
 
 export const certificateService = new CertificateService();

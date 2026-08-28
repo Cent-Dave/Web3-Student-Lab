@@ -455,4 +455,107 @@ router.get('/:id/image', certificateController.getCertificateImage.bind(certific
  */
 router.get('/:id/qr', certificateController.getQRCode.bind(certificateController));
 
+/**
+ * @openapi
+ * /api/v1/certificates/merkle/anchor:
+ *   post:
+ *     summary: Anchor cohort Merkle root
+ *     description: Anchors a Merkle root hash for a graduation cohort on-chain.
+ *     tags: [Certificates]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [cohortId, rootHash]
+ *             properties:
+ *               cohortId:
+ *                 type: string
+ *               rootHash:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Merkle root anchored
+ *       400:
+ *         description: Invalid request body
+ *       401:
+ *         description: Missing or invalid authentication token
+ */
+router.post(
+  '/merkle/anchor',
+  validate(AnchorMerkleCohortSchema),
+  certificateController.anchorMerkleCohort.bind(certificateController)
+);
+
+/**
+ * @openapi
+ * /api/v1/certificates/merkle/verify:
+ *   post:
+ *     summary: Verify Merkle inclusion proof
+ *     description: Validates a leaf hash against an anchored cohort Merkle root using inclusion proof.
+ *     tags: [Certificates]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [cohortId, leafHash, proof]
+ *             properties:
+ *               cohortId:
+ *                 type: string
+ *               leafHash:
+ *                 type: string
+ *               proof:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Inclusion proof verification result
+ *       400:
+ *         description: Invalid request body
+ */
+router.post(
+  '/merkle/verify',
+  validate(VerifyMerkleInclusionSchema),
+  certificateController.verifyMerkleInclusion.bind(certificateController)
+);
+
+/**
+ * @openapi
+ * /api/v1/certificates/{id}/openbadges:
+ *   get:
+ *     summary: Export OpenBadges v3.0 JSON-LD
+ *     description: Returns an OpenBadges v3.0 compliant JSON-LD credential package.
+ *     tags: [Certificates]
+ *     security: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: format
+ *         schema:
+ *           type: string
+ *           enum: [json-ld, assertion]
+ *         description: Export format
+ *     responses:
+ *       200:
+ *         description: OpenBadges v3.0 JSON-LD package
+ *         content:
+ *           application/ld+json:
+ *             schema:
+ *               type: object
+ *       404:
+ *         description: Certificate not found
+ */
+router.get('/:id/openbadges', certificateController.exportOpenBadges.bind(certificateController));
+
 export default router;
