@@ -1,13 +1,14 @@
 import express, { Request, Response } from 'express';
-import cors from 'cors';
 import dotenv from 'dotenv';
 import routes from './routes/index.js';
 import { initializeSentry, getSentryRequestHandler, getSentryErrorHandler } from './utils/sentry.js';
 import { jsonBodySizeLimit } from './middleware/bodySizeLimit.js';
+import { createCorsMiddleware } from './config/cors.config.js';
+import logger from './utils/logger.js';
 
 dotenv.config();
 
-const app = express();
+export const app = express();
 const port = process.env.PORT || 8080;
 
 // Initialize Sentry Telemetry and Distributed Tracing
@@ -16,25 +17,7 @@ initializeSentry(app);
 // Mount Sentry Request Handler middleware
 app.use(getSentryRequestHandler());
 
-// Enable CORS with credentials support for Vercel frontend and local development
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow any requesting origin (Vercel, localhost, etc.) to support withCredentials: true
-      callback(null, origin || true);
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'x-workspace-id',
-      'X-Payload-Encryption',
-      'sentry-trace',
-      'baggage',
-    ],
-  })
-);
+app.use(createCorsMiddleware());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -60,6 +43,8 @@ app.use('/api/v1', routes);
 // Mount Sentry Error Handler middleware
 app.use(getSentryErrorHandler());
 
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
+  });
+}

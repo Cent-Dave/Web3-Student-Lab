@@ -203,8 +203,10 @@ model AuditLog {
   details     Json?
   ipAddress   String?
   userAgent   String?
+  prevHash    String?
   createdAt   DateTime @default(now())
 
+  @@index([createdAt])
   @@map("audit_logs")
 }
 

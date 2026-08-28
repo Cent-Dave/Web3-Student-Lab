@@ -19,6 +19,7 @@
 
 import { AsyncLocalStorage } from 'async_hooks';
 import winston, { format } from 'winston';
+import { redactSensitiveData } from './logSanitizer.js';
 
 // ─── Async context store ────────────────────────────────────────────────────
 
@@ -76,12 +77,22 @@ const traceIdFormat = format((info) => {
   return info;
 })();
 
+const sanitizeFormat = format((info) => {
+  for (const key of Object.keys(info)) {
+    if (!['level', 'message', 'timestamp', 'traceId', 'stack', 'symbol'].includes(key)) {
+      info[key] = redactSensitiveData(info[key]);
+    }
+  }
+  return info;
+})();
+
 /**
  * Human-readable console format used in development.
  */
 const consoleLogFormat = printf(({ level, message, timestamp, traceId, stack, ...meta }) => {
   const prefix = traceId ? `[${traceId}] ` : '';
-  const metaStr = Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : '';
+  const sanitizedMeta = redactSensitiveData(meta);
+  const metaStr = Object.keys(sanitizedMeta).length > 0 ? ` ${JSON.stringify(sanitizedMeta)}` : '';
   return `${timestamp} ${prefix}${level}: ${stack || message}${metaStr}`;
 });
 
@@ -93,6 +104,7 @@ const structuredLogFormat = combine(
   timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
   errors({ stack: true }),
   traceIdFormat,
+  sanitizeFormat,
   metadata({ fillExcept: ['message', 'level', 'timestamp', 'traceId'] }),
   json()
 );
@@ -141,6 +153,7 @@ const logger = winston.createLogger({
         colorize(),
         timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
         errors({ stack: true }),
+        sanitizeFormat,
         consoleLogFormat
       ),
     }),
@@ -156,6 +169,7 @@ const logger = winston.createLogger({
         colorize(),
         timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
         errors({ stack: true }),
+        sanitizeFormat,
         consoleLogFormat
       ),
     }),
@@ -172,6 +186,7 @@ export const auditLogger = winston.createLogger({
   format: combine(
     timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
     traceIdFormat,
+    sanitizeFormat,
     json()
   ),
   defaultMeta: {
