@@ -19,6 +19,7 @@ import { certificateImageGenerator } from '../utils/certificateImageGenerator.js
 import logger from '../utils/logger.js';
 import { MetadataGenerator } from './MetadataGenerator.js';
 import { computeCertificateContentHash, verifyCertificateContentHash } from './ContentHash.js';
+import { sendCertificateMintedEmail } from '../services/email/certificateEmailService.js';
 
 export class CertificateService {
   private metadataGenerator: MetadataGenerator;
@@ -204,6 +205,37 @@ export class CertificateService {
         tokenId: mintResult.tokenId,
         txHash: mintResult.transactionHash,
       });
+
+      // Send transactional email with PDF attachment and social sharing links
+      try {
+        const pdfBuffer = await certificateImageGenerator.generateCertificateImage({
+          studentName: `${student.firstName || ''} ${student.lastName || ''}`.trim() || 'Student',
+          courseTitle: course.title,
+          instructor: course.instructor,
+          completionDate: certificate.issuedAt.toISOString(),
+          credentialId: certificate.tokenId || tokenIdValue,
+          issuerName: process.env.ISSUER_NAME || 'Web3 Student Lab',
+          grade: certificate.grade || undefined,
+        });
+
+        const verificationUrl = `${process.env.API_BASE_URL || 'http://localhost:8080'}/api/v1/certificates/${certificate.tokenId || tokenIdValue}/verify`;
+        const linkedInShareUrl = `https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name=${encodeURIComponent(course.title)}&organizationId=123456&certUrl=${encodeURIComponent(verificationUrl)}`;
+        const twitterShareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(`I just earned a certificate in ${course.title} on Web3 Student Lab!`)}&url=${encodeURIComponent(verificationUrl)}`;
+
+        await sendCertificateMintedEmail({
+          studentEmail: student.email,
+          studentName: `${student.firstName || ''} ${student.lastName || ''}`.trim() || 'Student',
+          courseTitle: course.title,
+          certificateId,
+          tokenId: certificate.tokenId || tokenIdValue,
+          verificationUrl,
+          linkedInShareUrl,
+          twitterShareUrl,
+          pdfBase64: pdfBuffer.toString('base64'),
+        });
+      } catch (emailError) {
+        logger.error(`Failed to send certificate email for ${certificateId}:`, emailError);
+      }
 
       // Return certificate with metadata
       return { ...certificate, metadata };

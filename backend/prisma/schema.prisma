@@ -485,3 +485,20 @@ model BridgeEvent {
   @@index([processedBlockId])
   @@map("bridge_events")
 }
+
+model ContributorProof {
+  id            String   @id @default(cuid())
+  workspaceId   String   @default("default")
+  did           String
+  walletAddress String
+  githubHandle  String
+  proofHash     String   @unique
+  documentId    String?
+  versionId     String?
+  createdAt     DateTime @default(now())
+
+  @@index([did])
+  @@index([proofHash])
+  @@index([workspaceId, createdAt])
+  @@map("contributor_proofs")
+}

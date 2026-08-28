@@ -90,5 +90,6 @@ router.use('/playground/privacy-policy', privacyPolicyRouter);
 router.use('/oauth', oauthRouter);
 router.use('/', apiRouter);
 router.use('/tokenomics', tokenomicsRouter);
+router.use('/contributor-proofs', await import('./contributor-proofs.routes.js').then(m => m.default));
 
 export default router;

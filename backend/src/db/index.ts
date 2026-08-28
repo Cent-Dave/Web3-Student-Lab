@@ -3,6 +3,7 @@ import config from '../config/env.config.js';
 import { getWorkspaceId } from '../middleware/WorkspaceContext.js';
 import { getDatabaseRoleForOperation } from './requestContext.js';
 import logger from '../utils/logger.js';
+import { encryptionMiddleware } from '../middleware/prismaEncryption.js';
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -23,9 +24,6 @@ const workspaceModels = new Set([
   'TranslationEntry',
   'VestingSchedule',
 ]);
-
-
-
 
 import { PrismaPg } from '@prisma/adapter-pg';
 // @ts-ignore
@@ -165,7 +163,9 @@ const routingExtension = {
   },
 };
 
-const routedPrisma = prisma.$extends(routingExtension);
+const encryptionExt = encryptionMiddleware();
+
+const routedPrisma = prisma.$extends(routingExtension).$extends(encryptionExt);
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = basePrisma;
