@@ -26,11 +26,30 @@
 }
 
 @theme inline {
-  --font-sans: "Sora", "Segoe UI", sans-serif;
+  --font-sans: "Outfit", "Inter", "Sora", "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", "SFMono-Regular", monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
 }
+
+/* Aspect Ratio Containers for ZERO Layout Shift */
+.aspect-chart {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  min-height: 250px;
+}
+
+.aspect-badge {
+  aspect-ratio: 1 / 1;
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.aspect-skeleton {
+  aspect-ratio: 4 / 1;
+  width: 100%;
+}
+
 
 * {
   box-sizing: border-box;
