@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import type { Prisma } from '@prisma/client';
 import prisma from '../db/index.js';
 import redisClient from '../cache/RedisClient.js';
 import logger from '../utils/logger.js';
@@ -128,9 +129,12 @@ class AnonymizationService {
         },
       });
 
+      // 2. Clear existing (or move to archive if needed) analytics data
+      // For simplicity, we'll just add new records or clear and reload
       await prisma.analyticsData.deleteMany({});
 
-      const analyticsBatch: any[] = [];
+      const analyticsBatch: Prisma.AnalyticsDataCreateManyInput[] = [];
+
 
       for (const student of students) {
         analyticsBatch.push({

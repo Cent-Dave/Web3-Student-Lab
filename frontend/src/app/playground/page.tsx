@@ -1,20 +1,52 @@
 'use client';
 
 import { VirtualizedFileTree, type FileTreeNode } from '@/components/explorer/VirtualizedFileTree';
-import dynamic from 'next/dynamic';
-const CodeEditor = dynamic(() => import('@/components/playground/CodeEditor').then((mod) => mod.CodeEditor), {
+const PrSimulationPanel = dynamic(() => import('@/components/playground/PrSimulationPanel').then((mod) => mod.PrSimulationPanel), {
   ssr: false,
 });
 import { OfflineIndicator } from '@/components/storage/OfflineIndicator';
+import {
+    CompileOutputTerminal,
+    type CompileLogEntry,
+} from '@/components/terminal/CompileOutputTerminal';
 import { TerminalPanel } from '@/components/terminal/TerminalPanel';
 import { WithSkeleton } from '@/components/ui/WithSkeleton';
 import { EditorSkeleton } from '@/components/ui/skeletons/EditorSkeleton';
 import { useTutorial } from '@/contexts/TutorialContext';
-import { useState, useEffect, useMemo, useCallback } from 'react';
 import { CollaborationProvider } from '@/lib/collaboration/YjsProvider';
+import { FilePresenceManager } from '@/lib/explorer/FilePresence';
 import { DatabaseManager } from '@/lib/storage/DatabaseManager';
 import { SyncManager } from '@/lib/storage/SyncManager';
-import { FilePresenceManager } from '@/lib/explorer/FilePresence';
+import { Settings, X } from 'lucide-react';
+import { DependencyUpdatePanel } from '@/components/playground/DependencyUpdatePanel';
+import { AccessibilityAuditPanel } from '@/components/playground/AccessibilityAuditPanel';
+import { ContractSearch } from '@/components/playground/ContractSearch';
+import { ExecutionStatusBar } from '@/components/playground/ExecutionStatusBar';
+import { useAccessibilityAudit } from '@/hooks/useAccessibilityAudit';
+import { usePlaygroundExecution } from '@/hooks/usePlaygroundExecution';
+import { AssistantPanel } from '@/components/playground/AssistantPanel';
+import dynamic from 'next/dynamic';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+const CodeEditor = dynamic(() => import('@/components/playground/CodeEditor').then((mod) => mod.CodeEditor), {
+  ssr: false,
+});
+
+const DEFAULT_CARGO_TOML = `[package]
+name = "soroban-contract"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+soroban-sdk = "26.1.0"
+soroban-auth = "21.0.0"
+stellar-xdr = "21.2.0"
+num-integer = "0.1.44"
+num-traits = "0.2.17"
+`;
 
 const INITIAL_TREE: FileTreeNode[] = [
   {
@@ -88,8 +120,27 @@ function moveFileNode(
 }
 
 export default function PlaygroundPage() {
-  const [output, setOutput] = useState('');
-  const [isCompiling, setIsCompiling] = useState(false);
+  const [errorLog, setErrorLog] = useState('');
+  const [sourceCode, setSourceCode] = useState<string>(`#![no_std]
+
+use soroban_sdk::{contract, contractimpl, Env, Symbol};
+
+#[contract]
+pub struct HelloContract;
+
+#[contractimpl]
+impl HelloContract {
+    pub fn hello(_env: Env) -> Symbol {
+        Symbol::new(&_env, "hello")
+    }
+}`);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [selectedContract, setSelectedContract] = useState<any>(null);
+  const [editorSettings, setEditorSettings] = useState({
+    fontSize: 14,
+    tabSize: 2,
+    vimBindings: false,
+  });
   const [isInitializing, setIsInitializing] = useState(true);
   const { startTutorial } = useTutorial();
   const [treeData, setTreeData] = useState<FileTreeNode[]>(INITIAL_TREE);
@@ -100,7 +151,35 @@ export default function PlaygroundPage() {
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'offline' | 'error'>('idle');
   const [isOnline, setIsOnline] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
-  const [activeTab, setActiveTab] = useState<'editor' | 'output'>('editor');
+  const [activeTab, setActiveTab] = useState<'editor' | 'output' | 'prsim'>('editor');
+
+  // ── Cancellable execution hook ──────────────────────────────────────────
+  const {
+    executionState,
+    compileLogs,
+    compile,
+    cancel,
+    reset: resetExecution,
+  } = usePlaygroundExecution();
+
+  const isCompiling =
+    executionState.phase === 'queued' || executionState.phase === 'running';
+
+  // Sync error log from execution state so AssistantPanel still works.
+  useEffect(() => {
+    if (executionState.phase === 'error') {
+      const errLines = compileLogs
+        .filter((l) => l.level === 'error')
+        .map((l) => l.message);
+      setErrorLog(errLines.join('\n') || 'Browser compile failed with unknown diagnostics.');
+    } else if (executionState.phase === 'complete') {
+      setErrorLog('');
+    }
+  }, [executionState.phase, compileLogs]);
+
+  const { result: auditResult, isPending: auditPending, runAudit } = useAccessibilityAudit(sourceCode, {
+    debounceMs: 500,
+  });
 
   useEffect(() => {
     const timer = setTimeout(() => setIsInitializing(false), 1500);
@@ -177,15 +256,9 @@ export default function PlaygroundPage() {
   }, [activeFilePath, databaseManager]);
 
   const handleCompile = useCallback(() => {
-    setIsCompiling(true);
-    // Simulate compilation delay
-    setTimeout(() => {
-      setOutput(
-        `✅ Compilation successful!\n📦 WASM size: 4.2KB\n🗂 Active file: ${activeFilePath}\n🚀 Contract ready for simulation.\n🧾 Notarization: register_hash / verify / history_for_owner\n💳 Gateway: process_payment / refund_payment / open_dispute / resolve_dispute`
-      );
-      setIsCompiling(false);
-    }, 1500);
-  }, [activeFilePath]);
+    if (isCompiling) return;
+    compile(sourceCode, activeFilePath);
+  }, [compile, isCompiling, sourceCode, activeFilePath]);
 
   useEffect(() => {
     const handleShortcutCompile = () => {
@@ -236,6 +309,30 @@ export default function PlaygroundPage() {
           </div>
         </div>
 
+        {/* Desktop PR Sim Tab */}
+        <div className="hidden lg:flex mb-6 gap-1 rounded-xl border border-white/10 bg-zinc-950 p-1">
+          <button
+            onClick={() => setActiveTab('editor')}
+            className={`flex-1 py-3 text-xs font-bold tracking-widest uppercase rounded-lg transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'editor'
+                ? 'bg-red-600 text-white'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            Editor & Terminal
+          </button>
+          <button
+            onClick={() => setActiveTab('prsim')}
+            className={`flex-1 py-3 text-xs font-bold tracking-widest uppercase rounded-lg transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'prsim'
+                ? 'bg-red-600 text-white'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            PR Simulation
+          </button>
+        </div>
+
         {/* Mobile Tab Switcher */}
         <div className="flex lg:hidden mb-6 border border-white/10 rounded-xl p-1 bg-zinc-950">
           <button
@@ -258,9 +355,26 @@ export default function PlaygroundPage() {
           >
             Output & Terminal
           </button>
+          <button
+            onClick={() => setActiveTab('prsim')}
+            className={`flex-1 py-3 text-xs font-bold tracking-widest uppercase rounded-lg transition-all min-h-[44px] flex items-center justify-center ${
+              activeTab === 'prsim'
+                ? 'bg-red-600 text-white'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            PR Sim
+          </button>
         </div>
 
-        <div className="grid flex-grow grid-cols-1 gap-12 lg:grid-cols-2">
+        {/* PR Simulation Panel — standalone view */}
+        {activeTab === 'prsim' && (
+          <div className="lg:hidden flex-grow">
+            <PrSimulationPanel className="h-full" />
+          </div>
+        )}
+
+        <div className={`grid flex-grow grid-cols-1 gap-12 lg:grid-cols-2 ${activeTab === 'prsim' ? 'hidden lg:grid' : ''}`}>
           {/* Editor Placeholder */}
           <div className="relative flex min-h-[600px] flex-col rounded-3xl border border-white/10 bg-zinc-950 p-8 shadow-2xl" data-tour-step="playground-editor">
             <div className="mb-6 flex items-center justify-between gap-2 border-b border-white/5 pb-4">
@@ -277,6 +391,15 @@ export default function PlaygroundPage() {
                   Collaborative Mode
                 </span>
               </div>
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(true)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-300 transition hover:border-red-500/40 hover:text-white"
+                aria-label="Open editor settings"
+                title="Editor settings"
+              >
+                <Settings className="h-4 w-4" />
+              </button>
             </div>
 
             <div className="mb-4" data-tour-step="playground-file-tree">
@@ -304,7 +427,13 @@ export default function PlaygroundPage() {
 
             <div className="relative flex flex-grow flex-col overflow-hidden rounded-xl border border-white/5">
               <WithSkeleton isLoading={isInitializing} skeleton={<EditorSkeleton />}>
-                <CodeEditor roomName="main-lab-session" collaborationProvider={provider} />
+                <CodeEditor
+                  roomName="main-lab-session"
+                  collaborationProvider={provider}
+                  settings={editorSettings}
+                  value={sourceCode}
+                  onCodeChange={setSourceCode}
+                />
               </WithSkeleton>
             </div>
 
@@ -312,6 +441,8 @@ export default function PlaygroundPage() {
               onClick={handleCompile}
               disabled={isCompiling}
               data-tour-step="playground-compile-btn"
+              aria-label={isCompiling ? 'Compilation in progress' : 'Compile and execute the contract'}
+              aria-busy={isCompiling}
               className={`mt-4 rounded-xl py-4 text-xs font-black tracking-[0.2em] uppercase transition-all ${
                 isCompiling
                   ? 'cursor-not-allowed bg-zinc-800 text-gray-500'
@@ -320,48 +451,138 @@ export default function PlaygroundPage() {
             >
               {isCompiling ? 'Compiling Context...' : 'Execute Logic'}
             </button>
+
+            {/* Execution status bar — hidden in idle state */}
+            <ExecutionStatusBar
+              state={executionState}
+              onCancel={cancel}
+              onReset={resetExecution}
+              className="mt-2"
+            />
           </div>
 
-          {/* Terminal Output */}
+          {/* Terminal Output or PR Simulation */}
           <div className="flex flex-col gap-6" data-tour-step="playground-output">
-            <div className="group relative flex-grow overflow-hidden rounded-3xl border border-white/10 bg-black p-8 shadow-inner">
-              <div className="absolute top-0 left-0 h-1 w-full bg-red-600/30"></div>
-              <h3 className="mb-6 text-[10px] font-black tracking-widest text-gray-600 uppercase">
-                Execution_Output
-              </h3>
-              <pre className="font-mono text-xs leading-loose whitespace-pre-wrap text-red-500/80">
-                {output || '> Initializing environment...\n> Awaiting input signal...'}
-              </pre>
-              {isCompiling && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm transition-all">
-                  <div className="flex flex-col items-center">
-                    <div className="mb-4 h-1 w-12 overflow-hidden rounded-full bg-zinc-800">
-                      <div className="h-full w-1/2 animate-[loading_1s_infinite] bg-red-600"></div>
-                    </div>
-                    <span className="text-[10px] font-black tracking-widest text-gray-500 uppercase">
-                      Processing WASM Bytecode
-                    </span>
-                  </div>
+            {activeTab === 'prsim' ? (
+              <PrSimulationPanel />
+            ) : (
+              <>
+                <CompileOutputTerminal logs={compileLogs} isCompiling={isCompiling} />
+
+                <TerminalPanel />
+
+                <DependencyUpdatePanel cargoToml={DEFAULT_CARGO_TOML} />
+                <AccessibilityAuditPanel
+                  result={auditResult}
+                  isPending={auditPending}
+                  onRunAudit={runAudit}
+                />
+
+                <div className="rounded-3xl border border-white/5 bg-zinc-950 p-4 sm:p-8">
+                  <h4 className="mb-4 text-[10px] font-black tracking-widest text-white uppercase">
+                    Laboratory Notes
+                  </h4>
+                  <ContractSearch onSelect={setSelectedContract} />
+                  <p className="text-[11px] leading-relaxed font-light text-gray-500">
+                    This playground now includes the educational notarization and payment gateway modules.
+                    Learners can inspect hash timestamping, escrowed payment processing, refunds, and
+                    dispute resolution before deploying validated Soroban logic with the integrated CLI
+                    tools in the <span className="text-red-500">Builder Tier</span> modules.
+                  </p>
                 </div>
-              )}
-            </div>
-
-            <TerminalPanel />
-
-            <div className="rounded-3xl border border-white/5 bg-zinc-950 p-4 sm:p-8">
-              <h4 className="mb-4 text-[10px] font-black tracking-widest text-white uppercase">
-                Laboratory Notes
-              </h4>
-              <p className="text-[11px] leading-relaxed font-light text-gray-500">
-                This playground now includes the educational notarization and payment gateway modules.
-                Learners can inspect hash timestamping, escrowed payment processing, refunds, and
-                dispute resolution before deploying validated Soroban logic with the integrated CLI
-                tools in the <span className="text-red-500">Builder Tier</span> modules.
-              </p>
-            </div>
+              </>
+            )}
+            {/* AI Assistant panel */}
+            <AssistantPanel
+              getCode={() => sourceCode}
+              errorLog={errorLog}
+            />
           </div>
         </div>
       </div>
+      {settingsOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="editor-settings-title"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-zinc-950 p-6 shadow-2xl">
+            <div className="mb-6 flex items-center justify-between">
+              <h2
+                id="editor-settings-title"
+                className="text-sm font-black tracking-widest text-white uppercase"
+              >
+                Editor Settings
+              </h2>
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(false)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-zinc-400 transition hover:text-white"
+                aria-label="Close editor settings"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-6">
+              <label className="block">
+                <span className="mb-2 flex items-center justify-between text-xs font-bold tracking-widest text-zinc-400 uppercase">
+                  Font Size <span className="text-white">{editorSettings.fontSize}px</span>
+                </span>
+                <input
+                  type="range"
+                  min={12}
+                  max={22}
+                  step={1}
+                  value={editorSettings.fontSize}
+                  onChange={(event) =>
+                    setEditorSettings((prev) => ({
+                      ...prev,
+                      fontSize: Number(event.target.value),
+                    }))
+                  }
+                  className="h-2 w-full cursor-pointer accent-red-600"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-2 flex items-center justify-between text-xs font-bold tracking-widest text-zinc-400 uppercase">
+                  Tab Size <span className="text-white">{editorSettings.tabSize}</span>
+                </span>
+                <input
+                  type="range"
+                  min={2}
+                  max={8}
+                  step={2}
+                  value={editorSettings.tabSize}
+                  onChange={(event) =>
+                    setEditorSettings((prev) => ({
+                      ...prev,
+                      tabSize: Number(event.target.value),
+                    }))
+                  }
+                  className="h-2 w-full cursor-pointer accent-red-600"
+                />
+              </label>
+              <label className="flex items-center justify-between rounded-xl border border-white/10 bg-black/30 px-4 py-3">
+                <span className="text-xs font-bold tracking-widest text-zinc-300 uppercase">
+                  Vim Bindings
+                </span>
+                <input
+                  type="checkbox"
+                  checked={editorSettings.vimBindings}
+                  onChange={(event) =>
+                    setEditorSettings((prev) => ({
+                      ...prev,
+                      vimBindings: event.target.checked,
+                    }))
+                  }
+                  className="h-5 w-5 accent-red-600"
+                />
+              </label>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

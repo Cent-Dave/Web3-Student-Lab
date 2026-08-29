@@ -1,2 +1,3 @@
 #![no_std]
-pub mod crowdfunding;
+#![allow(warnings)]
+pub mod storage_migration;

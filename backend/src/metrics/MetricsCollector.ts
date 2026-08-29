@@ -138,9 +138,11 @@ export class MetricsCollector {
     const metric: ErrorMetric = {
       type,
       message,
-      statusCode,
       timestamp: new Date().toISOString(),
     };
+    if (statusCode !== undefined) {
+      metric.statusCode = statusCode;
+    }
 
     this.errorMetrics.push(metric);
     this.trim(this.errorMetrics);
@@ -163,9 +165,11 @@ export class MetricsCollector {
   recordEvent(event: string, metadata?: Record<string, unknown>): void {
     const metric: BusinessMetric = {
       event,
-      metadata,
       timestamp: new Date().toISOString(),
     };
+    if (metadata !== undefined) {
+      metric.metadata = metadata;
+    }
 
     this.businessMetrics.push(metric);
     this.trim(this.businessMetrics);

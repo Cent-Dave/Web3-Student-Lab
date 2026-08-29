@@ -1,20 +1,25 @@
 import { Request, Response, Router } from 'express';
-import logger from '../utils/logger.js';
 import prisma from '../db/index.js';
-import {
-  canonicalizeWebhookPayload,
-  enqueueWebhookDeliveries,
-  verifyWebhookSignature,
-} from '../services/webhooks/index.js';
 import type {
-  WebhookDestination,
-  WebhookEventPayload,
+    WebhookDestination,
+    WebhookEventPayload,
 } from '../services/webhooks/index.js';
+import {
+    canonicalizeWebhookPayload,
+    enqueueWebhookDeliveries,
+    verifyWebhookSignature,
+} from '../services/webhooks/index.js';
+import logger from '../utils/logger.js';
+import { idempotency } from '../middleware/idempotency.js';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 const getIngestSecret = (): string => {
-  return process.env.WEBHOOK_INGEST_SECRET || process.env.WEBHOOK_SIGNING_SECRET || 'webhook-secret';
+  const secret = process.env.WEBHOOK_INGEST_SECRET || process.env.WEBHOOK_SIGNING_SECRET;
+  if (!secret) {
+    throw new Error('WEBHOOK_INGEST_SECRET or WEBHOOK_SIGNING_SECRET environment variable is required');
+  }
+  return secret;
 };
 
 const extractBody = (body: unknown): {
@@ -39,7 +44,7 @@ const extractBody = (body: unknown): {
   return {
     event: candidate.event,
     destinations: candidate.destinations,
-    metadata: candidate.metadata,
+    metadata: candidate.metadata ?? {},
   };
 };
 
@@ -50,7 +55,45 @@ router.get('/health', async (_req: Request, res: Response) => {
   });
 });
 
-router.post(['/ingest', '/dispatch'], async (req: Request, res: Response) => {
+import {
+  getStellarWebhookSecret,
+  processStellarHorizonWebhook,
+  verifyStellarWebhookSignature,
+} from '../services/webhooks/stellarWebhook.service.js';
+
+router.post(['/stellar', '/horizon'], async (req: Request, res: Response) => {
+  try {
+    const signature = req.header('x-stellar-signature') || req.header('x-webhook-signature') || '';
+    const timestamp = req.header('x-stellar-timestamp') || req.header('x-webhook-timestamp') || '';
+    const rawPayload = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    const secret = getStellarWebhookSecret();
+
+    if (!signature || !timestamp) {
+      logger.warn('Stellar webhook missing signature or timestamp headers');
+      return res.status(401).json({ error: 'Missing webhook signature or timestamp headers' });
+    }
+
+    const isValid = verifyStellarWebhookSignature(rawPayload, signature, secret, timestamp);
+    if (!isValid) {
+      logger.warn('Rejected Stellar Horizon webhook with invalid signature or expired timestamp');
+      return res.status(401).json({ error: 'Unauthorized: Invalid signature or expired timestamp' });
+    }
+
+    const result = await processStellarHorizonWebhook(req.body);
+
+    return res.status(200).json({
+      status: 'success',
+      result,
+    });
+  } catch (error: any) {
+    logger.error('Failed to process Stellar Horizon webhook:', error);
+    return res.status(400).json({
+      error: error instanceof Error ? error.message : 'Failed to process Stellar Horizon webhook',
+    });
+  }
+});
+
+router.post(['/ingest', '/dispatch'], idempotency(), async (req: Request, res: Response) => {
   try {
     const timestamp = req.header('x-webhook-timestamp') || '';
     const signature = req.header('x-webhook-signature') || '';
@@ -89,7 +132,7 @@ router.get('/subscriptions', async (req: Request, res: Response) => {
 });
 
 // POST /subscriptions - Create a new subscription
-router.post('/subscriptions', async (req: Request, res: Response) => {
+router.post('/subscriptions', idempotency(), async (req: Request, res: Response) => {
   try {
     const { url, secret, events, active } = req.body;
 
@@ -123,7 +166,12 @@ router.post('/subscriptions', async (req: Request, res: Response) => {
 // DELETE /subscriptions/:id - Delete a subscription
 router.delete('/subscriptions/:id', async (req: Request, res: Response) => {
   try {
-    const subscriptionId = String(req.params.id);
+    const { id } = req.params;
+    if (!id || typeof id !== 'string') {
+      return res.status(400).json({ error: 'Invalid subscription ID' });
+    }
+
+
     const exists = await prisma.webhookSubscription.findUnique({
       where: { id: subscriptionId },
     });

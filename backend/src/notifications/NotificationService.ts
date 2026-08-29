@@ -1,12 +1,11 @@
-import { EventEmitter } from 'events';
-import {
-  CourseNotification,
-  CourseNotificationType,
-  CreateCourseNotificationDto,
-  NotificationListResponse,
-} from './notification.types.js';
+import redisClient from '../cache/RedisClient.js';
+
 import logger from '../utils/logger.js';
-import { pubClient } from '../utils/redis.js';
+import {
+    CourseNotification,
+    CreateCourseNotificationDto,
+    NotificationListResponse
+} from './notification.types.js';
 
 /**
  * In-memory notification store keyed by user id (or 'broadcast' for global).
@@ -52,15 +51,15 @@ export async function createNotification(
   const notification: CourseNotification = {
     id: nextId(),
     type: dto.type,
-    userId: dto.userId,
-    courseId: dto.courseId,
-    courseTitle: dto.courseTitle,
     title: dto.title,
     message: dto.message,
-    metadata: dto.metadata,
     read: false,
     createdAt: new Date().toISOString(),
   };
+  if (dto.userId) notification.userId = dto.userId;
+  if (dto.courseId) notification.courseId = dto.courseId;
+  if (dto.courseTitle) notification.courseTitle = dto.courseTitle;
+  if (dto.metadata) notification.metadata = dto.metadata;
 
   // Persist locally
   const key = getKey(dto.userId);
@@ -68,9 +67,13 @@ export async function createNotification(
   existing.unshift(notification);
   store.set(key, existing);
 
-  // Broadcast so all server instances & connected WebSocket clients receive it
+  // Broadcast so all server instances & connected WebSocket clients receive it.
+  // No pub client means Redis is unavailable — the local store still holds it.
   try {
-    await pubClient.publish('course_notifications', JSON.stringify(notification));
+    const pubClient = redisClient.getPubClient();
+    if (pubClient) {
+      await pubClient.publish('course_notifications', JSON.stringify(notification));
+    }
   } catch (err) {
     logger.warn('Failed to publish course_notification to Redis:', err);
   }
@@ -106,8 +109,10 @@ export function getNotifications(userId: string): NotificationListResponse {
 export function markAsRead(notificationId: string): boolean {
   for (const [, notifications] of store.entries()) {
     const idx = notifications.findIndex((n) => n.id === notificationId);
-    if (idx !== -1 && notifications[idx]) {
-      notifications[idx] = { ...notifications[idx]!, read: true };
+    const target = idx === -1 ? undefined : notifications[idx];
+    if (target) {
+      notifications[idx] = { ...target, read: true };
+
       return true;
     }
   }
@@ -127,9 +132,10 @@ export function markAllAsRead(userId: string): number {
     const notifs = store.get(key);
     if (notifs) {
       for (let i = 0; i < notifs.length; i++) {
-        const item = notifs[i];
-        if (item && !item.read) {
-          notifs[i] = { ...item, read: true };
+        const current = notifs[i];
+        if (current && !current.read) {
+          notifs[i] = { ...current, read: true };
+
           count++;
         }
       }
@@ -154,20 +160,22 @@ function mergeSorted(
   let i = 0;
   let j = 0;
   while (result.length < max && (i < a.length || j < b.length)) {
-    if (i >= a.length && j < b.length) {
-      result.push(b[j++]!);
-    } else if (j >= b.length && i < a.length) {
-      result.push(a[i++]!);
-    } else if (i < a.length && j < b.length) {
-      const itemA = a[i]!;
-      const itemB = b[j]!;
-      if (itemA.createdAt >= itemB.createdAt) {
-        result.push(itemA);
-        i++;
-      } else {
-        result.push(itemB);
-        j++;
-      }
+    const left = a[i];
+    const right = b[j];
+
+    if (!left) {
+      j++;
+      if (right) result.push(right);
+    } else if (!right) {
+      i++;
+      result.push(left);
+    } else if (left.createdAt >= right.createdAt) {
+      i++;
+      result.push(left);
+    } else {
+      j++;
+      result.push(right);
+
     }
   }
   return result;

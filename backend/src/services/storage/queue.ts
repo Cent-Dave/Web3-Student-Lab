@@ -1,6 +1,6 @@
-import { Queue } from 'bullmq';
+
 import type { JobsOptions } from 'bullmq';
-import { redisConnection } from '../../utils/redis.js';
+import { Queue } from 'bullmq';
 import type { StorageGcJobData, StoragePinJobData } from './types.js';
 
 export const STORAGE_PIN_QUEUE_NAME = 'storage-pin-queue';
@@ -31,7 +31,7 @@ const createQueue = <T>(name: string, defaultJobOptions?: JobsOptions) => {
   }
 
   const redisUrl = new URL(process.env.REDIS_URL || 'redis://localhost:6379');
-  
+
   return new Queue<T>(name, {
     connection: {
       host: redisUrl.hostname,
@@ -39,7 +39,7 @@ const createQueue = <T>(name: string, defaultJobOptions?: JobsOptions) => {
       password: redisUrl.password || undefined,
       maxRetriesPerRequest: null,
     },
-    defaultJobOptions,
+    defaultJobOptions: defaultJobOptions ?? {},
   });
 };
 

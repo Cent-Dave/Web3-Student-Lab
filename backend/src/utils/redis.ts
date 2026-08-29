@@ -17,8 +17,9 @@ const createTestRedisClient = () => {
     on: () => undefined,
     off: () => undefined,
     get: async (key: string) => memoryStore.get(key) ?? null,
-    set: async (key: string, value: string) => {
+    set: async (key: string, value: string, ...args: any[]) => {
       memoryStore.set(key, value);
+      // Handle EX (ttl) option by ignoring it for test purposes
       return 'OK';
     },
     setex: async (key: string, _ttl: number, value: string) => {
@@ -32,6 +33,10 @@ const createTestRedisClient = () => {
     lpush: async (_key: string, ...values: string[]) => values.length,
     brpop: async () => null,
     publish: async (_channel: string, _message: string) => 0,
+    keys: async (pattern: string) => {
+      const regex = new RegExp('^' + pattern.replace(/\*/g, '.*').replace(/\?/g, '.') + '$');
+      return Array.from(memoryStore.keys()).filter(key => regex.test(key));
+    },
     subscribe: (..._args: any[]) => undefined,
   };
 };
@@ -57,5 +62,9 @@ export const redisConnection: any = createRedisClient();
 export const pubClient: any = createRedisClient();
 
 export const subClient: any = createRedisClient();
+
+export function getRedisClient() {
+  return redisConnection;
+}
 
 export default redisConnection;

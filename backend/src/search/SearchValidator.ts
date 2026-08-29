@@ -29,15 +29,19 @@ export class SearchValidator {
       searchOptionsSchema.parse(options);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        throw new Error(`Invalid search options: ${(error as any).issues?.map((e: any) => e.message).join(', ') || error.message}`);
+        throw new Error(
+          `Invalid search options: ${error.issues.map((e) => e.message).join(', ')}`
+        );
+
       }
       throw error;
     }
   }
 
   validateSortField(sort: string, allowedFields: string[]): void {
-    const [field] = sort.split(':');
-    if (!field || !allowedFields.includes(field)) {
+    const field = sort.split(':')[0] ?? '';
+    if (!allowedFields.includes(field)) {
+
       throw new Error(`Invalid sort field: ${field}. Allowed fields: ${allowedFields.join(', ')}`);
     }
   }

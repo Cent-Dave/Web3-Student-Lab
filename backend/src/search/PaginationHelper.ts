@@ -128,7 +128,8 @@ export class PaginationHelper {
         cursor: options.cursor,
         limit: options.limit || this.DEFAULT_LIMIT,
         hasMore: resultCount === (options.limit || this.DEFAULT_LIMIT),
-        nextCursor: resultCount > 0 ? this.encodeCursor({ id: (resultCount as any).id }) : undefined,
+        nextCursor: resultCount > 0 ? this.encodeCursor({ id: resultCount }) : '',
+
       };
     } else {
       const page = options.page || 1;

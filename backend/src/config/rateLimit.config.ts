@@ -83,6 +83,18 @@ const rules: RateLimitRule[] = [
     match: (path) => path.includes('/contracts'),
     profile: { burst: { windowMs: 1000, max: 15 }, sustained: { windowMs: 60_000, max: 100 } },
   },
+  {
+    name: 'quiz-submission',
+    priority: 55,
+    match: (path, method) => path.includes('/quiz') && method === 'POST',
+    profile: { burst: { windowMs: 1000, max: 10 }, sustained: { windowMs: 60_000, max: 50 } },
+  },
+  {
+    name: 'playground-compile',
+    priority: 50,
+    match: (path, method) => path.includes('/playground') && (method === 'POST' || method === 'PUT'),
+    profile: { burst: { windowMs: 1000, max: 5 }, sustained: { windowMs: 60_000, max: 30 } },
+  },
 ];
 
 let envOverrides: Partial<Record<string, RateLimitProfile>> = {};

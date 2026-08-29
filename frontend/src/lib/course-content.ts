@@ -142,7 +142,7 @@ export function getCourseContent(course: Course): CourseContent {
     return COURSE_CONTENT[course.id];
   }
 
-  const title = course.title.toLowerCase();
+  const title = course.title?.toLowerCase() || '';
 
   if (title.includes('soroban')) {
     return COURSE_CONTENT['cm1yxxxx-soroban'];
@@ -164,7 +164,7 @@ export function getCourseContent(course: Course): CourseContent {
 
 function resolveCourseContentKey(course: Course): string {
   if (COURSE_CONTENT[course.id]) return course.id;
-  const title = course.title.toLowerCase();
+  const title = course.title?.toLowerCase() || '';
   if (title.includes('soroban')) return 'cm1yxxxx-soroban';
   if (title.includes('stellar') || title.includes('web3')) return 'cm1yxxxx-intro';
   if (title.includes('defi')) return 'cm1yxxxx-defi';

@@ -1,5 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { flushQueuedRequests, getQueuedRequests, queueOfflineRequest, removeQueuedRequest } from './offline-sync';
+import {
+  flushQueuedLessonProgress,
+  flushQueuedRequests,
+  getQueuedLessonProgress,
+  getQueuedRequests,
+  queueLessonProgressCompletion,
+  queueOfflineRequest,
+  removeQueuedLessonProgress,
+  removeQueuedRequest,
+} from './offline-sync';
 
 describe('offline-sync', () => {
   beforeEach(async () => {
@@ -9,6 +18,11 @@ describe('offline-sync', () => {
     const queued = await getQueuedRequests();
     for (const item of queued) {
       await removeQueuedRequest(item.id);
+    }
+
+    const progressItems = await getQueuedLessonProgress();
+    for (const item of progressItems) {
+      await removeQueuedLessonProgress(item.id);
     }
   });
 
@@ -39,5 +53,49 @@ describe('offline-sync', () => {
 
     queuedRequests = await getQueuedRequests();
     expect(queuedRequests.length).toBe(0);
+  });
+
+  it('queues lesson progress and flushes it when online', async () => {
+    localStorage.setItem('token', 'test-token');
+
+    await queueLessonProgressCompletion({
+      courseId: 'course-1',
+      lessonId: 'lesson-1',
+      completedAt: '2026-06-25T00:00:00.000Z',
+      completedLessons: ['lesson-1'],
+      currentModuleId: 'mod-1',
+      percentage: 50,
+      status: 'in_progress',
+    });
+
+    let queuedProgress = await getQueuedLessonProgress();
+    expect(queuedProgress).toHaveLength(1);
+    expect(queuedProgress[0].id).toBe('course-1:lesson-1');
+
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await flushQueuedLessonProgress();
+
+    expect(fetchMock).toHaveBeenCalledWith('/learning/courses/course-1/progress', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test-token',
+      },
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        lessonId: 'lesson-1',
+        status: 'completed',
+        completedLessons: ['lesson-1'],
+        currentModuleId: 'mod-1',
+        percentage: 50,
+        completedAt: '2026-06-25T00:00:00.000Z',
+      }),
+    });
+
+    queuedProgress = await getQueuedLessonProgress();
+    expect(queuedProgress).toHaveLength(0);
   });
 });

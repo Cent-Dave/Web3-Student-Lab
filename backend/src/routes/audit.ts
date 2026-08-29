@@ -1,9 +1,10 @@
-import { Router, Request, Response } from 'express';
+import { Request, Response, Router } from 'express';
 import { authenticate } from '../auth/auth.middleware.js';
 import prisma from '../db/index.js';
 import { logRequestAudit } from '../utils/audit.js';
+import { buildPaginatedResponse, parsePaginationQuery } from '../utils/pagination.js';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 /**
  * @route   POST /api/audit/log
@@ -36,44 +37,24 @@ import { buildLinkHeader, paginateKeyset } from '../search/PaginationHelper.js';
  */
 router.get('/', authenticate, async (req: Request, res: Response) => {
   try {
-    const cursorParam = req.query.cursor as string | undefined;
-    const takeParam = parseInt((req.query.take || req.query.limit) as string, 10) || 20;
+    const pagination = parsePaginationQuery(req, { defaultPageSize: 25, maxPageSize: 50 });
 
-    if (cursorParam || req.query.take) {
-      const result = await paginateKeyset(
-        async (args) => {
-          return prisma.auditLog.findMany({
-            orderBy: { createdAt: 'desc' },
-            take: args.take,
-            ...(args.cursor ? { cursor: args.cursor, skip: args.skip } : {}),
-          });
-        },
-        { take: takeParam, cursor: cursorParam }
-      );
 
-      const linkHeader = buildLinkHeader('/api/audit', {}, result.nextCursor, result.prevCursor);
-      if (linkHeader) {
-        res.setHeader('Link', linkHeader);
-      }
+    const [logs, totalItems] = await Promise.all([
+      prisma.auditLog.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: pagination.pageSize,
+        skip: pagination.offset,
+      }),
+      prisma.auditLog.count(),
+    ]);
 
-      return res.json({
-        data: result.items,
-        pagination: {
-          nextCursor: result.nextCursor,
-          prevCursor: result.prevCursor,
-          hasMore: result.hasMore,
-        },
-      });
-    }
-
-    const logs = await prisma.auditLog.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 100,
+    res.json(buildPaginatedResponse(logs, totalItems, pagination.page, pagination.pageSize, pagination.offset));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch audit logs';
+    res.status(message.includes('Page') || message.includes('Offset') ? 400 : 500).json({
+      error: message,
     });
-
-    res.json(logs);
-  } catch (_error) {
-    res.status(500).json({ error: 'Failed to fetch audit logs' });
   }
 });
 

@@ -8,7 +8,7 @@ import cacheService, { CACHE_KEYS } from './CacheService.js';
  */
 export class CacheWarmer {
   private isWarming = false;
-  private warmingInterval: NodeJS.Timer | null = null;
+  private warmingInterval: NodeJS.Timeout | null = null;
   private readonly WARMING_INTERVAL = parseInt(process.env.CACHE_WARMING_INTERVAL || '300000', 10); // 5 minutes
 
   /**

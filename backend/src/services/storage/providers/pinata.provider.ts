@@ -26,8 +26,8 @@ const parsePinataResponse = async (response: Response): Promise<StoragePinResult
     ipfsUri: `ipfs://${data.IpfsHash}`,
     gatewayUrl: buildGatewayUrl(data.IpfsHash),
     provider: 'pinata',
-    sizeBytes: data.PinSize,
-    isDuplicate: data.isDuplicate,
+    sizeBytes: data.PinSize ?? 0,
+    isDuplicate: data.isDuplicate ?? false,
   };
 };
 
@@ -71,7 +71,9 @@ export class PinataStorageProvider implements StorageProvider {
     metadata?: Record<string, unknown>;
   }): Promise<StoragePinResult> {
     const form = new FormData();
-    form.append('file', new Blob([input.content as any], { type: input.mimeType }), input.filename);
+    const contentBytes = new Uint8Array(input.content);
+    form.append('file', new Blob([contentBytes], { type: input.mimeType }), input.filename);
+
     form.append(
       'pinataMetadata',
       JSON.stringify({

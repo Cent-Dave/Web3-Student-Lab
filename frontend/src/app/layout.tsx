@@ -1,24 +1,32 @@
-import { AuthProvider } from '@/contexts/AuthContext';
-import { ThemeProvider } from '@/contexts/ThemeContext';
-import { WalletProvider } from '@/contexts/WalletContext';
-import { SkeletonThemeWrapper } from '@/components/ui/SkeletonThemeWrapper';
-import { I18nProvider } from '@/i18n';
+import { CommandPalette } from '@/components/common/CommandPalette';
 import { KeyboardShortcutsProvider } from '@/components/keyboard/KeyboardShortcutsProvider';
 import Navbar from '@/components/layout/Navbar';
-import ResiliencyBanner from '@/components/layout/ResiliencyBanner';
 import RenderWarningModal from '@/components/layout/RenderWarningModal';
-import { CourseNotificationListener, ToastContainer } from '@/components/notifications';
-import { NotificationProvider } from '@/contexts/NotificationContext';
-import { Web3OnboardingProvider } from '@/contexts/Web3OnboardingContext';
-import { TutorialProvider } from '@/contexts/TutorialContext';
+import ResiliencyBanner from '@/components/layout/ResiliencyBanner';
+import WalletGate from '@/components/layout/WalletGate';
+import { OfflineNotification, CourseNotificationListener, ToastContainer } from '@/components/notifications';
+import { OfflineSyncHandler } from '@/components/OfflineSyncHandler';
 import { SkipLink } from '@/components/ui/SkipLink';
-import type { Metadata } from 'next';
+import { AuthProvider } from '@/contexts/AuthContext';
+import { NotificationProvider } from '@/contexts/NotificationContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
+import { TutorialProvider } from '@/contexts/TutorialContext';
+import { WalletProvider } from '@/contexts/WalletContext';
+import { Web3OnboardingProvider } from '@/contexts/Web3OnboardingContext';
+import { I18nProvider } from '@/i18n';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Web3 Student Lab',
   description:
     'An open-source educational platform for blockchain, smart contracts, open-source collaboration, and hackathon project development.',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({
@@ -29,7 +37,14 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;700;900&display=swap"
+          rel="stylesheet"
+        />
         <script
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
@@ -47,12 +62,13 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="bg-background text-foreground min-h-screen antialiased">
+      <body className="bg-background text-foreground min-h-screen antialiased" suppressHydrationWarning>
         <ThemeProvider>
           <WalletProvider>
             <AuthProvider>
               <I18nProvider>
                 <NotificationProvider>
+                  <CourseNotificationListener />
                   <Web3OnboardingProvider>
                     <KeyboardShortcutsProvider>
                       <TutorialProvider>
@@ -65,10 +81,13 @@ export default function RootLayout({
                         <Navbar />
                         <ResiliencyBanner />
                         <RenderWarningModal />
+                        <OfflineSyncHandler />
                         <main id="main-content" className="flex-grow outline-none" tabIndex={-1}>
-                          {children}
+                          <WalletGate>{children}</WalletGate>
                         </main>
                         <ToastContainer />
+                        <CommandPalette />
+                        <OfflineNotification />
                       </TutorialProvider>
                     </KeyboardShortcutsProvider>
                   </Web3OnboardingProvider>
