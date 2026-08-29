@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Router, Request, Response } from 'express';
 import {
   getNotifications,
@@ -40,7 +39,7 @@ router.get('/', (req: Request, res: Response) => {
  *   404 - Notification not found
  */
 router.put('/:id/read', (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = String(req.params.id);
   const found = markAsRead(id);
 
   if (!found) {

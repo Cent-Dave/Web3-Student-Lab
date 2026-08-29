@@ -1,4 +1,4 @@
-// @ts-nocheck
+import { EventEmitter } from 'events';
 import {
   CourseNotification,
   CourseNotificationType,
@@ -106,8 +106,8 @@ export function getNotifications(userId: string): NotificationListResponse {
 export function markAsRead(notificationId: string): boolean {
   for (const [, notifications] of store.entries()) {
     const idx = notifications.findIndex((n) => n.id === notificationId);
-    if (idx !== -1) {
-      notifications[idx] = { ...notifications[idx], read: true };
+    if (idx !== -1 && notifications[idx]) {
+      notifications[idx] = { ...notifications[idx]!, read: true };
       return true;
     }
   }
@@ -127,8 +127,9 @@ export function markAllAsRead(userId: string): number {
     const notifs = store.get(key);
     if (notifs) {
       for (let i = 0; i < notifs.length; i++) {
-        if (!notifs[i].read) {
-          notifs[i] = { ...notifs[i], read: true };
+        const item = notifs[i];
+        if (item && !item.read) {
+          notifs[i] = { ...item, read: true };
           count++;
         }
       }
@@ -153,12 +154,20 @@ function mergeSorted(
   let i = 0;
   let j = 0;
   while (result.length < max && (i < a.length || j < b.length)) {
-    if (i >= a.length) {
-      result.push(b[j++]);
-    } else if (j >= b.length) {
-      result.push(a[i++]);
-    } else {
-      result.push(a[i].createdAt >= b[j].createdAt ? a[i++] : b[j++]);
+    if (i >= a.length && j < b.length) {
+      result.push(b[j++]!);
+    } else if (j >= b.length && i < a.length) {
+      result.push(a[i++]!);
+    } else if (i < a.length && j < b.length) {
+      const itemA = a[i]!;
+      const itemB = b[j]!;
+      if (itemA.createdAt >= itemB.createdAt) {
+        result.push(itemA);
+        i++;
+      } else {
+        result.push(itemB);
+        j++;
+      }
     }
   }
   return result;

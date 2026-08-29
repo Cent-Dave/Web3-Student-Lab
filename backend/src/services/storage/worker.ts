@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Job, Worker } from 'bullmq';
 import logger from '../../utils/logger.js';
 import { redisConnection } from '../../utils/redis.js';
@@ -130,7 +129,7 @@ export const startStorageWorkers = (): {
   }
 
   if (!pinWorker) {
-    pinWorker = new Worker(STORAGE_PIN_QUEUE_NAME, pinStorageContent, {
+    pinWorker = new Worker(STORAGE_PIN_QUEUE_NAME, pinStorageContent as any, {
       connection: {
         host: new URL(process.env.REDIS_URL || 'redis://localhost:6379').hostname,
         port: Number(new URL(process.env.REDIS_URL || 'redis://localhost:6379').port) || 6379,

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { storageGcQueue, storagePinQueue } from './queue.js';
 import { createStorageProvider } from './provider.js';
 import { buildGatewayUrl, buildIpfsUri } from './utils.js';
@@ -62,7 +61,7 @@ export class StorageService {
       metadata: request.metadata,
     });
 
-    await this.persistResult(request, result);
+    await this.persistResult(request as any, result);
     return result;
   }
 

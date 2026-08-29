@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { EventEmitter } from 'events';
 import logger from '../utils/logger.js';
 import cacheService from './CacheService.js';
@@ -52,7 +51,7 @@ export class BlockHeaderListener extends EventEmitter {
    */
   stop(): void {
     if (this.pollingInterval) {
-      clearInterval(this.pollingInterval);
+      clearInterval(this.pollingInterval as any);
       this.pollingInterval = null;
     }
     this.isListening = false;

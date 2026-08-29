@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { cacheTTL } from '../config/redis.config.js';
 import logger from '../utils/logger.js';
 import cacheService, { CACHE_KEYS } from './CacheService.js';
@@ -40,7 +39,7 @@ export class CacheWarmer {
    */
   stop(): void {
     if (this.warmingInterval) {
-      clearInterval(this.warmingInterval);
+      clearInterval(this.warmingInterval as any);
       this.warmingInterval = null;
     }
     this.isWarming = false;

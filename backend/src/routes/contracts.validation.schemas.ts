@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { z } from 'zod';
 
 export const contractCompileSchema = z.object({
@@ -18,7 +17,7 @@ export const contractExecutionSchema = z.object({
   contractAddress: z.string().min(32, { message: 'Contract address is required.' }),
   functionName: z.string().min(1, { message: 'Function name is required.' }),
   parameters: z
-    .array(z.union([z.string(), z.number(), z.boolean(), z.null()]), { invalid_type_error: 'Parameter values must be primitive types.' })
+    .array(z.union([z.string(), z.number(), z.boolean(), z.null()]))
     .max(50, { message: 'Maximum of 50 parameters allowed.' })
     .optional(),
   gasLimit: z.number().int().positive().max(10_000_000, { message: 'Gas limit must be positive and no more than 10,000,000.' }),

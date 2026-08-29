@@ -141,6 +141,6 @@ export class SearchQueryBuilder {
     const [field, direction] = sort.split(':');
     const dir = direction === 'desc' ? 'desc' : 'asc';
 
-    return [{ [field]: dir }];
+    return [{ [field as string]: dir }];
   }
 }

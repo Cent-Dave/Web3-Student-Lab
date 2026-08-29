@@ -4,7 +4,6 @@ process.env.NODE_ENV = 'test';
 export default {
   setupFiles: [
     'dotenv/config',
-    '<rootDir>/jest.setup.js',
     '<rootDir>/tests/jest.setup.ts',
   ],
   preset: 'ts-jest',
@@ -22,6 +21,9 @@ export default {
       },
     ],
   },
+  transformIgnorePatterns: [
+    'node_modules/(?!(sanitize-html|htmlparser2|marked|uuid|@sentry|ioredis)/)',
+  ],
   testMatch: ['**/tests/**/*.test.ts'],
   collectCoverageFrom: ['src/**/*.ts', '!src/**/*.d.ts'],
   coverageDirectory: 'coverage',

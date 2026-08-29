@@ -88,7 +88,7 @@ router.get(
       const asset = await prisma.decentralizedAsset.findFirst({
         where: {
           resourceType: 'lesson',
-          resourceId: lessonId,
+          resourceId: String(lessonId),
         },
       });
 

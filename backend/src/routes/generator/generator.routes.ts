@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Request, Response, Router } from 'express';
 import { GeneratorService } from '../../generator/generator.service.js';
 import logger from '../../utils/logger.js';
@@ -37,12 +36,12 @@ router.post('/generate', async (req: Request, res: Response) => {
         const storageResult = queuedPersist
           ? await storageService.pinProjectIdea({
               projectId,
-              content: projectIdea,
+              content: projectIdea as any,
               queued: true,
             })
           : await storageService.pinProjectIdea({
               projectId,
-              content: projectIdea,
+              content: projectIdea as any,
             });
 
         res.json({
@@ -62,12 +61,12 @@ router.post('/generate', async (req: Request, res: Response) => {
         const storageResult = queuedPersist
           ? await storageService.pinProjectIdea({
               projectId,
-              content: projectIdea,
+              content: projectIdea as any,
               queued: true,
             })
           : await storageService.pinProjectIdea({
               projectId,
-              content: projectIdea,
+              content: projectIdea as any,
             });
 
         res.json({

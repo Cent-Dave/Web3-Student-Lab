@@ -1,16 +1,26 @@
-// @ts-nocheck
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { cacheMiddleware } from '../cache/CacheMiddleware.js';
 import { invalidateAllCourses, invalidateCourseCache } from '../cache/CacheInvalidation.js';
 import { cacheTTL } from '../config/redis.config.js';
 import prisma from '../db/index.js';
 import { auditAction } from '../middleware/audit.js';
 import { createNotification } from '../notifications/index.js';
+import { buildLinkHeader, decodeCursor, encodeCursor, paginateKeyset } from '../search/PaginationHelper.js';
 
 const router = Router();
 
+interface MockCourse {
+  id: string;
+  title: string;
+  description: string | null;
+  instructor: string;
+  credits: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Robust Mock Database for 100% Demo Uptime
-let courses = [
+let courses: MockCourse[] = [
   {
     id: 'cm1yxxxx-intro',
     title: 'Introduction to Web3 and Stellar',
@@ -78,10 +88,44 @@ async function ensureSeedCourses() {
   }
 }
 
-// GET /api/courses - Get all courses
-router.get('/', cacheMiddleware({ ttl: cacheTTL.courses.list }), async (req, res) => {
+// GET /api/courses - Get all courses (supports cursor pagination)
+router.get('/', cacheMiddleware({ ttl: cacheTTL.courses.list }), async (req: Request, res: Response) => {
   try {
-    res.json(await ensureSeedCourses());
+    const availableCourses = await ensureSeedCourses();
+    const cursorParam = req.query.cursor as string | undefined;
+    const takeParam = parseInt((req.query.take || req.query.limit) as string, 10) || 20;
+
+    if (cursorParam || req.query.take) {
+      const result = await paginateKeyset(
+        async (args) => {
+          let filtered = [...availableCourses];
+          if (args.cursor?.id) {
+            const index = filtered.findIndex((c) => c.id === args.cursor?.id);
+            if (index !== -1) {
+              filtered = filtered.slice(index + (args.skip || 0));
+            }
+          }
+          return filtered.slice(0, args.take);
+        },
+        { take: takeParam, cursor: cursorParam }
+      );
+
+      const linkHeader = buildLinkHeader('/api/courses', {}, result.nextCursor, result.prevCursor);
+      if (linkHeader) {
+        res.setHeader('Link', linkHeader);
+      }
+
+      return res.json({
+        data: result.items,
+        pagination: {
+          nextCursor: result.nextCursor,
+          prevCursor: result.prevCursor,
+          hasMore: result.hasMore,
+        },
+      });
+    }
+
+    res.json(availableCourses);
   } catch {
     res.status(500).json({ error: 'Failed to fetch courses' });
   }
@@ -164,13 +208,13 @@ router.post('/', auditAction('CREATE_COURSE', 'Course'), async (req, res) => {
 });
 
 // PUT /api/courses/:id - Update a course
-router.put('/:id', auditAction('UPDATE_COURSE', 'Course'), async (req, res) => {
+router.put('/:id', auditAction('UPDATE_COURSE', 'Course'), async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const courseId = String(req.params.id);
     const { title, description, instructor, credits } = req.body;
 
     await ensureSeedCourses();
-    const index = courses.findIndex((c) => c.id === id);
+    const index = courses.findIndex((c) => c.id === courseId);
 
     if (index === -1) {
       return res.status(404).json({ error: 'Course not found' });
@@ -191,7 +235,7 @@ router.put('/:id', auditAction('UPDATE_COURSE', 'Course'), async (req, res) => {
     }
 
     await prisma.course.update({
-      where: { id },
+      where: { id: courseId },
       data: {
         title,
         description,
@@ -200,14 +244,14 @@ router.put('/:id', auditAction('UPDATE_COURSE', 'Course'), async (req, res) => {
       },
     });
 
-    await invalidateCourseCache(id);
+    await invalidateCourseCache(courseId);
 
     // Notify enrolled students about the update
     const newTitle = targetCourse?.title ?? title ?? oldTitle;
     if (oldTitle !== newTitle || description) {
       await createNotification({
         type: 'course_updated',
-        courseId: id,
+        courseId,
         courseTitle: newTitle,
         title: 'Course Updated',
         message: `"${newTitle}" has been updated with new content. Check it out!`,
@@ -222,16 +266,16 @@ router.put('/:id', auditAction('UPDATE_COURSE', 'Course'), async (req, res) => {
 });
 
 // DELETE /api/courses/:id - Delete a course
-router.delete('/:id', auditAction('DELETE_COURSE', 'Course'), async (req, res) => {
+router.delete('/:id', auditAction('DELETE_COURSE', 'Course'), async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const courseId = String(req.params.id);
 
-    courses = courses.filter((c) => c.id !== id);
+    courses = courses.filter((c) => c.id !== courseId);
     await prisma.course.delete({
-      where: { id },
+      where: { id: courseId },
     });
 
-    await invalidateCourseCache(id);
+    await invalidateCourseCache(courseId);
 
     res.status(204).send();
   } catch {

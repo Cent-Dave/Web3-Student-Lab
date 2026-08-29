@@ -27,14 +27,45 @@ router.post('/log', authenticate, async (req: Request, res: Response) => {
   }
 });
 
+import { buildLinkHeader, paginateKeyset } from '../search/PaginationHelper.js';
+
 /**
  * @route   GET /api/audit
- * @desc    Get recent audit logs
+ * @desc    Get recent audit logs (supports cursor pagination)
  * @access  Private (Admin only)
  */
 router.get('/', authenticate, async (req: Request, res: Response) => {
   try {
-    // In a real app, check if user.role === 'ADMIN'
+    const cursorParam = req.query.cursor as string | undefined;
+    const takeParam = parseInt((req.query.take || req.query.limit) as string, 10) || 20;
+
+    if (cursorParam || req.query.take) {
+      const result = await paginateKeyset(
+        async (args) => {
+          return prisma.auditLog.findMany({
+            orderBy: { createdAt: 'desc' },
+            take: args.take,
+            ...(args.cursor ? { cursor: args.cursor, skip: args.skip } : {}),
+          });
+        },
+        { take: takeParam, cursor: cursorParam }
+      );
+
+      const linkHeader = buildLinkHeader('/api/audit', {}, result.nextCursor, result.prevCursor);
+      if (linkHeader) {
+        res.setHeader('Link', linkHeader);
+      }
+
+      return res.json({
+        data: result.items,
+        pagination: {
+          nextCursor: result.nextCursor,
+          prevCursor: result.prevCursor,
+          hasMore: result.hasMore,
+        },
+      });
+    }
+
     const logs = await prisma.auditLog.findMany({
       orderBy: { createdAt: 'desc' },
       take: 100,

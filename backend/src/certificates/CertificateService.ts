@@ -1,4 +1,3 @@
-// @ts-nocheck
 import prisma from '../db/index.js';
 import {
   Certificate,
@@ -119,7 +118,7 @@ export class CertificateService {
 
       const metadataAsset = await storageService.pinCertificateMetadata({
         certificateId: certificateId,
-        content: metadata,
+        content: metadata as any,
       });
 
       // Call blockchain service to mint actual NFT

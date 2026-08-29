@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Router } from 'express';
 import { normalizeSorobanDid } from '../auth/auth.service.js';
 import { cacheMiddleware } from '../cache/CacheMiddleware.js';
@@ -107,7 +106,6 @@ router.post('/', auditAction('CREATE_STUDENT', 'Student'), async (req, res) => {
 // PUT /api/students/:id - Update a student
 router.put('/:id', auditAction('UPDATE_STUDENT', 'Student'), async (req, res) => {
   try {
-    const { id } = req.params;
     const { email, firstName, lastName, did } = req.body;
     const normalizedDid = normalizeSorobanDid(did);
 
@@ -121,6 +119,7 @@ router.put('/:id', auditAction('UPDATE_STUDENT', 'Student'), async (req, res) =>
       updateData.did = normalizedDid;
     }
 
+    const id = String(req.params.id);
     const student = await prisma.student.update({
       where: { id },
       data: updateData,
@@ -149,7 +148,7 @@ router.put('/:id', auditAction('UPDATE_STUDENT', 'Student'), async (req, res) =>
 // DELETE /api/students/:id - Delete a student
 router.delete('/:id', auditAction('DELETE_STUDENT', 'Student'), async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
 
     await prisma.student.delete({
       where: { id },

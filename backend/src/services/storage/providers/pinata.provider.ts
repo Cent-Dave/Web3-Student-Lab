@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { canonicalizeJson, createDeterministicCid, buildGatewayUrl } from '../utils.js';
 import type { StoragePinResult, StorageProvider } from '../types.js';
 
@@ -72,7 +71,7 @@ export class PinataStorageProvider implements StorageProvider {
     metadata?: Record<string, unknown>;
   }): Promise<StoragePinResult> {
     const form = new FormData();
-    form.append('file', new Blob([input.content], { type: input.mimeType }), input.filename);
+    form.append('file', new Blob([input.content as any], { type: input.mimeType }), input.filename);
     form.append(
       'pinataMetadata',
       JSON.stringify({

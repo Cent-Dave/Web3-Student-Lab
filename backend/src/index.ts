@@ -1,4 +1,3 @@
-// @ts-nocheck
 import config from './config/env.config.js';
 import cors from 'cors';
 import express, { Request, Response } from 'express';
@@ -25,7 +24,6 @@ import { startWebhookWorker, stopWebhookWorker } from './services/webhooks/index
 import { validateEnvironment } from './utils/checkEnv.js';
 import logger from './utils/logger.js';
 import { pubClient, redisConnection, subClient } from './utils/redis.js';
-import swaggerUi from 'swagger-ui-express';
 import { setRateLimitEnvOverrides } from './config/rateLimit.config.js';
 import { initializeWebSocket } from './websocket/WebSocketServer.js';
 

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Router } from 'express';
 import dashboardRoutes from '../dashboard/dashboard.routes.js';
 import feedbackRouter from '../feedback/feedback.routes.js';
