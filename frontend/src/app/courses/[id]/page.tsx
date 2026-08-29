@@ -8,6 +8,7 @@ import { getTranslatedCourseContent } from '@/lib/course-content';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
+import { CelebrationOverlay } from '@/app/components/CompletionCelebration';
 import { ErrorBoundary, ErrorFallback, CourseDetailSkeleton } from '@/components/ui';
 import { courses as curriculumCourses, storageKeys } from '@/app/curriculum-data';
 
@@ -331,6 +332,7 @@ export default function CourseDetailPage() {
 
                     {mintSuccess ? (
                       <div className="animate-pulse rounded-xl border border-blue-500/30 bg-blue-500/10 p-4 text-center">
+                        <CelebrationOverlay />
                         <p className="text-sm font-bold tracking-widest text-blue-500 uppercase">
                           {t('courses.detail.token_minted')}
                         </p>
