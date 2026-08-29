@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { Volume2, VolumeX, Zap, ZapOff, Sparkles } from 'lucide-react';
 
