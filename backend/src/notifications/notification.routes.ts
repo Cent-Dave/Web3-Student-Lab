@@ -83,6 +83,7 @@ router.put(
     const { id } = req.params;
     const found = markAsRead(id);
 
+
     if (!found) {
       return res.status(404).json({ error: 'Notification not found' });
     }

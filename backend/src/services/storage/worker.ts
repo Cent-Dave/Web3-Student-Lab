@@ -157,7 +157,7 @@ export const startStorageWorkers = (): {
   }
 
   if (!pinWorker) {
-    pinWorker = new Worker(STORAGE_PIN_QUEUE_NAME, pinStorageContent, {
+    pinWorker = new Worker(STORAGE_PIN_QUEUE_NAME, pinStorageContent as any, {
       connection: {
         host: new URL(process.env.REDIS_URL || (() => {
           throw new Error('REDIS_URL environment variable is required');

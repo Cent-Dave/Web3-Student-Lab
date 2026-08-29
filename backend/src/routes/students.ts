@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
 import { normalizeSorobanDid, DidValidationError, validateStudentDidCompatibility } from '../auth/auth.service.js';
+
 import { invalidateUserCache } from '../cache/CacheInvalidation.js';
 import { cacheMiddleware } from '../cache/CacheMiddleware.js';
 import { CACHE_KEYS } from '../cache/CacheService.js';
@@ -125,6 +126,7 @@ router.post(
       const normalizedDid = validateStudentDidCompatibility({
         did,
         expectedNetwork: process.env.STELLAR_NETWORK || 'testnet',
+
       });
 
       const student = await prisma.student.create({
@@ -246,6 +248,7 @@ router.delete(
         return;
       }
       const { id } = paramResult.data;
+
 
       await prisma.student.delete({ where: { id } });
       await invalidateUserCache(id);

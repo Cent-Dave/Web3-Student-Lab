@@ -1,9 +1,9 @@
 import type { Prisma } from '@prisma/client';
 import type { StorageAssetKind, StorageAssetRecord } from './types.js';
 
+
 const getPrisma = async () => {
-  const module = await import('../../db/index.js');
-  return module.default;
+  return prisma;
 };
 
 export const upsertStorageAsset = async (asset: {
@@ -23,7 +23,7 @@ export const upsertStorageAsset = async (asset: {
   error?: string | null;
 }): Promise<StorageAssetRecord> => {
   const prisma = await getPrisma();
-  return prisma.decentralizedAsset.upsert({
+  const record = await prisma.decentralizedAsset.upsert({
     where: {
       workspaceId_resourceType_resourceId_name: {
         workspaceId: 'default',
@@ -46,8 +46,10 @@ export const upsertStorageAsset = async (asset: {
       error: asset.error ?? null,
       pinnedAt: asset.status === 'pinned' ? new Date() : (undefined as any),
       unpinnedAt: null,
+
     },
     create: {
+      workspaceId: 'default',
       resourceType: asset.resourceType,
       resourceId: asset.resourceId,
       name: asset.name,
@@ -61,10 +63,12 @@ export const upsertStorageAsset = async (asset: {
       status: asset.status ?? 'pinned',
       referenceCount: asset.referenceCount ?? 1,
       metadata: (asset.metadata ?? null) as Prisma.InputJsonValue,
+
       error: asset.error ?? null,
-      pinnedAt: asset.status === 'pinned' ? new Date() : null,
+      pinnedAt: new Date(),
     },
   }) as unknown as StorageAssetRecord;
+
 };
 
 export const markAssetFailed = async (
@@ -104,13 +108,14 @@ export const markAssetFailed = async (
 
 export const listUnreferencedAssets = async (olderThan: Date): Promise<StorageAssetRecord[]> => {
   const prisma = await getPrisma();
-  return prisma.decentralizedAsset.findMany({
+  const records = await prisma.decentralizedAsset.findMany({
     where: {
       referenceCount: { lte: 0 },
       OR: [{ unpinnedAt: null }, { unpinnedAt: { lt: olderThan } }],
       status: { in: ['pinned', 'failed', 'unreferenced'] },
     },
   }) as unknown as StorageAssetRecord[];
+
 };
 
 export const markAssetUnpinned = async (cid: string): Promise<void> => {

@@ -28,14 +28,17 @@ router.post('/log', authenticate, async (req: Request, res: Response) => {
   }
 });
 
+import { buildLinkHeader, paginateKeyset } from '../search/PaginationHelper.js';
+
 /**
  * @route   GET /api/audit
- * @desc    Get recent audit logs
+ * @desc    Get recent audit logs (supports cursor pagination)
  * @access  Private (Admin only)
  */
 router.get('/', authenticate, async (req: Request, res: Response) => {
   try {
     const pagination = parsePaginationQuery(req, { defaultPageSize: 25, maxPageSize: 50 });
+
 
     const [logs, totalItems] = await Promise.all([
       prisma.auditLog.findMany({

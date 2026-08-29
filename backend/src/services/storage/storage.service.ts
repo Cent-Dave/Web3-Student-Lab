@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { storageGcQueue, storagePinQueue, STORAGE_PIN_QUEUE_NAME } from './queue.js';
+
 import { storageGcQueue, storagePinQueue } from './queue.js';
 import { createStorageProvider } from './provider.js';
 import { buildGatewayUrl, buildIpfsUri, canonicalizeJson, sha256Hex } from './utils.js';
@@ -111,6 +112,7 @@ export class StorageService {
 
     await this.verifyJsonIntegrity(request, result);
     await this.persistResult(request, result);
+
     return result;
   }
 

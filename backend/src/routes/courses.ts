@@ -1,4 +1,5 @@
 import { Router } from 'express';
+
 import { cacheMiddleware } from '../cache/CacheMiddleware.js';
 import { invalidateAllCourses, invalidateCourseCache } from '../cache/CacheInvalidation.js';
 import { cacheTTL } from '../config/redis.config.js';
@@ -7,6 +8,7 @@ import { auditAction } from '../middleware/audit.js';
 import { createNotification } from '../notifications/index.js';
 import { getQueryString } from '../utils/queryParams.js';
 import logger from '../utils/logger.js';
+
 
 
 const router: ReturnType<typeof Router> = Router();
@@ -21,8 +23,19 @@ type CourseView = {
   updatedAt: string;
 };
 
+interface MockCourse {
+  id: string;
+  title: string;
+  description: string | null;
+  instructor: string;
+  credits: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Robust Mock Database for 100% Demo Uptime
 let courses: CourseView[] = [
+
 
   {
     id: 'cm1yxxxx-intro',
@@ -135,6 +148,7 @@ router.get('/', cacheMiddleware({ ttl: cacheTTL.courses.list }), async (_req, re
       dataSource: 'demo',
       message: 'Live course data is temporarily unavailable. Showing demo data.',
     });
+
   }
 });
 
@@ -256,9 +270,10 @@ router.put('/:id', auditAction('UPDATE_COURSE', 'Course'), async (req, res) => {
     const updated = await prisma.course.update({
       where: { id },
       data: { title, description, instructor, credits },
+
     });
 
-    await invalidateCourseCache(id);
+    await invalidateCourseCache(courseId);
 
     // Notify enrolled students about the update
     if (existing.title !== updated.title || description) {
@@ -266,6 +281,7 @@ router.put('/:id', auditAction('UPDATE_COURSE', 'Course'), async (req, res) => {
         type: 'course_updated',
         courseId: id,
         courseTitle: updated.title,
+
         title: 'Course Updated',
         message: `"${updated.title}" has been updated with new content. Check it out!`,
         metadata: {
@@ -297,10 +313,12 @@ router.delete('/:id', auditAction('DELETE_COURSE', 'Course'), async (req, res) =
   try {
     const id = getQueryString(req.params.id);
 
-    courses = courses.filter((c) => c.id !== id);
+
+    courses = courses.filter((c) => c.id !== courseId);
     await prisma.course.delete({
-      where: { id },
+      where: { id: courseId },
     });
+
 
 
     await invalidateCourseCache(id);

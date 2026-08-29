@@ -25,6 +25,7 @@ export const contractExecutionSchema = z.object({
   parameters: z
     .array(z.union([z.string(), z.number(), z.boolean(), z.null()]))
     .max(50, 'Maximum of 50 parameters allowed.')
+
     .optional(),
   gasLimit: z.number().int().positive().max(10_000_000, 'Gas limit must be positive and no more than 10,000,000.'),
   caller: z.string().max(128).optional(),

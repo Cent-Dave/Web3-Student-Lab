@@ -5,6 +5,7 @@
  */
 
 
+
 import prisma from '../db/index.js';
 import { storageService } from '../services/storage/index.js';
 import { certificateBlockchainService } from '../blockchain/CertificateBlockchainService.js';
@@ -159,6 +160,7 @@ export class CertificateService {
       const metadataAsset = await storageService.pinCertificateMetadata({
         certificateId: certificateId,
         content: { ...metadata },
+
       });
 
       // Call blockchain service to mint actual NFT
