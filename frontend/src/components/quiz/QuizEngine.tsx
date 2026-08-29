@@ -1,5 +1,6 @@
 'use client';
 
+import { CelebrationOverlay } from '@/app/components/CompletionCelebration';
 import quizMachine from '@/lib/quizMachine';
 import { quizQuestions } from '@/lib/quizQuestions';
 import { Player } from '@lottiefiles/react-lottie-player';
@@ -433,14 +434,16 @@ export default function QuizEngine() {
           )}
 
           {isCompleteState && (
-            <motion.section
-              key="complete"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.35 }}
-              className="rounded-[40px] border border-white/10 bg-[#111111]/90 p-10 shadow-[0_0_40px_rgba(0,0,0,0.28)]"
-            >
+            <>
+              <CelebrationOverlay />
+              <motion.section
+                key="complete"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.35 }}
+                className="rounded-[40px] border border-white/10 bg-[#111111]/90 p-10 shadow-[0_0_40px_rgba(0,0,0,0.28)]"
+              >
               <div className="space-y-8 text-center">
                 <p className="text-sm tracking-[0.35em] text-red-500 uppercase">Quiz Complete</p>
                 <h2 className="text-5xl font-black text-white">Final Score</h2>
@@ -466,6 +469,7 @@ export default function QuizEngine() {
                 </div>
               </div>
             </motion.section>
+            </>
           )}
         </AnimatePresence>
       </div>
