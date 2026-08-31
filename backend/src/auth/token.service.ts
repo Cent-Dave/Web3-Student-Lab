@@ -7,22 +7,6 @@ const ACCESS_TOKEN_EXPIRY = '15m';
 const REFRESH_TOKEN_EXPIRY_DAYS = 7;
 export const ROTATION_GRACE_PERIOD_MS = 10_000; // 10 seconds
 
-export const getAccessTokenSecret = (): string => {
-  const secret = process.env.ACCESS_TOKEN_SECRET || process.env.JWT_SECRET;
-  if (!secret) {
-    throw new Error('ACCESS_TOKEN_SECRET is not configured');
-  }
-  return secret;
-};
-
-export const getRefreshTokenSecret = (): string => {
-  const secret = process.env.REFRESH_TOKEN_SECRET;
-  if (!secret) {
-    throw new Error('REFRESH_TOKEN_SECRET is not configured');
-  }
-  return secret;
-};
-
 export interface TokenPayload {
   userId: string;
   familyId?: string;
@@ -54,7 +38,7 @@ const verifyJwt = (token: string, secret: string): any => {
 
 export const generateAccessToken = (payload: TokenPayload): string => {
   const cleanPayload: { userId: string; [key: string]: any } = { userId: payload.userId };
-  return signJwt(cleanPayload, getAccessTokenSecret(), { expiresIn: ACCESS_TOKEN_EXPIRY });
+  return signJwt(cleanPayload, ACCESS_TOKEN_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
 };
 
 export const generateRefreshToken = async (
@@ -70,7 +54,7 @@ export const generateRefreshToken = async (
     tokenId,
   };
 
-  const refreshToken = signJwt(tokenPayload, getRefreshTokenSecret(), {
+  const refreshToken = signJwt(tokenPayload, REFRESH_TOKEN_SECRET, {
     expiresIn: `${REFRESH_TOKEN_EXPIRY_DAYS}d`,
   });
 
@@ -102,22 +86,21 @@ export const verifyAccessToken = (token: string): TokenPayload => {
 export const verifyRefreshToken = async (token: string): Promise<TokenPayload> => {
   let decoded: TokenPayload;
   try {
-    decoded = verifyJwt(token, getRefreshTokenSecret()) as TokenPayload;
-  } catch (_err) {
+    decoded = verifyJwt(token, REFRESH_TOKEN_SECRET) as TokenPayload;
+  } catch (err) {
     throw new Error('Refresh token has been reused or revoked');
   }
 
-  if (!decoded || !decoded.userId || !decoded.familyId || !decoded.tokenId) {
+  if (!decoded || !decoded.userId) {
     throw new Error('Refresh token has been reused or revoked');
   }
 
   const redis = getRedisClient();
-  if (!redis || typeof redis.get !== 'function') {
-    // Strictly fail closed if Redis is unreachable
-    throw new Error('Refresh token has been reused or revoked');
-  }
+  if (redis && typeof redis.get === 'function') {
+    if (!decoded.familyId || !decoded.tokenId) {
+      throw new Error('Refresh token has been reused or revoked');
+    }
 
-  try {
     const familyKey = `rt:fam:${decoded.familyId}`;
     const familyData = await redis.get(familyKey);
 
@@ -151,48 +134,17 @@ export const verifyRefreshToken = async (token: string): Promise<TokenPayload> =
     // Token presented is outside grace window or an invalid older token -> reuse/theft detected
     await revokeFamily(decoded.familyId);
     throw new Error('Refresh token has been reused or revoked');
+  }
+
+    // Token presented is outside grace window or an invalid older token -> reuse/theft detected
+    await revokeFamily(decoded.familyId);
+    throw new Error('Refresh token has been reused or revoked');
   } catch (err: any) {
     if (err.message === 'Refresh token has been reused or revoked') {
       throw err;
     }
     logger.error('Redis error during verifyRefreshToken:', err);
     throw new Error('Refresh token has been reused or revoked');
-  }
-};
-
-const UNLOCK_SCRIPT = `
-if redis.call("get", KEYS[1]) == ARGV[1] then
-  return redis.call("del", KEYS[1])
-else
-  return 0
-end
-`;
-
-const acquireDistributedLock = async (
-  redis: any,
-  lockKey: string,
-  lockVal: string,
-  ttlMs = 5000
-): Promise<boolean> => {
-  try {
-    const res = await redis.set(lockKey, lockVal, 'PX', ttlMs, 'NX');
-    return res === 'OK';
-  } catch {
-    return false;
-  }
-};
-
-const releaseDistributedLock = async (
-  redis: any,
-  lockKey: string,
-  lockVal: string
-): Promise<void> => {
-  try {
-    if (typeof redis.eval === 'function') {
-      await redis.eval(UNLOCK_SCRIPT, 1, lockKey, lockVal);
-    }
-  } catch (err) {
-    logger.warn('Failed to release distributed lock via Lua script:', err);
   }
 };
 
@@ -203,8 +155,8 @@ export const rotateRefreshToken = async (
 ): Promise<{ accessToken: string; refreshToken: string }> => {
   let decoded: TokenPayload;
   try {
-    decoded = verifyJwt(oldToken, getRefreshTokenSecret()) as TokenPayload;
-  } catch (_err) {
+    decoded = verifyJwt(oldToken, REFRESH_TOKEN_SECRET) as TokenPayload;
+  } catch (err) {
     throw new Error('Refresh token has been reused or revoked');
   }
 
@@ -220,127 +172,73 @@ export const rotateRefreshToken = async (
 
   const rotationPromise = (async (): Promise<{ accessToken: string; refreshToken: string }> => {
     const redis = getRedisClient();
-    if (!redis || typeof redis.get !== 'function' || typeof redis.set !== 'function') {
-      // Strictly fail closed if Redis is unreachable
+    if (!redis || typeof redis.get !== 'function') {
       throw new Error('Refresh token has been reused or revoked');
     }
 
-    const lockKey = `rt:lock:${decoded.familyId}`;
-    const lockVal = crypto.randomUUID();
-    let lockAcquired = false;
+    const familyKey = `rt:fam:${decoded.familyId}`;
+    const familyData = await redis.get(familyKey);
 
+    if (!familyData) {
+      throw new Error('Refresh token has been reused or revoked');
+    }
+
+    let family: TokenFamilyState;
     try {
-      // Distributed lock for cross-process concurrency (handles multiple server pods)
-      for (let attempt = 0; attempt < 5; attempt++) {
-        lockAcquired = await acquireDistributedLock(redis, lockKey, lockVal, 5000);
-        if (lockAcquired) {
-          break;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 25));
-      }
-
-      const familyKey = `rt:fam:${decoded.familyId}`;
-      const now = Date.now();
-
-      // If lock was not acquired after all retries, do NOT proceed unlocked!
-      if (!lockAcquired) {
-        // Check if another instance completed rotation and this token is now in grace period
-        const cachedData = await redis.get(familyKey);
-        if (cachedData) {
-          try {
-            const family: TokenFamilyState = JSON.parse(cachedData);
-            if (family.status !== 'revoked' && family.userId === decoded.userId) {
-              if (decoded.tokenId === family.previousTokenId) {
-                const timeSinceRotation = now - (family.rotatedAt || 0);
-                if (timeSinceRotation <= ROTATION_GRACE_PERIOD_MS) {
-                  const accessToken = family.lastAccessToken || generateAccessToken({ userId: family.userId });
-                  const refreshToken = family.lastRefreshToken;
-                  if (refreshToken) {
-                    return { accessToken, refreshToken };
-                  }
-                }
-              }
-            }
-          } catch {
-            // Ignore parse error and fail closed
-          }
-        }
-        // If not in grace window, strictly fail closed — never rotate unlocked
-        throw new Error('Refresh token has been reused or revoked');
-      }
-
-      const familyData = await redis.get(familyKey);
-
-      if (!familyData) {
-        throw new Error('Refresh token has been reused or revoked');
-      }
-
-      let family: TokenFamilyState;
-      try {
-        family = JSON.parse(familyData);
-      } catch {
-        throw new Error('Refresh token has been reused or revoked');
-      }
-
-      if (family.status === 'revoked' || family.userId !== decoded.userId) {
-        throw new Error('Refresh token has been reused or revoked');
-      }
-
-      const ttlSeconds = REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60;
-
-      // Case 1: Current active token presented -> Rotate to next token in family
-      if (decoded.tokenId === family.currentTokenId) {
-        const newTokenId = crypto.randomUUID();
-        const newPayload: TokenPayload = {
-          userId: family.userId,
-          familyId: family.familyId,
-          tokenId: newTokenId,
-        };
-
-        const accessToken = generateAccessToken({ userId: family.userId });
-        const refreshToken = signJwt(newPayload, getRefreshTokenSecret(), {
-          expiresIn: `${REFRESH_TOKEN_EXPIRY_DAYS}d`,
-        });
-
-        family.previousTokenId = family.currentTokenId;
-        family.currentTokenId = newTokenId;
-        family.rotatedAt = now;
-        family.lastAccessToken = accessToken;
-        family.lastRefreshToken = refreshToken;
-
-        await redis.set(familyKey, JSON.stringify(family), 'EX', ttlSeconds);
-        await redis.set(`rt:u:${family.userId}:${family.familyId}`, '1', 'EX', ttlSeconds);
-
-        return { accessToken, refreshToken };
-      }
-
-      // Case 2: Immediately-previous token presented within 10s grace window -> Return active pair without re-rotating
-      if (decoded.tokenId === family.previousTokenId) {
-        const timeSinceRotation = now - (family.rotatedAt || 0);
-        if (timeSinceRotation <= ROTATION_GRACE_PERIOD_MS) {
-          const accessToken = family.lastAccessToken || generateAccessToken({ userId: family.userId });
-          const refreshToken = family.lastRefreshToken;
-
-          if (refreshToken) {
-            return { accessToken, refreshToken };
-          }
-        }
-      }
-
-      // Case 3: Token presented is outside grace window or an invalid older token -> REUSE / THEFT DETECTED
-      await revokeFamily(decoded.familyId!);
+      family = JSON.parse(familyData);
+    } catch {
       throw new Error('Refresh token has been reused or revoked');
-    } catch (err: any) {
-      if (err.message === 'Refresh token has been reused or revoked') {
-        throw err;
-      }
-      logger.error('Redis error during rotateRefreshToken:', err);
+    }
+
+    if (family.status === 'revoked' || family.userId !== decoded.userId) {
       throw new Error('Refresh token has been reused or revoked');
-    } finally {
-      if (lockAcquired) {
-        await releaseDistributedLock(redis, lockKey, lockVal);
+    }
+
+    const now = Date.now();
+    const ttlSeconds = REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60;
+
+    // Case 1: Current active token presented -> Rotate to next token in family
+    if (decoded.tokenId === family.currentTokenId) {
+      const newTokenId = crypto.randomUUID();
+      const newPayload: TokenPayload = {
+        userId: family.userId,
+        familyId: family.familyId,
+        tokenId: newTokenId,
+      };
+
+      const accessToken = generateAccessToken({ userId: family.userId });
+      const refreshToken = signJwt(newPayload, REFRESH_TOKEN_SECRET, {
+        expiresIn: `${REFRESH_TOKEN_EXPIRY_DAYS}d`,
+      });
+
+      family.previousTokenId = family.currentTokenId;
+      family.currentTokenId = newTokenId;
+      family.rotatedAt = now;
+      family.lastAccessToken = accessToken;
+      family.lastRefreshToken = refreshToken;
+
+      await redis.set(familyKey, JSON.stringify(family), 'EX', ttlSeconds);
+      await redis.set(`rt:u:${family.userId}:${family.familyId}`, '1', 'EX', ttlSeconds);
+
+      return { accessToken, refreshToken };
+    }
+
+    // Case 2: Immediately-previous token presented within 10s grace window -> Return active pair without re-rotating
+    if (decoded.tokenId === family.previousTokenId) {
+      const timeSinceRotation = now - (family.rotatedAt || 0);
+      if (timeSinceRotation <= ROTATION_GRACE_PERIOD_MS) {
+        const accessToken = family.lastAccessToken || generateAccessToken({ userId: family.userId });
+        const refreshToken = family.lastRefreshToken;
+
+        if (refreshToken) {
+          return { accessToken, refreshToken };
+        }
       }
     }
+
+    // Case 3: Token presented is outside grace window or an invalid older token -> REUSE / THEFT DETECTED
+    await revokeFamily(decoded.familyId!);
+    throw new Error('Refresh token has been reused or revoked');
   })();
 
   inFlightRotations.set(inFlightKey, rotationPromise);
@@ -352,69 +250,40 @@ export const rotateRefreshToken = async (
 };
 
 export const revokeFamily = async (familyId: string): Promise<void> => {
-  const redis = getRedisClient();
-  if (!redis || typeof redis.set !== 'function') {
-    logger.error(`Cannot revoke token family ${familyId}: Redis client unavailable`);
-    throw new Error('Failed to persist token family revocation');
-  }
-
-  const familyKey = `rt:fam:${familyId}`;
-  const ttlSeconds = REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60;
-  let lastError: any = null;
-
-  // Retry up to 3 times with exponential backoff to ensure the revocation write persists
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      let userId: string | undefined;
-      let family: TokenFamilyState;
-
-      const familyData = typeof redis.get === 'function' ? await redis.get(familyKey) : null;
+  try {
+    const redis = getRedisClient();
+    if (redis && typeof redis.get === 'function' && typeof redis.set === 'function') {
+      const familyKey = `rt:fam:${familyId}`;
+      const familyData = await redis.get(familyKey);
       if (familyData) {
         try {
-          family = JSON.parse(familyData);
-          userId = family.userId;
+          const family: TokenFamilyState = JSON.parse(familyData);
+          family.status = 'revoked';
+          family.revokedAt = Date.now();
+          const ttlSeconds = REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60;
+          await redis.set(familyKey, JSON.stringify(family), 'EX', ttlSeconds);
+          if (family.userId && typeof redis.del === 'function') {
+            await redis.del(`rt:u:${family.userId}:${familyId}`);
+          }
         } catch {
-          family = { familyId, userId: '', currentTokenId: '', status: 'revoked' };
+          if (typeof redis.del === 'function') {
+            await redis.del(familyKey);
+          }
         }
       } else {
-        family = { familyId, userId: '', currentTokenId: '', status: 'revoked' };
-      }
-
-      family.status = 'revoked';
-      family.revokedAt = Date.now();
-
-      await redis.set(familyKey, JSON.stringify(family), 'EX', ttlSeconds);
-
-      if (userId && typeof redis.del === 'function') {
-        try {
-          await redis.del(`rt:u:${userId}:${familyId}`);
-        } catch {
-          // Non-critical user indexing cleanup failure
-        }
-      }
-
-      logger.warn(`Token family revoked: ${familyId}`);
-      return;
-    } catch (err) {
-      lastError = err;
-      logger.warn(`Attempt ${attempt} to revoke token family ${familyId} failed:`, err);
-      if (attempt < 3) {
-        await new Promise((resolve) => setTimeout(resolve, attempt * 25));
+        const revokedState: Partial<TokenFamilyState> = {
+          familyId,
+          status: 'revoked',
+          revokedAt: Date.now(),
+        };
+        const ttlSeconds = REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60;
+        await redis.set(familyKey, JSON.stringify(revokedState), 'EX', ttlSeconds);
       }
     }
+  } catch (err) {
+    logger.error(`Failed to revoke token family ${familyId}:`, err);
   }
-
-  // Emergency fallback: attempt to delete the key so subsequent requests fail closed
-  if (typeof redis.del === 'function') {
-    try {
-      await redis.del(familyKey);
-    } catch {
-      // ignore
-    }
-  }
-
-  logger.error(`Critical: Failed to revoke token family ${familyId} after retries:`, lastError);
-  throw new Error('Failed to persist token family revocation');
+  logger.warn(`Token family revoked: ${familyId}`);
 };
 
 export const revokeAllUserTokens = async (userId: string): Promise<void> => {
@@ -432,12 +301,23 @@ export const revokeAllUserTokens = async (userId: string): Promise<void> => {
         }
       }
 
-      for (const familyId of familyIds) {
-        try {
-          await revokeFamily(familyId);
-        } catch (err) {
-          logger.error(`Failed to revoke family ${familyId} during user token revocation:`, err);
+      const allFamilyKeys = await redis.keys('rt:fam:*');
+      for (const famKey of allFamilyKeys) {
+        const data = await redis.get(famKey);
+        if (data) {
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.userId === userId && !familyIds.includes(parsed.familyId)) {
+              familyIds.push(parsed.familyId);
+            }
+          } catch {
+            // ignore
+          }
         }
+      }
+
+      for (const familyId of familyIds) {
+        await revokeFamily(familyId);
       }
 
       if (userFamilyKeys.length > 0 && typeof redis.del === 'function') {
@@ -475,3 +355,4 @@ export const isAccessTokenBlacklisted = async (token: string): Promise<boolean> 
   }
   return false;
 };
+
