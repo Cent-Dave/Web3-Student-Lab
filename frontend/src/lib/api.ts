@@ -153,6 +153,23 @@ export const authAPI = {
     return response.data;
   },
 
+  getSep10Challenge: async (
+    account: string
+  ): Promise<{ transaction: string; network_passphrase?: string }> => {
+    const response = await apiClient.get('/auth/sep10/challenge', {
+      params: { account },
+    });
+    return response.data;
+  },
+
+  verifySep10Challenge: async (
+    transaction: string
+  ): Promise<AuthResponse> => {
+    apiRequestCache.invalidatePrefix('auth:profile-status');
+    const response = await apiClient.post('/auth/sep10/token', { transaction });
+    return response.data;
+  },
+
   /**
    * Get the GitHub OAuth authorization URL to redirect the user
    */

@@ -12,11 +12,13 @@ import { blacklistAccessToken, rotateRefreshToken, revokeAllUserTokens, verifyRe
 import { LoginRequest } from '../../auth/types.js';
 import { loginSchema, registerSchema, web3VerifySchema } from '../../auth/validation.schemas.js';
 import { createNonce, verifySignature } from '../../auth/web3.service.js';
+import { buildSep10Challenge, verifySep10Challenge } from '../../auth/sep10.service.js';
 import { slidingWindowRateLimiter } from '../../middleware/rateLimiter.js';
 import { validateRequest } from '../../utils/validation.js';
 import { auditAction } from '../../middleware/audit.js';
 import { clearRefreshTokenCookie, getRefreshTokenFromReq, setRefreshTokenCookie } from '../../utils/cookie.js';
 import { requireTurnstile } from '../../middleware/turnstile.js';
+import logger from '../../utils/logger.js';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -416,6 +418,144 @@ router.post(
 
 /**
  * @openapi
+ * /api/v1/auth/sep10/challenge:
+ *   get:
+ *     summary: Generate a SEP-0010 challenge transaction for Stellar wallet authentication
+ *     description: Creates an RFC-compliant SEP-0010 challenge transaction envelope with a 5-minute time bound.
+ *     tags: [Auth]
+ *     security: []
+ *     parameters:
+ *       - in: query
+ *         name: account
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Client Stellar public key (G...)
+ *       - in: query
+ *         name: home_domain
+ *         required: false
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Challenge transaction generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 transaction:
+ *                   type: string
+ *                 network_passphrase:
+ *                   type: string
+ *       400:
+ *         description: Missing or invalid account parameter
+ */
+router.get(
+  '/sep10/challenge',
+  slidingWindowRateLimiter({
+    windowMs: 60 * 1000,
+    limit: 30,
+    keyPrefix: 'rl:sep10:challenge',
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      const account = (req.query.account || req.query.walletAddress) as string;
+      const homeDomain = req.query.home_domain as string | undefined;
+      const webAuthDomain = req.query.web_auth_domain as string | undefined;
+
+      if (!account || typeof account !== 'string') {
+        res.status(400).json({ error: 'account query parameter is required' });
+        return;
+      }
+
+      const challenge = await buildSep10Challenge(account.trim(), homeDomain, webAuthDomain);
+      res.json({
+        transaction: challenge.transaction,
+        network_passphrase: challenge.networkPassphrase,
+      });
+    } catch (error: any) {
+      if (error.message?.includes('Invalid Stellar public key')) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
+      logger.error('SEP-0010 challenge generation error:', error);
+      res.status(500).json({ error: 'Failed to generate SEP-0010 challenge' });
+    }
+  }
+);
+
+/**
+ * @openapi
+ * /api/v1/auth/sep10/token:
+ *   post:
+ *     summary: Verify signed SEP-0010 challenge and obtain JWT tokens
+ *     description: Verifies client signature(s) and multi-signature threshold weight, then issues JWT session tokens.
+ *     tags: [Auth]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [transaction]
+ *             properties:
+ *               transaction:
+ *                 type: string
+ *                 description: Signed SEP-0010 challenge transaction envelope XDR
+ *     responses:
+ *       200:
+ *         description: Signature verified, tokens issued
+ *       401:
+ *         description: Expired, forged, or insufficient signature weight
+ */
+router.post(
+  '/sep10/token',
+  auditAction('SEP10_LOGIN', 'User'),
+  async (req: Request, res: Response) => {
+    try {
+      const transaction = req.body.transaction || req.body.signedChallenge || req.body.tx;
+
+      if (!transaction || typeof transaction !== 'string') {
+        res.status(400).json({ error: 'transaction is required' });
+        return;
+      }
+
+      const authResponse = await verifySep10Challenge(transaction);
+      setRefreshTokenCookie(res, authResponse.refreshToken);
+      res.json({
+        user: authResponse.user,
+        accessToken: authResponse.accessToken,
+        token: authResponse.accessToken,
+        refreshToken: authResponse.refreshToken,
+        signers: authResponse.signers,
+      });
+    } catch (error: any) {
+      logger.warn('SEP-0010 token verification error:', error.message);
+      res.status(401).json({ error: error.message || 'SEP-0010 challenge verification failed' });
+    }
+  }
+);
+
+// Alias /sep10/verify to /sep10/token
+router.post('/sep10/verify', async (req: Request, res: Response) => {
+  try {
+    const transaction = req.body.transaction || req.body.signedChallenge || req.body.tx;
+    if (!transaction || typeof transaction !== 'string') {
+      res.status(400).json({ error: 'transaction is required' });
+      return;
+    }
+    const authResponse = await verifySep10Challenge(transaction);
+    setRefreshTokenCookie(res, authResponse.refreshToken);
+    res.json(authResponse);
+  } catch (error: any) {
+    res.status(401).json({ error: error.message || 'SEP-0010 challenge verification failed' });
+  }
+});
+
+/**
+ * @openapi
  * /api/v1/auth/nonce:
  *   get:
  *     summary: Generate a nonce for Web3 wallet authentication
@@ -558,31 +698,32 @@ router.post(
   validateRequest(web3VerifySchema),
   auditAction('WEB3_LOGIN', 'User'),
   async (req: Request, res: Response) => {
-  try {
-    const { walletAddress, signature, nonce } = req.body;
+    try {
+      const { walletAddress, signature, nonce } = req.body;
 
-    const authResponse = await verifySignature(walletAddress, signature, nonce);
-    setRefreshTokenCookie(res, authResponse.refreshToken);
-    res.json(authResponse);
-  } catch (error) {
-    if (error instanceof Error) {
-      if (error.message === 'Invalid or expired nonce') {
-        res.status(401).json({ error: error.message });
-        return;
+      const authResponse = await verifySignature(walletAddress, signature, nonce);
+      setRefreshTokenCookie(res, authResponse.refreshToken);
+      res.json(authResponse);
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message === 'Invalid or expired nonce') {
+          res.status(401).json({ error: error.message });
+          return;
+        }
+        if (
+          error.message === 'Signature verification failed' ||
+          error.message === 'Invalid signature format'
+        ) {
+          res.status(401).json({ error: 'Invalid signature' });
+          return;
+        }
       }
-      if (
-        error.message === 'Signature verification failed' ||
-        error.message === 'Invalid signature format'
-      ) {
-        res.status(401).json({ error: 'Invalid signature' });
-        return;
-      }
+
+      console.error('Signature verification error:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
-
-    console.error('Signature verification error:', error);
-    res.status(500).json({ error: 'Internal server error' });
   }
-});
+);
 
 /**
  * @openapi

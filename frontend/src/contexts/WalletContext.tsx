@@ -13,6 +13,7 @@ import {
   type Web3TransactionContext,
   type Web3TransactionStatus,
 } from '@/lib/web3/transactionMachine';
+import { authAPI } from '@/lib/api';
 
 // ─── Wallet Interface ─────────────────────────────────────────────────────────
 
@@ -244,6 +245,7 @@ interface WalletContextType {
   transactionState: Web3TransactionStatus;
   transactionContext: Web3TransactionContext;
   connect: (providerName: string) => Promise<void>;
+  authenticateWithWallet: (providerName: string) => Promise<any>;
   disconnect: () => Promise<void>;
   signTransaction: (xdr: string) => Promise<string>;
   availableWallets: WalletProvider[];
@@ -291,6 +293,54 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [sendTransaction]);
 
+  const authenticateWithWallet = useCallback(
+    async (providerName: string) => {
+      const provider = WALLET_PROVIDERS.find((p) => p.name === providerName);
+      if (!provider) throw new Error(`Unknown wallet: ${providerName}`);
+
+      setIsConnecting(true);
+      setError(null);
+      sendTransaction({ type: 'CONNECT_WALLET', walletName: providerName });
+
+      try {
+        const pk = await provider.connect();
+        setPublicKey(pk);
+        setActiveWallet(providerName);
+        localStorage.setItem('stellar_wallet', JSON.stringify({ wallet: providerName, pk }));
+        sendTransaction({ type: 'WALLET_CONNECTED', walletName: providerName, publicKey: pk });
+
+        // 1. Request SEP-0010 Challenge Transaction from Backend
+        const challengeRes = await authAPI.getSep10Challenge(pk);
+        if (!challengeRes?.transaction) {
+          throw new Error('Server failed to generate SEP-0010 challenge');
+        }
+
+        // 2. Sign Challenge Transaction with Wallet
+        sendTransaction({ type: 'REQUEST_SIGNATURE', transactionXdr: challengeRes.transaction });
+        const signedXdr = await provider.signTransaction(challengeRes.transaction);
+        sendTransaction({ type: 'SIGNATURE_APPROVED', signedTransactionXdr: signedXdr });
+
+        // 3. Submit Signed Challenge to Backend for Verification & Token Issuance
+        const authResponse = await authAPI.verifySep10Challenge(signedXdr);
+
+        if (authResponse?.token) {
+          localStorage.setItem('token', authResponse.token);
+          localStorage.setItem('user', JSON.stringify(authResponse.user));
+        }
+
+        return authResponse;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Wallet authentication failed';
+        setError(msg);
+        sendTransaction({ type: 'FAIL', error: msg });
+        throw e;
+      } finally {
+        setIsConnecting(false);
+      }
+    },
+    [sendTransaction]
+  );
+
   const disconnect = useCallback(async () => {
     const provider = WALLET_PROVIDERS.find((p) => p.name === activeWallet);
     await provider?.disconnect();
@@ -330,6 +380,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         transactionState: transactionSnapshot.value as Web3TransactionStatus,
         transactionContext: transactionSnapshot.context,
         connect,
+        authenticateWithWallet,
         disconnect,
         signTransaction,
         availableWallets: WALLET_PROVIDERS,
