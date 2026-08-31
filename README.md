@@ -133,3 +133,30 @@ To start contributing:
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 // Stellar Wave #1086, #1085, #1084, #1083
+
+## Stellar Wave #1086-1083: Admin Panel Features
+
+### #1086: Automated Assessment Builder
+- Code syntax validation via isolated Web Worker sandbox
+- Regex pattern matching for student submission evaluation
+- Unit test runner with 2-second timeout enforcement
+- Cryptographic score attestations for grading events
+- Versioned assessment templates with backward-compatible criteria
+
+### #1085: Soft-Delete & Curriculum Restoration
+- Prisma soft-delete extensions filtering deletedAt across queries
+- Snapshot archiving with JSONB state trees on update
+- Admin restoration UI with version comparison and 1-click rollback
+- Automatic hard-delete retention after 90-day archival window
+
+### #1084: Tamper-Evident Audit Trail
+- Merkle-chain hashing of all admin action records
+- SHA-256 content hashing with previous hash linkage
+- Immutable audit log stored in separate append-only table
+- Tamper detection API returning chain validity status
+
+### #1083: Student Retention Analytics
+- Module completion rate tracking per student cohort
+- Drop-off point identification in curriculum funnel
+- Time-to-completion metrics with percentile breakdowns
+- Exportable analytics reports in CSV and JSON formats
