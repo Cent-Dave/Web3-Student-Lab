@@ -4,26 +4,12 @@ import { getWorkspaceId } from '../middleware/WorkspaceContext.js';
 import { getDatabaseRoleForOperation } from './requestContext.js';
 import logger from '../utils/logger.js';
 import { encryptionMiddleware } from '../middleware/prismaEncryption.js';
+import { workspaceModels } from './workspaceModels.js';
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
   readPrisma: PrismaClient | undefined;
 };
-
-const workspaceModels = new Set([
-  'Student',
-  'Course',
-  'Certificate',
-  'CertificateVerificationEvent',
-  'Enrollment',
-  'Feedback',
-  'LearningProgress',
-  'AuditLog',
-  'Canvas',
-  'WebhookSubscription',
-  'TranslationEntry',
-  'VestingSchedule',
-]);
 
 import { PrismaPg } from '@prisma/adapter-pg';
 // @ts-ignore
