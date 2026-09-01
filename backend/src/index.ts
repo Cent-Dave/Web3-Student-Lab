@@ -5,6 +5,7 @@ import routes from './routes/index.js';
 import { initializeSentry, getSentryRequestHandler, getSentryErrorHandler } from './utils/sentry.js';
 import { jsonBodySizeLimit } from './middleware/bodySizeLimit.js';
 import { createCorsMiddleware } from './config/cors.config.js';
+import swaggerDocsRouter from './config/swagger.serve.js';
 import logger from './utils/logger.js';
 
 
@@ -38,6 +39,9 @@ app.post('/api/security/csp-report', express.json(), (req: Request, res: Respons
   });
   res.status(204).end();
 });
+
+// Mount OpenAPI 3.1 interactive docs (Swagger UI) + JSON/YAML spec export.
+app.use('/api/docs', swaggerDocsRouter);
 
 // Mount main API v1 router
 app.use('/api/v1', routes);
