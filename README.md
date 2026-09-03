@@ -37,11 +37,13 @@ The application is fully deployed and accessible online:
 - React / Next.js
 - Tailwind CSS
 - Monaco Editor
+- WebAuthn API (Passkeys)
 
 **Backend**
 
 - Node.js / Express
 - PostgreSQL
+- Redis (Challenge Storage)
 
 **Blockchain Integration**
 
