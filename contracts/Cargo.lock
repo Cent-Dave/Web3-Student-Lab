@@ -874,6 +874,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "gas-benchmarks"
+version = "0.1.0"
+dependencies = [
+ "certificate-nft",
+ "dao-governance",
+ "payment-gateway",
+ "serde",
+ "serde_json",
+ "smart-vault",
+ "soroban-hello-world",
+ "soroban-sdk",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"

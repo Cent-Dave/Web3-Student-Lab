@@ -19,6 +19,7 @@ members = [
     "did_registry",
     "fractional_nft_vault",
     "freelance-platform",
+    "gas_benchmarks",
     "hackathon-team-matching",
     "hello_world",
     "implementation_v1",
